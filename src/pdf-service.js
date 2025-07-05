@@ -185,10 +185,10 @@ class PDFService {
       this.doc.line(45, yPosition, 75, yPosition);
 
       yPosition += 8;
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Total Amount:", 40, yPosition);
-      this.doc.text(totalAmount.toFixed(2), 73, yPosition, {
+      this.doc.text("Total Amount:", 30, yPosition);
+      this.doc.text(totalAmount.toFixed(2), 68, yPosition, {
         align: "right",
       });
 
@@ -199,7 +199,7 @@ class PDFService {
 
       yPosition += 8;
       this.doc.setLineWidth(0.3);
-      this.doc.line(40, yPosition, 75, yPosition);
+      this.doc.line(35, yPosition, 75, yPosition);
 
       // Footer
       yPosition = Math.max(yPosition + 10, 180);
