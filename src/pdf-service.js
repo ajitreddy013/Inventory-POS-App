@@ -152,47 +152,49 @@ class PDFService {
       this.doc.setLineWidth(0.2);
       this.doc.line(5, yPosition + 2, 75, yPosition + 2);
 
-      // Summary section
+      // Summary section - All amounts in one line
       yPosition += 8;
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");
 
-      // Right align the amounts (without ₹ symbol)
-      this.doc.text("Subtotal:", 50, yPosition);
+      // Labels in rate column position (around x=58)
+      this.doc.text("Subtotal:", 58, yPosition, { align: "center" });
+
+      if (discountAmount > 0) {
+        this.doc.text("Discount:", 58, yPosition + 5, { align: "center" });
+      }
+
+      if (taxAmount > 0) {
+        this.doc.text("Tax:", 58, yPosition + 10, { align: "center" });
+      }
+
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("Total:", 58, yPosition + 15, { align: "center" });
+
+      // Amounts in amount column position (around x=73)
+      this.doc.setFont("helvetica", "normal");
       this.doc.text(subtotal.toFixed(2), 73, yPosition, {
         align: "right",
       });
 
       if (discountAmount > 0) {
-        yPosition += 5;
-        this.doc.text("Discount:", 50, yPosition);
-        this.doc.text(discountAmount.toFixed(2), 73, yPosition, {
+        this.doc.text(discountAmount.toFixed(2), 73, yPosition + 5, {
           align: "right",
         });
       }
 
       if (taxAmount > 0) {
-        yPosition += 5;
-        this.doc.text("Tax:", 50, yPosition);
-        this.doc.text(taxAmount.toFixed(2), 73, yPosition, {
+        this.doc.text(taxAmount.toFixed(2), 73, yPosition + 10, {
           align: "right",
         });
       }
 
-      // Total amount line
-      yPosition += 8;
-      this.doc.setLineWidth(0.3);
-      this.doc.line(45, yPosition, 75, yPosition);
-
-      yPosition += 8;
-      this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Total:", 5, yPosition);
-      this.doc.text(totalAmount.toFixed(2), 65, yPosition, {
+      this.doc.text(totalAmount.toFixed(2), 73, yPosition + 15, {
         align: "right",
       });
 
-      yPosition += 5;
+      yPosition += 20;
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");
       this.doc.text(`Payment: ${paymentMethod.toUpperCase()}`, 5, yPosition);
