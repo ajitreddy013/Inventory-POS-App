@@ -91,12 +91,12 @@ class PDFService {
       }
 
       // Customer details on right side
-      this.doc.text(`Bill No: ${saleNumber}`, 40, 62, { align: "right" });
-      this.doc.text(`Customer: ${customerName || "Walk-in"}`, 40, 68, {
+      this.doc.text(`Bill No: ${saleNumber}`, 75, 62, { align: "right" });
+      this.doc.text(`Customer: ${customerName || "Walk-in"}`, 75, 68, {
         align: "right",
       });
       if (customerPhone) {
-        this.doc.text(`Phone: ${customerPhone}`, 40, 74, { align: "right" });
+        this.doc.text(`Phone: ${customerPhone}`, 75, 74, { align: "right" });
       }
 
       // Separator line
@@ -110,9 +110,9 @@ class PDFService {
       this.doc.setFont("helvetica", "bold");
 
       this.doc.text("Item", 8, yPosition);
-      this.doc.text("Qty", 45, yPosition);
-      this.doc.text("Rate (₹)", 55, yPosition);
-      this.doc.text("Amount (₹)", 70, yPosition);
+      this.doc.text("Qty", 50, yPosition);
+      this.doc.text("Rate", 60, yPosition);
+      this.doc.text("Amount", 75, yPosition);
 
       // Header underline
       this.doc.setLineWidth(0.2);
@@ -138,17 +138,17 @@ class PDFService {
         this.doc.text(itemName, 8, yPosition);
 
         // Quantity
-        this.doc.text(item.quantity.toString(), 45, yPosition, {
+        this.doc.text(item.quantity.toString(), 50, yPosition, {
           align: "center",
         });
 
         // Rate (without ₹ symbol for cleaner layout)
-        this.doc.text(item.unitPrice.toFixed(2), 55, yPosition, {
+        this.doc.text(item.unitPrice.toFixed(2), 60, yPosition, {
           align: "right",
         });
 
         // Amount (without ₹ symbol for cleaner layout)
-        this.doc.text(item.totalPrice.toFixed(2), 70, yPosition, {
+        this.doc.text(item.totalPrice.toFixed(2), 75, yPosition, {
           align: "right",
         });
 
@@ -165,23 +165,23 @@ class PDFService {
       this.doc.setFont("helvetica", "normal");
 
       // Right align the amounts (without ₹ symbol)
-      this.doc.text("Subtotal:", 45, yPosition);
-      this.doc.text(subtotal.toFixed(2), 70, yPosition, {
+      this.doc.text("Subtotal:", 50, yPosition);
+      this.doc.text(subtotal.toFixed(2), 75, yPosition, {
         align: "right",
       });
 
       if (discountAmount > 0) {
         yPosition += 5;
-        this.doc.text("Discount:", 45, yPosition);
-        this.doc.text(discountAmount.toFixed(2), 70, yPosition, {
+        this.doc.text("Discount:", 50, yPosition);
+        this.doc.text(discountAmount.toFixed(2), 75, yPosition, {
           align: "right",
         });
       }
 
       if (taxAmount > 0) {
         yPosition += 5;
-        this.doc.text("Tax:", 45, yPosition);
-        this.doc.text(taxAmount.toFixed(2), 70, yPosition, {
+        this.doc.text("Tax:", 50, yPosition);
+        this.doc.text(taxAmount.toFixed(2), 75, yPosition, {
           align: "right",
         });
       }
@@ -189,13 +189,13 @@ class PDFService {
       // Total amount line
       yPosition += 8;
       this.doc.setLineWidth(0.3);
-      this.doc.line(40, yPosition, 75, yPosition);
+      this.doc.line(45, yPosition, 75, yPosition);
 
       yPosition += 8;
       this.doc.setFontSize(10);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Total Amount:", 40, yPosition);
-      this.doc.text(totalAmount.toFixed(2), 70, yPosition, {
+      this.doc.text("Total Amount:", 45, yPosition);
+      this.doc.text(totalAmount.toFixed(2), 75, yPosition, {
         align: "right",
       });
 
@@ -206,7 +206,7 @@ class PDFService {
 
       yPosition += 8;
       this.doc.setLineWidth(0.3);
-      this.doc.line(40, yPosition, 75, yPosition);
+      this.doc.line(45, yPosition, 75, yPosition);
 
       // Footer
       yPosition = Math.max(yPosition + 10, 180);
