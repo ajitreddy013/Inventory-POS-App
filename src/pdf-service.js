@@ -60,52 +60,59 @@ class PDFService {
       this.doc.setLineWidth(0.3);
       this.doc.line(5, 35, 75, 35);
 
+      // Currency note
+      this.doc.setFontSize(6);
+      this.doc.setFont("helvetica", "italic");
+      this.doc.text("All amounts in Indian Rupees (₹)", 40, 42, {
+        align: "center",
+      });
+
       // Invoice details
       this.doc.setFontSize(12);
       this.doc.setTextColor(0, 0, 0);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("BILL", 40, 45, { align: "center" });
+      this.doc.text("BILL", 40, 52, { align: "center" });
 
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");
       const date = new Date(saleDate);
-      this.doc.text(`Date: ${date.toLocaleDateString("en-IN")}`, 5, 55);
-      this.doc.text(`Time: ${date.toLocaleTimeString("en-IN")}`, 5, 61);
+      this.doc.text(`Date: ${date.toLocaleDateString("en-IN")}`, 5, 62);
+      this.doc.text(`Time: ${date.toLocaleTimeString("en-IN")}`, 5, 68);
 
       // Sale type and table info
       if (saleType === "table" && tableNumber) {
-        this.doc.text(`Table No: ${tableNumber}`, 5, 67);
+        this.doc.text(`Table No: ${tableNumber}`, 5, 74);
       } else {
         this.doc.text(
           `${saleType === "parcel" ? "Parcel" : "Table"} Order`,
           5,
-          67
+          74
         );
       }
 
       // Customer details on right side
-      this.doc.text(`Bill No: ${saleNumber}`, 40, 55, { align: "right" });
-      this.doc.text(`Customer: ${customerName || "Walk-in"}`, 40, 61, {
+      this.doc.text(`Bill No: ${saleNumber}`, 40, 62, { align: "right" });
+      this.doc.text(`Customer: ${customerName || "Walk-in"}`, 40, 68, {
         align: "right",
       });
       if (customerPhone) {
-        this.doc.text(`Phone: ${customerPhone}`, 40, 67, { align: "right" });
+        this.doc.text(`Phone: ${customerPhone}`, 40, 74, { align: "right" });
       }
 
       // Separator line
       this.doc.setLineWidth(0.3);
-      this.doc.line(5, 75, 75, 75);
+      this.doc.line(5, 82, 75, 82);
 
       // Table header
-      let yPosition = 85;
+      let yPosition = 92;
       this.doc.setFontSize(8);
       this.doc.setTextColor(0, 0, 0);
       this.doc.setFont("helvetica", "bold");
 
       this.doc.text("Item", 8, yPosition);
       this.doc.text("Qty", 45, yPosition);
-      this.doc.text("Rate", 55, yPosition);
-      this.doc.text("Amount", 70, yPosition);
+      this.doc.text("Rate (₹)", 55, yPosition);
+      this.doc.text("Amount (₹)", 70, yPosition);
 
       // Header underline
       this.doc.setLineWidth(0.2);
@@ -135,13 +142,13 @@ class PDFService {
           align: "center",
         });
 
-        // Rate
-        this.doc.text(`₹${item.unitPrice.toFixed(2)}`, 55, yPosition, {
+        // Rate (without ₹ symbol for cleaner layout)
+        this.doc.text(item.unitPrice.toFixed(2), 55, yPosition, {
           align: "right",
         });
 
-        // Amount
-        this.doc.text(`₹${item.totalPrice.toFixed(2)}`, 70, yPosition, {
+        // Amount (without ₹ symbol for cleaner layout)
+        this.doc.text(item.totalPrice.toFixed(2), 70, yPosition, {
           align: "right",
         });
 
@@ -157,24 +164,24 @@ class PDFService {
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");
 
-      // Right align the amounts
-      this.doc.text("Subtotal:", 50, yPosition);
-      this.doc.text(`₹${subtotal.toFixed(2)}`, 70, yPosition, {
+      // Right align the amounts (without ₹ symbol)
+      this.doc.text("Subtotal:", 45, yPosition);
+      this.doc.text(subtotal.toFixed(2), 70, yPosition, {
         align: "right",
       });
 
       if (discountAmount > 0) {
         yPosition += 5;
-        this.doc.text("Discount:", 50, yPosition);
-        this.doc.text(`₹${discountAmount.toFixed(2)}`, 70, yPosition, {
+        this.doc.text("Discount:", 45, yPosition);
+        this.doc.text(discountAmount.toFixed(2), 70, yPosition, {
           align: "right",
         });
       }
 
       if (taxAmount > 0) {
         yPosition += 5;
-        this.doc.text("Tax:", 50, yPosition);
-        this.doc.text(`₹${taxAmount.toFixed(2)}`, 70, yPosition, {
+        this.doc.text("Tax:", 45, yPosition);
+        this.doc.text(taxAmount.toFixed(2), 70, yPosition, {
           align: "right",
         });
       }
@@ -187,8 +194,8 @@ class PDFService {
       yPosition += 8;
       this.doc.setFontSize(10);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Total Amount:", 50, yPosition);
-      this.doc.text(`₹${totalAmount.toFixed(2)}`, 70, yPosition, {
+      this.doc.text("Total Amount:", 40, yPosition);
+      this.doc.text(totalAmount.toFixed(2), 70, yPosition, {
         align: "right",
       });
 
