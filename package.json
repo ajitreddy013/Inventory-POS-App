@@ -1,0 +1,71 @@
+{
+  "name": "inventory-pos-app",
+  "version": "1.0.0",
+  "description": "Inventory Management and POS Application",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"npm run start-react\" \"wait-on http://localhost:3000 && electron .\"",
+    "start-react": "react-scripts start",
+    "build": "react-scripts build",
+    "build-electron": "npm run build && electron-builder",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "build": {
+    "appId": "com.inventorypos.app",
+    "productName": "Inventory POS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "node_modules/**/*",
+      "src/main.js",
+      "src/preload.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "homepage": "./",
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "electron": "^22.0.0",
+    "electron-builder": "^24.0.0",
+    "wait-on": "^7.0.1",
+    "electron-is-dev": "^2.0.0"
+  },
+  "dependencies": {
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "sqlite3": "^5.1.6",
+    "jspdf": "^2.5.1",
+    "react-router-dom": "^6.8.0",
+    "lucide-react": "^0.263.1",
+    "web-vitals": "^2.1.4"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
