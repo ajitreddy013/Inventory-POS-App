@@ -187,7 +187,7 @@ class PDFService {
       yPosition += 8;
       this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Total Amount:", 5, yPosition);
+      this.doc.text("Total:", 5, yPosition);
       this.doc.text(totalAmount.toFixed(2), 73, yPosition, {
         align: "right",
       });
