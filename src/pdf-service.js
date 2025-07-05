@@ -103,9 +103,9 @@ class PDFService {
       this.doc.setFont("helvetica", "bold");
 
       this.doc.text("Item", 8, yPosition);
-      this.doc.text("Qty", 48, yPosition);
-      this.doc.text("Rate", 58, yPosition);
-      this.doc.text("Amount", 73, yPosition);
+      this.doc.text("Qty", 48, yPosition, { align: "center" });
+      this.doc.text("Rate", 58, yPosition, { align: "center" });
+      this.doc.text("Amount", 73, yPosition, { align: "center" });
 
       // Header underline
       this.doc.setLineWidth(0.2);
@@ -135,14 +135,14 @@ class PDFService {
           align: "center",
         });
 
-        // Rate - right aligned under Rate column
+        // Rate - center aligned under Rate column
         this.doc.text(item.unitPrice.toFixed(2), 58, yPosition, {
-          align: "right",
+          align: "center",
         });
 
-        // Amount - right aligned under Amount column
+        // Amount - center aligned under Amount column
         this.doc.text(item.totalPrice.toFixed(2), 73, yPosition, {
-          align: "right",
+          align: "center",
         });
 
         yPosition += 5;
@@ -199,7 +199,7 @@ class PDFService {
 
       yPosition += 8;
       this.doc.setLineWidth(0.3);
-      this.doc.line(45, yPosition, 75, yPosition);
+      this.doc.line(40, yPosition, 75, yPosition);
 
       // Footer
       yPosition = Math.max(yPosition + 10, 180);
@@ -320,10 +320,10 @@ class PDFService {
           this.doc.text(item.godown_stock.toString(), 140, yPosition, {
             align: "center",
           });
-          this.doc.text(`₹${item.price.toFixed(2)}`, 180, yPosition, {
+          this.doc.text(item.price.toFixed(2), 180, yPosition, {
             align: "center",
           });
-          this.doc.text(`₹${value.toFixed(2)}`, 220, yPosition, {
+          this.doc.text(value.toFixed(2), 220, yPosition, {
             align: "center",
           });
           totalValue += value;
@@ -332,10 +332,10 @@ class PDFService {
           this.doc.text(item.counter_stock.toString(), 140, yPosition, {
             align: "center",
           });
-          this.doc.text(`₹${item.price.toFixed(2)}`, 180, yPosition, {
+          this.doc.text(item.price.toFixed(2), 180, yPosition, {
             align: "center",
           });
-          this.doc.text(`₹${value.toFixed(2)}`, 220, yPosition, {
+          this.doc.text(value.toFixed(2), 220, yPosition, {
             align: "center",
           });
           totalValue += value;
@@ -350,10 +350,10 @@ class PDFService {
           this.doc.text(item.total_stock.toString(), 180, yPosition, {
             align: "center",
           });
-          this.doc.text(`₹${item.price.toFixed(2)}`, 210, yPosition, {
+          this.doc.text(item.price.toFixed(2), 210, yPosition, {
             align: "center",
           });
-          this.doc.text(`₹${value.toFixed(2)}`, 240, yPosition, {
+          this.doc.text(value.toFixed(2), 240, yPosition, {
             align: "center",
           });
           totalValue += value;
@@ -369,7 +369,7 @@ class PDFService {
       this.doc.setFillColor(220, 220, 220);
       this.doc.rect(15, yPosition - 5, 267, 10, "F");
       this.doc.text(
-        `Total Inventory Value: ₹${totalValue.toFixed(2)}`,
+        `Total Inventory Value: ${totalValue.toFixed(2)}`,
         148,
         yPosition + 2,
         { align: "center" }
