@@ -103,9 +103,9 @@ class PDFService {
       this.doc.setFont("helvetica", "bold");
 
       this.doc.text("Item", 8, yPosition);
-      this.doc.text("Qty", 50, yPosition);
-      this.doc.text("Rate", 60, yPosition);
-      this.doc.text("Amount", 75, yPosition);
+      this.doc.text("Qty", 48, yPosition);
+      this.doc.text("Rate", 58, yPosition);
+      this.doc.text("Amount", 73, yPosition);
 
       // Header underline
       this.doc.setLineWidth(0.2);
@@ -131,17 +131,17 @@ class PDFService {
         this.doc.text(itemName, 8, yPosition);
 
         // Quantity - center aligned under Qty column
-        this.doc.text(item.quantity.toString(), 50, yPosition, {
+        this.doc.text(item.quantity.toString(), 48, yPosition, {
           align: "center",
         });
 
         // Rate - right aligned under Rate column
-        this.doc.text(item.unitPrice.toFixed(2), 60, yPosition, {
+        this.doc.text(item.unitPrice.toFixed(2), 58, yPosition, {
           align: "right",
         });
 
         // Amount - right aligned under Amount column
-        this.doc.text(item.totalPrice.toFixed(2), 75, yPosition, {
+        this.doc.text(item.totalPrice.toFixed(2), 73, yPosition, {
           align: "right",
         });
 
@@ -159,14 +159,14 @@ class PDFService {
 
       // Right align the amounts (without ₹ symbol)
       this.doc.text("Subtotal:", 50, yPosition);
-      this.doc.text(subtotal.toFixed(2), 75, yPosition, {
+      this.doc.text(subtotal.toFixed(2), 73, yPosition, {
         align: "right",
       });
 
       if (discountAmount > 0) {
         yPosition += 5;
         this.doc.text("Discount:", 50, yPosition);
-        this.doc.text(discountAmount.toFixed(2), 75, yPosition, {
+        this.doc.text(discountAmount.toFixed(2), 73, yPosition, {
           align: "right",
         });
       }
@@ -174,7 +174,7 @@ class PDFService {
       if (taxAmount > 0) {
         yPosition += 5;
         this.doc.text("Tax:", 50, yPosition);
-        this.doc.text(taxAmount.toFixed(2), 75, yPosition, {
+        this.doc.text(taxAmount.toFixed(2), 73, yPosition, {
           align: "right",
         });
       }
@@ -188,7 +188,7 @@ class PDFService {
       this.doc.setFontSize(10);
       this.doc.setFont("helvetica", "bold");
       this.doc.text("Total Amount:", 40, yPosition);
-      this.doc.text(totalAmount.toFixed(2), 75, yPosition, {
+      this.doc.text(totalAmount.toFixed(2), 73, yPosition, {
         align: "right",
       });
 
