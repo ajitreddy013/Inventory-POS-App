@@ -163,11 +163,14 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
     const year = now.getFullYear().toString().slice(-2);
 
-    // Get today's sales count from database
+    // Get today's sales count from database with retry mechanism
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Add a small delay to prevent race conditions
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       const sales = await window.electronAPI.getSales({
