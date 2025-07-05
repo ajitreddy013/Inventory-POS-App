@@ -83,11 +83,17 @@ class PDFService {
         );
       }
 
-      // Customer details on right side
+      // Customer details on right side - properly aligned
       this.doc.text(`Bill No: ${saleNumber}`, 75, 55, { align: "right" });
-      this.doc.text(`Customer: ${customerName || "Walk-in"}`, 75, 61, {
+      
+      // Truncate customer name if too long for proper alignment
+      const displayCustomerName = customerName && customerName.length > 15 
+        ? customerName.substring(0, 12) + "..." 
+        : customerName || "Walk-in";
+      this.doc.text(`Customer: ${displayCustomerName}`, 75, 61, {
         align: "right",
       });
+      
       if (customerPhone) {
         this.doc.text(`Phone: ${customerPhone}`, 75, 67, { align: "right" });
       }
