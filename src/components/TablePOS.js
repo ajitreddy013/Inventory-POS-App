@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  Printer, 
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  Printer,
   FileText,
   ShoppingCart,
   User,
@@ -13,20 +13,20 @@ import {
   ArrowLeft,
   Clock,
   Save,
-  CheckCircle
-} from 'lucide-react';
+  CheckCircle,
+} from "lucide-react";
 
 const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [orderNotes, setOrderNotes] = useState('');
+  const [orderNotes, setOrderNotes] = useState("");
   const [kotPrinted, setKotPrinted] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
   const searchInputRef = useRef(null);
@@ -45,16 +45,16 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const settings = await window.electronAPI.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
-      console.error('Failed to load bar settings:', error);
+      console.error("Failed to load bar settings:", error);
     }
   };
 
   const loadProducts = async () => {
     try {
       const productList = await window.electronAPI.getProducts();
-      setProducts(productList.filter(p => p.counter_stock > 0));
+      setProducts(productList.filter((p) => p.counter_stock > 0));
     } catch (error) {
-      console.error('Failed to load products:', error);
+      console.error("Failed to load products:", error);
     }
   };
 
@@ -63,48 +63,54 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const tableOrder = await window.electronAPI.getTableOrder(table.id);
       if (tableOrder) {
         setCart(tableOrder.items || []);
-        setCustomerName(tableOrder.customer_name || '');
-        setCustomerPhone(tableOrder.customer_phone || '');
+        setCustomerName(tableOrder.customer_name || "");
+        setCustomerPhone(tableOrder.customer_phone || "");
         setDiscount(tableOrder.discount || 0);
         setTax(tableOrder.tax || 0);
-        setOrderNotes(tableOrder.notes || '');
+        setOrderNotes(tableOrder.notes || "");
         setKotPrinted(tableOrder.kot_printed || false);
       }
     } catch (error) {
-      console.error('Failed to load table order:', error);
+      console.error("Failed to load table order:", error);
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.barcode && product.barcode.includes(searchTerm))
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.barcode && product.barcode.includes(searchTerm))
   );
 
   const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    
+    const existingItem = cart.find((item) => item.id === product.id);
+
     if (existingItem) {
       if (existingItem.quantity < product.counter_stock) {
-        setCart(cart.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        ));
+        setCart(
+          cart.map((item) =>
+            item.id === product.id
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          )
+        );
       } else {
-        alert('Insufficient stock!');
+        alert("Insufficient stock!");
       }
     } else {
-      setCart([...cart, {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: 1,
-        maxStock: product.counter_stock
-      }]);
+      setCart([
+        ...cart,
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+          maxStock: product.counter_stock,
+        },
+      ]);
     }
-    
-    setSearchTerm('');
+
+    setSearchTerm("");
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
@@ -116,25 +122,25 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       return;
     }
 
-    const product = cart.find(item => item.id === productId);
+    const product = cart.find((item) => item.id === productId);
     if (newQuantity > product.maxStock) {
-      alert('Insufficient stock!');
+      alert("Insufficient stock!");
       return;
     }
 
-    setCart(cart.map(item =>
-      item.id === productId
-        ? { ...item, quantity: newQuantity }
-        : item
-    ));
+    setCart(
+      cart.map((item) =>
+        item.id === productId ? { ...item, quantity: newQuantity } : item
+      )
+    );
   };
 
   const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.id !== productId));
+    setCart(cart.filter((item) => item.id !== productId));
   };
 
   const calculateSubtotal = () => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   };
 
   const calculateTaxAmount = () => {
@@ -146,13 +152,39 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTaxAmount() - calculateDiscountAmount();
+    return (
+      calculateSubtotal() + calculateTaxAmount() - calculateDiscountAmount()
+    );
   };
 
-  const generateSaleNumber = () => {
+  const generateSaleNumber = async () => {
     const now = new Date();
-    const timestamp = now.getTime().toString().slice(-6);
-    return `${table.name}-${timestamp}`;
+    const day = now.getDate().toString().padStart(2, "0");
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const year = now.getFullYear().toString().slice(-2);
+
+    // Get today's sales count from database
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    try {
+      const sales = await window.electronAPI.getSales({
+        start: today.toISOString(),
+        end: tomorrow.toISOString(),
+      });
+
+      const todaySalesCount = sales.length;
+      const sequenceNumber = (todaySalesCount + 1).toString().padStart(2, "0");
+
+      return `${day}${month}${year}${sequenceNumber}`;
+    } catch (error) {
+      console.error("Error getting sales count:", error);
+      // Fallback to timestamp if database query fails
+      const timestamp = now.getTime().toString().slice(-6);
+      return `${table.name}-${timestamp}`;
+    }
   };
 
   const saveTableOrder = async () => {
@@ -167,30 +199,30 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         notes: orderNotes,
         subtotal: calculateSubtotal(),
         total: calculateTotal(),
-        kot_printed: kotPrinted
+        kot_printed: kotPrinted,
       };
 
       await window.electronAPI.saveTableOrder(orderData);
-      
+
       // Update table status
       const tableUpdate = {
-        status: cart.length > 0 ? 'occupied' : 'available',
-        current_bill_amount: calculateTotal()
+        status: cart.length > 0 ? "occupied" : "available",
+        current_bill_amount: calculateTotal(),
       };
-      
+
       await window.electronAPI.updateTable(table.id, tableUpdate);
       onTableUpdate({ ...table, ...tableUpdate });
-      
-      alert('Order saved successfully!');
+
+      alert("Order saved successfully!");
     } catch (error) {
-      console.error('Failed to save table order:', error);
-      alert('Failed to save order. Please try again.');
+      console.error("Failed to save table order:", error);
+      alert("Failed to save order. Please try again.");
     }
   };
 
   const printKOT = async () => {
     if (cart.length === 0) {
-      alert('Cart is empty!');
+      alert("Cart is empty!");
       return;
     }
 
@@ -199,42 +231,42 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         table: table.name,
         items: cart,
         notes: orderNotes,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       const result = await window.electronAPI.printKOT(kotData);
       if (result.success) {
         setKotPrinted(true);
-        alert('KOT printed successfully!');
+        alert("KOT printed successfully!");
       } else {
         alert(`KOT print failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('KOT print error:', error);
-      alert('Failed to print KOT');
+      console.error("KOT print error:", error);
+      alert("Failed to print KOT");
     }
   };
 
   const processSale = async () => {
     if (cart.length === 0) {
-      alert('Cart is empty!');
+      alert("Cart is empty!");
       return;
     }
 
     setLoading(true);
     try {
       const saleData = {
-        saleNumber: generateSaleNumber(),
+        saleNumber: await generateSaleNumber(),
         tableId: table.id,
         tableName: table.name,
-        customerName: customerName || 'Table Customer',
+        customerName: customerName || "Table Customer",
         customerPhone,
-        items: cart.map(item => ({
+        items: cart.map((item) => ({
           productId: item.id,
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.price,
-          totalPrice: item.price * item.quantity
+          totalPrice: item.price * item.quantity,
         })),
         subtotal: calculateSubtotal(),
         taxAmount: calculateTaxAmount(),
@@ -243,22 +275,24 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         paymentMethod,
         notes: orderNotes,
         saleDate: new Date().toISOString(),
-        barSettings
+        barSettings,
       };
 
       await window.electronAPI.createSale(saleData);
-      
+
       // Clear table order
       await window.electronAPI.clearTableOrder(table.id);
-      
+
       // Update table status
       await window.electronAPI.updateTable(table.id, {
-        status: 'available',
-        current_bill_amount: 0
+        status: "available",
+        current_bill_amount: 0,
       });
-      
-      const action = window.confirm('Sale completed! Click OK to print bill, Cancel to export PDF');
-      
+
+      const action = window.confirm(
+        "Sale completed! Click OK to print bill, Cancel to export PDF"
+      );
+
       if (action) {
         await printBill(saleData);
       } else {
@@ -267,19 +301,18 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       // Clear cart and customer info
       setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
+      setCustomerName("");
+      setCustomerPhone("");
       setDiscount(0);
       setTax(0);
-      setOrderNotes('');
+      setOrderNotes("");
       setKotPrinted(false);
-      
+
       await loadProducts();
-      onTableUpdate({ ...table, status: 'available', current_bill_amount: 0 });
-      
+      onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
     } catch (error) {
-      console.error('Failed to process sale:', error);
-      alert('Failed to process sale. Please try again.');
+      console.error("Failed to process sale:", error);
+      alert("Failed to process sale. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -289,13 +322,13 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     try {
       const result = await window.electronAPI.printBill(billData);
       if (result.success) {
-        alert('Bill printed successfully!');
+        alert("Bill printed successfully!");
       } else {
         alert(`Print failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('Print error:', error);
-      alert('Failed to print bill');
+      console.error("Print error:", error);
+      alert("Failed to print bill");
     }
   };
 
@@ -308,13 +341,13 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         alert(`PDF export failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('PDF export error:', error);
-      alert('Failed to export PDF');
+      console.error("PDF export error:", error);
+      alert("Failed to export PDF");
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && filteredProducts.length > 0) {
+    if (e.key === "Enter" && filteredProducts.length > 0) {
       addToCart(filteredProducts[0]);
     }
   };
@@ -329,12 +362,15 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           </button>
           <h1>
             <ShoppingCart size={24} />
-            {table.name} - {table.area === 'restaurant' ? 'Restaurant' : 'Bar'}
+            {table.name} - {table.area === "restaurant" ? "Restaurant" : "Bar"}
           </h1>
         </div>
         <div className="header-right">
           <div className="table-status">
-            Status: <span className={`status-badge ${table.status}`}>{table.status}</span>
+            Status:{" "}
+            <span className={`status-badge ${table.status}`}>
+              {table.status}
+            </span>
           </div>
         </div>
       </div>
@@ -358,9 +394,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           </div>
 
           <div className="products-grid">
-            {filteredProducts.slice(0, 12).map(product => (
-              <div 
-                key={product.id} 
+            {filteredProducts.slice(0, 12).map((product) => (
+              <div
+                key={product.id}
                 className="product-card"
                 onClick={() => addToCart(product)}
               >
@@ -368,7 +404,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">₹{product.price.toFixed(2)}</p>
-                  <p className="product-stock">Stock: {product.counter_stock}</p>
+                  <p className="product-stock">
+                    Stock: {product.counter_stock}
+                  </p>
                 </div>
               </div>
             ))}
@@ -378,7 +416,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         {/* Right Panel - Cart and Billing */}
         <div className="cart-panel">
           <div className="customer-section">
-            <h3><User size={20} /> Customer Information</h3>
+            <h3>
+              <User size={20} /> Customer Information
+            </h3>
             <div className="form-row">
               <input
                 type="text"
@@ -398,21 +438,25 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           </div>
 
           <div className="cart-section">
-            <h3><ShoppingCart size={20} /> Order ({cart.length} items)</h3>
-            
+            <h3>
+              <ShoppingCart size={20} /> Order ({cart.length} items)
+            </h3>
+
             <div className="cart-items">
               {cart.length === 0 ? (
                 <p className="empty-cart">Cart is empty</p>
               ) : (
-                cart.map(item => (
+                cart.map((item) => (
                   <div key={item.id} className="cart-item">
                     <div className="item-info">
                       <h4>{item.name}</h4>
                       <p>₹{item.price.toFixed(2)} each</p>
                     </div>
                     <div className="quantity-controls">
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      <button
+                        onClick={() =>
+                          updateQuantity(item.id, item.quantity - 1)
+                        }
                         className="qty-btn"
                       >
                         <Minus size={16} />
@@ -420,13 +464,17 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                       <input
                         type="number"
                         value={item.quantity}
-                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                        onChange={(e) =>
+                          updateQuantity(item.id, parseInt(e.target.value) || 0)
+                        }
                         className="qty-input"
                         min="1"
                         max={item.maxStock}
                       />
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      <button
+                        onClick={() =>
+                          updateQuantity(item.id, item.quantity + 1)
+                        }
                         className="qty-btn"
                       >
                         <Plus size={16} />
@@ -435,7 +483,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                     <div className="item-total">
                       ₹{(item.price * item.quantity).toFixed(2)}
                     </div>
-                    <button 
+                    <button
                       onClick={() => removeFromCart(item.id)}
                       className="remove-btn"
                     >
@@ -465,7 +513,9 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                   <input
                     type="number"
                     value={discount}
-                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      setDiscount(parseFloat(e.target.value) || 0)
+                    }
                     min="0"
                     max="100"
                     className="form-input small"
@@ -483,7 +533,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                   />
                 </label>
               </div>
-              
+
               <label>
                 Payment Method
                 <select
@@ -523,7 +573,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
             </div>
 
             <div className="action-buttons">
-              <button 
+              <button
                 onClick={saveTableOrder}
                 disabled={cart.length === 0}
                 className="btn btn-secondary"
@@ -531,8 +581,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 <Save size={20} />
                 Save Order
               </button>
-              
-              <button 
+
+              <button
                 onClick={printKOT}
                 disabled={cart.length === 0}
                 className="btn btn-info"
@@ -540,16 +590,20 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 <Printer size={20} />
                 Print KOT
               </button>
-              
-              <button 
+
+              <button
                 onClick={processSale}
                 disabled={cart.length === 0 || loading}
                 className="btn btn-primary process-sale-btn"
               >
-                {loading ? 'Processing...' : <>
-                  <Calculator size={20} />
-                  Complete Order
-                </>}
+                {loading ? (
+                  "Processing..."
+                ) : (
+                  <>
+                    <Calculator size={20} />
+                    Complete Order
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  Printer, 
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  Printer,
   FileText,
   ShoppingCart,
   User,
   Phone,
-  Calculator
-} from 'lucide-react';
+  Calculator,
+} from "lucide-react";
 
 const POSSystem = () => {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [saleType, setSaleType] = useState('table');
-  const [tableNumber, setTableNumber] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [saleType, setSaleType] = useState("table");
+  const [tableNumber, setTableNumber] = useState("");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -41,50 +41,56 @@ const POSSystem = () => {
       const settings = await window.electronAPI.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
-      console.error('Failed to load bar settings:', error);
+      console.error("Failed to load bar settings:", error);
     }
   };
 
   const loadProducts = async () => {
     try {
       const productList = await window.electronAPI.getProducts();
-      setProducts(productList.filter(p => p.counter_stock > 0)); // Only show products with counter stock
+      setProducts(productList.filter((p) => p.counter_stock > 0)); // Only show products with counter stock
     } catch (error) {
-      console.error('Failed to load products:', error);
+      console.error("Failed to load products:", error);
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.barcode && product.barcode.includes(searchTerm))
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.barcode && product.barcode.includes(searchTerm))
   );
 
   const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    
+    const existingItem = cart.find((item) => item.id === product.id);
+
     if (existingItem) {
       if (existingItem.quantity < product.counter_stock) {
-        setCart(cart.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        ));
+        setCart(
+          cart.map((item) =>
+            item.id === product.id
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          )
+        );
       } else {
-        alert('Insufficient stock!');
+        alert("Insufficient stock!");
       }
     } else {
-      setCart([...cart, {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: 1,
-        maxStock: product.counter_stock
-      }]);
+      setCart([
+        ...cart,
+        {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+          maxStock: product.counter_stock,
+        },
+      ]);
     }
-    
+
     // Clear search and refocus
-    setSearchTerm('');
+    setSearchTerm("");
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
@@ -96,25 +102,25 @@ const POSSystem = () => {
       return;
     }
 
-    const product = cart.find(item => item.id === productId);
+    const product = cart.find((item) => item.id === productId);
     if (newQuantity > product.maxStock) {
-      alert('Insufficient stock!');
+      alert("Insufficient stock!");
       return;
     }
 
-    setCart(cart.map(item =>
-      item.id === productId
-        ? { ...item, quantity: newQuantity }
-        : item
-    ));
+    setCart(
+      cart.map((item) =>
+        item.id === productId ? { ...item, quantity: newQuantity } : item
+      )
+    );
   };
 
   const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.id !== productId));
+    setCart(cart.filter((item) => item.id !== productId));
   };
 
   const calculateSubtotal = () => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   };
 
   const calculateTaxAmount = () => {
@@ -126,35 +132,61 @@ const POSSystem = () => {
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTaxAmount() - calculateDiscountAmount();
+    return (
+      calculateSubtotal() + calculateTaxAmount() - calculateDiscountAmount()
+    );
   };
 
-  const generateSaleNumber = () => {
+  const generateSaleNumber = async () => {
     const now = new Date();
-    const timestamp = now.getTime().toString().slice(-6);
-    return `INV-${timestamp}`;
+    const day = now.getDate().toString().padStart(2, "0");
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const year = now.getFullYear().toString().slice(-2);
+
+    // Get today's sales count from database
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    try {
+      const sales = await window.electronAPI.getSales({
+        start: today.toISOString(),
+        end: tomorrow.toISOString(),
+      });
+
+      const todaySalesCount = sales.length;
+      const sequenceNumber = (todaySalesCount + 1).toString().padStart(2, "0");
+
+      return `${day}${month}${year}${sequenceNumber}`;
+    } catch (error) {
+      console.error("Error getting sales count:", error);
+      // Fallback to timestamp if database query fails
+      const timestamp = now.getTime().toString().slice(-6);
+      return `INV-${timestamp}`;
+    }
   };
 
   const processSale = async () => {
     if (cart.length === 0) {
-      alert('Cart is empty!');
+      alert("Cart is empty!");
       return;
     }
 
     setLoading(true);
     try {
       const saleData = {
-        saleNumber: generateSaleNumber(),
+        saleNumber: await generateSaleNumber(),
         saleType,
-        tableNumber: saleType === 'table' ? tableNumber : null,
-        customerName: customerName || 'Walk-in Customer',
+        tableNumber: saleType === "table" ? tableNumber : null,
+        customerName: customerName || "Walk-in Customer",
         customerPhone,
-        items: cart.map(item => ({
+        items: cart.map((item) => ({
           productId: item.id,
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.price,
-          totalPrice: item.price * item.quantity
+          totalPrice: item.price * item.quantity,
         })),
         subtotal: calculateSubtotal(),
         taxAmount: calculateTaxAmount(),
@@ -162,15 +194,17 @@ const POSSystem = () => {
         totalAmount: calculateTotal(),
         paymentMethod,
         saleDate: new Date().toISOString(),
-        barSettings
+        barSettings,
       };
 
       // Save sale to database
       await window.electronAPI.createSale(saleData);
-      
+
       // Ask user what to do with the bill
-      const action = window.confirm('Sale completed! Click OK to print bill, Cancel to export PDF');
-      
+      const action = window.confirm(
+        "Sale completed! Click OK to print bill, Cancel to export PDF"
+      );
+
       if (action) {
         await printBill(saleData);
       } else {
@@ -179,18 +213,17 @@ const POSSystem = () => {
 
       // Clear cart and customer info
       setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setTableNumber('');
+      setCustomerName("");
+      setCustomerPhone("");
+      setTableNumber("");
       setDiscount(0);
       setTax(0);
-      
+
       // Reload products to update stock
       await loadProducts();
-      
     } catch (error) {
-      console.error('Failed to process sale:', error);
-      alert('Failed to process sale. Please try again.');
+      console.error("Failed to process sale:", error);
+      alert("Failed to process sale. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -200,13 +233,13 @@ const POSSystem = () => {
     try {
       const result = await window.electronAPI.printBill(billData);
       if (result.success) {
-        alert('Bill printed successfully!');
+        alert("Bill printed successfully!");
       } else {
         alert(`Print failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('Print error:', error);
-      alert('Failed to print bill');
+      console.error("Print error:", error);
+      alert("Failed to print bill");
     }
   };
 
@@ -219,13 +252,13 @@ const POSSystem = () => {
         alert(`PDF export failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('PDF export error:', error);
-      alert('Failed to export PDF');
+      console.error("PDF export error:", error);
+      alert("Failed to export PDF");
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && filteredProducts.length > 0) {
+    if (e.key === "Enter" && filteredProducts.length > 0) {
       addToCart(filteredProducts[0]);
     }
   };
@@ -233,7 +266,9 @@ const POSSystem = () => {
   return (
     <div className="pos-system">
       <div className="pos-header">
-        <h1><ShoppingCart size={24} /> POS System</h1>
+        <h1>
+          <ShoppingCart size={24} /> POS System
+        </h1>
       </div>
 
       <div className="pos-layout">
@@ -255,18 +290,22 @@ const POSSystem = () => {
           </div>
 
           <div className="products-grid">
-            {filteredProducts.slice(0, 12).map(product => (
-              <div 
-                key={product.id} 
+            {filteredProducts.slice(0, 12).map((product) => (
+              <div
+                key={product.id}
                 className="product-card"
                 onClick={() => addToCart(product)}
               >
                 <div className="product-info">
                   <h3>{product.name}</h3>
-                  {product.variant && <p className="product-variant">{product.variant}</p>}
+                  {product.variant && (
+                    <p className="product-variant">{product.variant}</p>
+                  )}
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">₹{product.price.toFixed(2)}</p>
-                  <p className="product-stock">Stock: {product.counter_stock}</p>
+                  <p className="product-stock">
+                    Stock: {product.counter_stock}
+                  </p>
                 </div>
               </div>
             ))}
@@ -282,7 +321,7 @@ const POSSystem = () => {
                 <input
                   type="radio"
                   value="table"
-                  checked={saleType === 'table'}
+                  checked={saleType === "table"}
                   onChange={(e) => setSaleType(e.target.value)}
                 />
                 Table
@@ -291,13 +330,13 @@ const POSSystem = () => {
                 <input
                   type="radio"
                   value="parcel"
-                  checked={saleType === 'parcel'}
+                  checked={saleType === "parcel"}
                   onChange={(e) => setSaleType(e.target.value)}
                 />
                 Parcel
               </label>
             </div>
-            {saleType === 'table' && (
+            {saleType === "table" && (
               <div className="form-row">
                 <input
                   type="text"
@@ -311,7 +350,9 @@ const POSSystem = () => {
           </div>
 
           <div className="customer-section">
-            <h3><User size={20} /> Customer Information</h3>
+            <h3>
+              <User size={20} /> Customer Information
+            </h3>
             <div className="form-row">
               <input
                 type="text"
@@ -331,21 +372,25 @@ const POSSystem = () => {
           </div>
 
           <div className="cart-section">
-            <h3><ShoppingCart size={20} /> Cart ({cart.length} items)</h3>
-            
+            <h3>
+              <ShoppingCart size={20} /> Cart ({cart.length} items)
+            </h3>
+
             <div className="cart-items">
               {cart.length === 0 ? (
                 <p className="empty-cart">Cart is empty</p>
               ) : (
-                cart.map(item => (
+                cart.map((item) => (
                   <div key={item.id} className="cart-item">
                     <div className="item-info">
                       <h4>{item.name}</h4>
                       <p>₹{item.price.toFixed(2)} each</p>
                     </div>
                     <div className="quantity-controls">
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      <button
+                        onClick={() =>
+                          updateQuantity(item.id, item.quantity - 1)
+                        }
                         className="qty-btn"
                       >
                         <Minus size={16} />
@@ -353,13 +398,17 @@ const POSSystem = () => {
                       <input
                         type="number"
                         value={item.quantity}
-                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                        onChange={(e) =>
+                          updateQuantity(item.id, parseInt(e.target.value) || 0)
+                        }
                         className="qty-input"
                         min="1"
                         max={item.maxStock}
                       />
-                      <button 
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      <button
+                        onClick={() =>
+                          updateQuantity(item.id, item.quantity + 1)
+                        }
                         className="qty-btn"
                       >
                         <Plus size={16} />
@@ -368,7 +417,7 @@ const POSSystem = () => {
                     <div className="item-total">
                       ₹{(item.price * item.quantity).toFixed(2)}
                     </div>
-                    <button 
+                    <button
                       onClick={() => removeFromCart(item.id)}
                       className="remove-btn"
                     >
@@ -388,7 +437,9 @@ const POSSystem = () => {
                   <input
                     type="number"
                     value={discount}
-                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      setDiscount(parseFloat(e.target.value) || 0)
+                    }
                     min="0"
                     max="100"
                     className="form-input small"
@@ -406,7 +457,7 @@ const POSSystem = () => {
                   />
                 </label>
               </div>
-              
+
               <label>
                 Payment Method
                 <select
@@ -446,15 +497,19 @@ const POSSystem = () => {
             </div>
 
             <div className="action-buttons">
-              <button 
+              <button
                 onClick={processSale}
                 disabled={cart.length === 0 || loading}
                 className="btn btn-primary process-sale-btn"
               >
-                {loading ? 'Processing...' : <>
-                  <Calculator size={20} />
-                  Process Sale
-                </>}
+                {loading ? (
+                  "Processing..."
+                ) : (
+                  <>
+                    <Calculator size={20} />
+                    Process Sale
+                  </>
+                )}
               </button>
             </div>
           </div>
