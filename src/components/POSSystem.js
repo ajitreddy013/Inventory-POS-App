@@ -156,7 +156,7 @@ const POSSystem = () => {
       });
 
       const todaySalesCount = sales.length;
-      const sequenceNumber = (todaySalesCount + 1).toString().padStart(2, "0");
+      const sequenceNumber = (todaySalesCount + 1).toString().padStart(3, "0");
 
       return `${day}${month}${year}${sequenceNumber}`;
     } catch (error) {
