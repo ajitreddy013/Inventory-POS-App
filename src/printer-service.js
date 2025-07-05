@@ -17,6 +17,43 @@ class PrinterService {
     return Promise.resolve();
   }
 
+  async printKOT(kotData) {
+    // Print Kitchen Order Ticket
+    console.log('=== KOT PRINTER OUTPUT ===');
+    
+    const {
+      table,
+      items,
+      notes,
+      timestamp,
+      shopName = 'Your Shop Name'
+    } = kotData;
+
+    const kot = `
+      ${shopName.toUpperCase()}
+      === KITCHEN ORDER TICKET ===
+      
+      Table: ${table}
+      Time: ${new Date(timestamp).toLocaleString()}
+      ================================
+      Item                      Qty
+      ================================
+      ${items.map(item => {
+        const itemName = item.name.length > 25 ? item.name.substring(0, 22) + '...' : item.name;
+        const qtyStr = item.quantity.toString().padStart(3);
+        return `${itemName.padEnd(25)} ${qtyStr}`;
+      }).join('\n')}
+      ================================
+      ${notes ? `Notes: ${notes}` : ''}
+      ================================
+    `;
+    
+    console.log(kot);
+    console.log('=== END KOT PRINTER OUTPUT ===');
+    
+    return { success: true };
+  }
+
   async printBill(billData) {
     // Simulate printing by logging to console
     console.log('=== THERMAL PRINTER OUTPUT ===');
@@ -32,6 +69,7 @@ class PrinterService {
       totalAmount, 
       paymentMethod,
       saleDate,
+      tableName,
       shopName = 'Your Shop Name',
       shopAddress = 'Your Shop Address',
       shopPhone = 'Your Shop Phone'
@@ -46,6 +84,7 @@ class PrinterService {
       
       Bill No: ${saleNumber}
       Date: ${new Date(saleDate).toLocaleString()}
+      ${tableName ? `Table: ${tableName}` : ''}
       Customer: ${customerName || 'Walk-in Customer'}
       ${customerPhone ? `Phone: ${customerPhone}` : ''}
       ================================

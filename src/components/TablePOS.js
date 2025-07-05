@@ -9,28 +9,32 @@ import {
   ShoppingCart,
   User,
   Phone,
-  Calculator
+  Calculator,
+  ArrowLeft,
+  Clock,
+  Save,
+  CheckCircle
 } from 'lucide-react';
 
-const POSSystem = () => {
+const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [saleType, setSaleType] = useState('table');
-  const [tableNumber, setTableNumber] = useState('');
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [kotPrinted, setKotPrinted] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
   const searchInputRef = useRef(null);
 
   useEffect(() => {
     loadProducts();
+    loadTableOrder();
     loadBarSettings();
-    // Focus on search input when component mounts
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
@@ -48,9 +52,26 @@ const POSSystem = () => {
   const loadProducts = async () => {
     try {
       const productList = await window.electronAPI.getProducts();
-      setProducts(productList.filter(p => p.counter_stock > 0)); // Only show products with counter stock
+      setProducts(productList.filter(p => p.counter_stock > 0));
     } catch (error) {
       console.error('Failed to load products:', error);
+    }
+  };
+
+  const loadTableOrder = async () => {
+    try {
+      const tableOrder = await window.electronAPI.getTableOrder(table.id);
+      if (tableOrder) {
+        setCart(tableOrder.items || []);
+        setCustomerName(tableOrder.customer_name || '');
+        setCustomerPhone(tableOrder.customer_phone || '');
+        setDiscount(tableOrder.discount || 0);
+        setTax(tableOrder.tax || 0);
+        setOrderNotes(tableOrder.notes || '');
+        setKotPrinted(tableOrder.kot_printed || false);
+      }
+    } catch (error) {
+      console.error('Failed to load table order:', error);
     }
   };
 
@@ -83,7 +104,6 @@ const POSSystem = () => {
       }]);
     }
     
-    // Clear search and refocus
     setSearchTerm('');
     if (searchInputRef.current) {
       searchInputRef.current.focus();
@@ -132,7 +152,67 @@ const POSSystem = () => {
   const generateSaleNumber = () => {
     const now = new Date();
     const timestamp = now.getTime().toString().slice(-6);
-    return `INV-${timestamp}`;
+    return `${table.name}-${timestamp}`;
+  };
+
+  const saveTableOrder = async () => {
+    try {
+      const orderData = {
+        table_id: table.id,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        items: cart,
+        discount,
+        tax,
+        notes: orderNotes,
+        subtotal: calculateSubtotal(),
+        total: calculateTotal(),
+        kot_printed: kotPrinted
+      };
+
+      await window.electronAPI.saveTableOrder(orderData);
+      
+      // Update table status
+      const tableUpdate = {
+        status: cart.length > 0 ? 'occupied' : 'available',
+        current_bill_amount: calculateTotal()
+      };
+      
+      await window.electronAPI.updateTable(table.id, tableUpdate);
+      onTableUpdate({ ...table, ...tableUpdate });
+      
+      alert('Order saved successfully!');
+    } catch (error) {
+      console.error('Failed to save table order:', error);
+      alert('Failed to save order. Please try again.');
+    }
+  };
+
+  const printKOT = async () => {
+    if (cart.length === 0) {
+      alert('Cart is empty!');
+      return;
+    }
+
+    try {
+      const kotData = {
+        table: table.name,
+        items: cart,
+        notes: orderNotes,
+        timestamp: new Date().toISOString()
+      };
+
+      const result = await window.electronAPI.printKOT(kotData);
+      if (result.success) {
+        setKotPrinted(true);
+        alert('KOT printed successfully!');
+      } else {
+        alert(`KOT print failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('KOT print error:', error);
+      alert('Failed to print KOT');
+    }
   };
 
   const processSale = async () => {
@@ -145,9 +225,9 @@ const POSSystem = () => {
     try {
       const saleData = {
         saleNumber: generateSaleNumber(),
-        saleType,
-        tableNumber: saleType === 'table' ? tableNumber : null,
-        customerName: customerName || 'Walk-in Customer',
+        tableId: table.id,
+        tableName: table.name,
+        customerName: customerName || 'Table Customer',
         customerPhone,
         items: cart.map(item => ({
           productId: item.id,
@@ -161,14 +241,22 @@ const POSSystem = () => {
         discountAmount: calculateDiscountAmount(),
         totalAmount: calculateTotal(),
         paymentMethod,
+        notes: orderNotes,
         saleDate: new Date().toISOString(),
         barSettings
       };
 
-      // Save sale to database
       await window.electronAPI.createSale(saleData);
       
-      // Ask user what to do with the bill
+      // Clear table order
+      await window.electronAPI.clearTableOrder(table.id);
+      
+      // Update table status
+      await window.electronAPI.updateTable(table.id, {
+        status: 'available',
+        current_bill_amount: 0
+      });
+      
       const action = window.confirm('Sale completed! Click OK to print bill, Cancel to export PDF');
       
       if (action) {
@@ -181,12 +269,13 @@ const POSSystem = () => {
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
-      setTableNumber('');
       setDiscount(0);
       setTax(0);
+      setOrderNotes('');
+      setKotPrinted(false);
       
-      // Reload products to update stock
       await loadProducts();
+      onTableUpdate({ ...table, status: 'available', current_bill_amount: 0 });
       
     } catch (error) {
       console.error('Failed to process sale:', error);
@@ -231,9 +320,23 @@ const POSSystem = () => {
   };
 
   return (
-    <div className="pos-system">
+    <div className="table-pos">
       <div className="pos-header">
-        <h1><ShoppingCart size={24} /> POS System</h1>
+        <div className="header-left">
+          <button className="btn btn-secondary" onClick={onBack}>
+            <ArrowLeft size={20} />
+            Back to Tables
+          </button>
+          <h1>
+            <ShoppingCart size={24} />
+            {table.name} - {table.area === 'restaurant' ? 'Restaurant' : 'Bar'}
+          </h1>
+        </div>
+        <div className="header-right">
+          <div className="table-status">
+            Status: <span className={`status-badge ${table.status}`}>{table.status}</span>
+          </div>
+        </div>
       </div>
 
       <div className="pos-layout">
@@ -263,7 +366,6 @@ const POSSystem = () => {
               >
                 <div className="product-info">
                   <h3>{product.name}</h3>
-                  {product.variant && <p className="product-variant">{product.variant}</p>}
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">₹{product.price.toFixed(2)}</p>
                   <p className="product-stock">Stock: {product.counter_stock}</p>
@@ -275,41 +377,6 @@ const POSSystem = () => {
 
         {/* Right Panel - Cart and Billing */}
         <div className="cart-panel">
-          <div className="sale-type-section">
-            <h3>Sale Type</h3>
-            <div className="form-row">
-              <label>
-                <input
-                  type="radio"
-                  value="table"
-                  checked={saleType === 'table'}
-                  onChange={(e) => setSaleType(e.target.value)}
-                />
-                Table
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="parcel"
-                  checked={saleType === 'parcel'}
-                  onChange={(e) => setSaleType(e.target.value)}
-                />
-                Parcel
-              </label>
-            </div>
-            {saleType === 'table' && (
-              <div className="form-row">
-                <input
-                  type="text"
-                  placeholder="Table Number"
-                  value={tableNumber}
-                  onChange={(e) => setTableNumber(e.target.value)}
-                  className="form-input"
-                />
-              </div>
-            )}
-          </div>
-
           <div className="customer-section">
             <h3><User size={20} /> Customer Information</h3>
             <div className="form-row">
@@ -331,7 +398,7 @@ const POSSystem = () => {
           </div>
 
           <div className="cart-section">
-            <h3><ShoppingCart size={20} /> Cart ({cart.length} items)</h3>
+            <h3><ShoppingCart size={20} /> Order ({cart.length} items)</h3>
             
             <div className="cart-items">
               {cart.length === 0 ? (
@@ -377,6 +444,16 @@ const POSSystem = () => {
                   </div>
                 ))
               )}
+            </div>
+
+            <div className="order-notes">
+              <textarea
+                placeholder="Order notes (special instructions)..."
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                className="notes-textarea"
+                rows="3"
+              />
             </div>
           </div>
 
@@ -447,13 +524,31 @@ const POSSystem = () => {
 
             <div className="action-buttons">
               <button 
+                onClick={saveTableOrder}
+                disabled={cart.length === 0}
+                className="btn btn-secondary"
+              >
+                <Save size={20} />
+                Save Order
+              </button>
+              
+              <button 
+                onClick={printKOT}
+                disabled={cart.length === 0}
+                className="btn btn-info"
+              >
+                <Printer size={20} />
+                Print KOT
+              </button>
+              
+              <button 
                 onClick={processSale}
                 disabled={cart.length === 0 || loading}
                 className="btn btn-primary process-sale-btn"
               >
                 {loading ? 'Processing...' : <>
                   <Calculator size={20} />
-                  Process Sale
+                  Complete Order
                 </>}
               </button>
             </div>
@@ -464,4 +559,4 @@ const POSSystem = () => {
   );
 };
 
-export default POSSystem;
+export default TablePOS;

@@ -21,5 +21,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Printing and PDF operations
   printBill: (billData) => ipcRenderer.invoke('print-bill', billData),
   exportPDF: (billData) => ipcRenderer.invoke('export-pdf', billData),
-  getPrinterStatus: () => ipcRenderer.invoke('get-printer-status')
+  getPrinterStatus: () => ipcRenderer.invoke('get-printer-status'),
+  printKOT: (kotData) => ipcRenderer.invoke('print-kot', kotData),
+
+  // Table management operations
+  getTables: () => ipcRenderer.invoke('get-tables'),
+  addTable: (table) => ipcRenderer.invoke('add-table', table),
+  updateTable: (id, table) => ipcRenderer.invoke('update-table', id, table),
+  deleteTable: (id) => ipcRenderer.invoke('delete-table', id),
+
+  // Table order operations
+  getTableOrder: (tableId) => ipcRenderer.invoke('get-table-order', tableId),
+  saveTableOrder: (orderData) => ipcRenderer.invoke('save-table-order', orderData),
+  clearTableOrder: (tableId) => ipcRenderer.invoke('clear-table-order', tableId),
+
+  // Daily transfer operations
+  saveDailyTransfer: (transferData) => ipcRenderer.invoke('save-daily-transfer', transferData),
+  getDailyTransfers: (dateRange) => ipcRenderer.invoke('get-daily-transfers', dateRange),
+
+  // Bar settings operations
+  getBarSettings: () => ipcRenderer.invoke('get-bar-settings'),
+  saveBarSettings: (settings) => ipcRenderer.invoke('save-bar-settings', settings),
+
+  // Report generation
+  exportStockReport: (reportData, reportType) => ipcRenderer.invoke('export-stock-report', reportData, reportType),
+  exportTransferReport: (transferData) => ipcRenderer.invoke('export-transfer-report', transferData),
+
+  // Email operations
+  getEmailSettings: () => ipcRenderer.invoke('get-email-settings'),
+  saveEmailSettings: (settings) => ipcRenderer.invoke('save-email-settings', settings),
+  testEmailConnection: () => ipcRenderer.invoke('test-email-connection'),
+  sendTestEmail: () => ipcRenderer.invoke('send-test-email'),
+  sendDailyEmailNow: () => ipcRenderer.invoke('send-daily-email-now')
 });

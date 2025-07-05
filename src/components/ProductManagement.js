@@ -30,6 +30,7 @@ const ProductManagement = () => {
   const ProductModal = ({ product, onClose, onSave }) => {
     const [formData, setFormData] = useState({
       name: product?.name || '',
+      variant: product?.variant || '',
       sku: product?.sku || '',
       barcode: product?.barcode || '',
       price: product?.price || '',
@@ -71,6 +72,18 @@ const ProductManagement = () => {
                   />
                 </label>
                 <label>
+                  Variant (e.g., 180ml, 500ml)
+                  <input
+                    type="text"
+                    value={formData.variant}
+                    onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
+                    className="form-input"
+                    placeholder="180ml, Large, Regular"
+                  />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
                   SKU *
                   <input
                     type="text"
@@ -78,6 +91,15 @@ const ProductManagement = () => {
                     onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                     className="form-input"
                     required
+                  />
+                </label>
+                <label>
+                  Category
+                  <input
+                    type="text"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="form-input"
                   />
                 </label>
               </div>
@@ -88,15 +110,6 @@ const ProductManagement = () => {
                     type="text"
                     value={formData.barcode}
                     onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                    className="form-input"
-                  />
-                </label>
-                <label>
-                  Category
-                  <input
-                    type="text"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="form-input"
                   />
                 </label>
@@ -136,12 +149,15 @@ const ProductManagement = () => {
                     className="form-input"
                   >
                     <option value="pcs">Pieces</option>
+                    <option value="bottle">Bottle</option>
+                    <option value="ml">Milliliter</option>
+                    <option value="l">Liter</option>
                     <option value="kg">Kilogram</option>
                     <option value="g">Gram</option>
-                    <option value="l">Liter</option>
-                    <option value="ml">Milliliter</option>
                     <option value="box">Box</option>
                     <option value="pack">Pack</option>
+                    <option value="plate">Plate</option>
+                    <option value="glass">Glass</option>
                   </select>
                 </label>
               </div>
@@ -232,6 +248,7 @@ const ProductManagement = () => {
           <thead>
             <tr>
               <th>Product</th>
+              <th>Variant</th>
               <th>SKU</th>
               <th>Category</th>
               <th>Cost Price</th>
@@ -244,7 +261,7 @@ const ProductManagement = () => {
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
                   {searchTerm ? 'No products found matching your search' : 'No products added yet'}
                 </td>
               </tr>
@@ -255,15 +272,18 @@ const ProductManagement = () => {
                     <div>
                       <strong>{product.name}</strong>
                       {product.description && (
-                        <br />
-                        <small style={{ color: '#7f8c8d' }}>
-                          {product.description.length > 50 
-                            ? product.description.substring(0, 50) + '...' 
-                            : product.description}
-                        </small>
+                        <>
+                          <br />
+                          <small style={{ color: '#7f8c8d' }}>
+                            {product.description.length > 50 
+                              ? product.description.substring(0, 50) + '...' 
+                              : product.description}
+                          </small>
+                        </>
                       )}
                     </div>
                   </td>
+                  <td>{product.variant || '-'}</td>
                   <td>{product.sku}</td>
                   <td>{product.category || '-'}</td>
                   <td>₹{product.cost ? product.cost.toFixed(2) : '0.00'}</td>

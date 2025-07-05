@@ -10,6 +10,8 @@ class PDFService {
     try {
       const { 
         saleNumber, 
+        saleType,
+        tableNumber,
         customerName, 
         customerPhone, 
         items, 
@@ -19,11 +21,15 @@ class PDFService {
         totalAmount, 
         paymentMethod,
         saleDate,
-        shopName = 'Your Shop Name',
-        shopAddress = 'Your Shop Address',
-        shopPhone = 'Your Shop Phone',
-        shopEmail = 'info@yourshop.com'
+        barSettings
       } = billData;
+      
+      // Use bar settings or fallback to defaults
+      const shopName = barSettings?.bar_name || 'My Bar & Restaurant';
+      const shopAddress = barSettings?.address || 'Address not set';
+      const shopPhone = barSettings?.contact_number || 'Phone not set';
+      const gstNumber = barSettings?.gst_number || '';
+      const thankYouMessage = barSettings?.thank_you_message || 'Thank you for visiting!';
 
       // Create new PDF document
       this.doc = new jsPDF({
@@ -36,14 +42,18 @@ class PDFService {
       this.doc.setFont('helvetica');
 
       // Header
-      this.doc.setFontSize(20);
+      this.doc.setFontSize(22);
       this.doc.setTextColor(0, 0, 0);
+      this.doc.setFont('helvetica', 'bold');
       this.doc.text(shopName, 105, 20, { align: 'center' });
       
       this.doc.setFontSize(12);
+      this.doc.setFont('helvetica', 'normal');
       this.doc.text(shopAddress, 105, 30, { align: 'center' });
       this.doc.text(`Phone: ${shopPhone}`, 105, 37, { align: 'center' });
-      this.doc.text(`Email: ${shopEmail}`, 105, 44, { align: 'center' });
+      if (gstNumber) {
+        this.doc.text(`GST: ${gstNumber}`, 105, 44, { align: 'center' });
+      }
 
       // Line separator
       this.doc.setLineWidth(0.5);
@@ -52,35 +62,52 @@ class PDFService {
       // Invoice details
       this.doc.setFontSize(16);
       this.doc.setTextColor(0, 0, 0);
-      this.doc.text('INVOICE', 105, 65, { align: 'center' });
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text('BILL', 105, 65, { align: 'center' });
 
       this.doc.setFontSize(12);
-      this.doc.text(`Invoice No: ${saleNumber}`, 15, 80);
-      this.doc.text(`Date: ${new Date(saleDate).toLocaleDateString()}`, 15, 87);
-      this.doc.text(`Time: ${new Date(saleDate).toLocaleTimeString()}`, 15, 94);
-
-      // Customer details
-      this.doc.text('Bill To:', 15, 110);
-      this.doc.text(customerName || 'Walk-in Customer', 15, 117);
-      if (customerPhone) {
-        this.doc.text(`Phone: ${customerPhone}`, 15, 124);
+      this.doc.setFont('helvetica', 'normal');
+      const date = new Date(saleDate);
+      this.doc.text(`Date: ${date.toLocaleDateString('en-IN')}`, 15, 80);
+      this.doc.text(`Time: ${date.toLocaleTimeString('en-IN')}`, 15, 87);
+      
+      // Sale type and table info
+      if (saleType === 'table' && tableNumber) {
+        this.doc.text(`Table No: ${tableNumber}`, 15, 94);
+      } else {
+        this.doc.text(`${saleType === 'parcel' ? 'Parcel' : 'Table'} Order`, 15, 94);
       }
 
-      // Table header
-      let yPosition = 145;
-      this.doc.setFontSize(10);
-      this.doc.setTextColor(255, 255, 255);
-      this.doc.setFillColor(100, 100, 100);
-      this.doc.rect(15, yPosition - 5, 180, 8, 'F');
+      // Customer details on right side
+      this.doc.text(`Bill No: ${saleNumber}`, 130, 80);
+      this.doc.text(`Customer: ${customerName || 'Walk-in'}`, 130, 87);
+      if (customerPhone) {
+        this.doc.text(`Phone: ${customerPhone}`, 130, 94);
+      }
+
+      // Separator line
+      this.doc.setLineWidth(0.5);
+      this.doc.line(15, 105, 195, 105);
       
-      this.doc.text('Item', 18, yPosition);
+      // Table header
+      let yPosition = 120;
+      this.doc.setFontSize(11);
+      this.doc.setTextColor(0, 0, 0);
+      this.doc.setFont('helvetica', 'bold');
+      
+      this.doc.text('Item Name', 18, yPosition);
       this.doc.text('Qty', 120, yPosition);
-      this.doc.text('Price', 140, yPosition);
-      this.doc.text('Total', 170, yPosition);
+      this.doc.text('Rate', 140, yPosition);
+      this.doc.text('Amount', 170, yPosition);
+      
+      // Header underline
+      this.doc.setLineWidth(0.3);
+      this.doc.line(15, yPosition + 2, 195, yPosition + 2);
 
       // Table items
       this.doc.setTextColor(0, 0, 0);
-      yPosition += 10;
+      this.doc.setFont('helvetica', 'normal');
+      yPosition += 8;
       
       items.forEach((item, index) => {
         if (yPosition > 250) {
@@ -89,59 +116,65 @@ class PDFService {
           yPosition = 30;
         }
         
-        // Alternate row colors
-        if (index % 2 === 0) {
-          this.doc.setFillColor(245, 245, 245);
-          this.doc.rect(15, yPosition - 5, 180, 8, 'F');
-        }
-        
         this.doc.text(item.name, 18, yPosition);
-        this.doc.text(item.quantity.toString(), 120, yPosition);
-        this.doc.text(`₹${item.unitPrice.toFixed(2)}`, 140, yPosition);
-        this.doc.text(`₹${item.totalPrice.toFixed(2)}`, 170, yPosition);
+        this.doc.text(item.quantity.toString(), 125, yPosition, { align: 'center' });
+        this.doc.text(`₹${item.unitPrice.toFixed(2)}`, 145, yPosition, { align: 'center' });
+        this.doc.text(`₹${item.totalPrice.toFixed(2)}`, 175, yPosition, { align: 'center' });
         
-        yPosition += 8;
+        yPosition += 7;
       });
+      
+      // Items separator line
+      this.doc.setLineWidth(0.3);
+      this.doc.line(15, yPosition + 2, 195, yPosition + 2);
 
       // Summary section
       yPosition += 10;
-      this.doc.setLineWidth(0.5);
-      this.doc.line(120, yPosition, 195, yPosition);
-      
-      yPosition += 10;
       this.doc.setFontSize(11);
-      this.doc.text(`Subtotal: ₹${subtotal.toFixed(2)}`, 140, yPosition);
+      this.doc.setFont('helvetica', 'normal');
+      
+      // Right align the amounts
+      this.doc.text('Subtotal:', 150, yPosition);
+      this.doc.text(`₹${subtotal.toFixed(2)}`, 185, yPosition, { align: 'right' });
       
       if (discountAmount > 0) {
-        yPosition += 7;
-        this.doc.text(`Discount: ₹${discountAmount.toFixed(2)}`, 140, yPosition);
+        yPosition += 6;
+        this.doc.text('Discount:', 150, yPosition);
+        this.doc.text(`₹${discountAmount.toFixed(2)}`, 185, yPosition, { align: 'right' });
       }
       
       if (taxAmount > 0) {
-        yPosition += 7;
-        this.doc.text(`Tax: ₹${taxAmount.toFixed(2)}`, 140, yPosition);
+        yPosition += 6;
+        this.doc.text('Tax:', 150, yPosition);
+        this.doc.text(`₹${taxAmount.toFixed(2)}`, 185, yPosition, { align: 'right' });
       }
       
-      yPosition += 7;
+      // Total amount line
+      yPosition += 8;
       this.doc.setLineWidth(0.5);
       this.doc.line(120, yPosition, 195, yPosition);
       
-      yPosition += 10;
+      yPosition += 8;
       this.doc.setFontSize(14);
       this.doc.setFont('helvetica', 'bold');
-      this.doc.text(`TOTAL: ₹${totalAmount.toFixed(2)}`, 140, yPosition);
+      this.doc.text('Total Amount:', 150, yPosition);
+      this.doc.text(`₹${totalAmount.toFixed(2)}`, 185, yPosition, { align: 'right' });
       
-      yPosition += 10;
-      this.doc.setFontSize(11);
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.text(`Payment Method: ${paymentMethod.toUpperCase()}`, 140, yPosition);
+      yPosition += 8;
+      this.doc.setLineWidth(0.5);
+      this.doc.line(120, yPosition, 195, yPosition);
 
       // Footer
-      yPosition = 280;
+      yPosition = Math.max(yPosition + 20, 260);
+      this.doc.setFontSize(12);
+      this.doc.setTextColor(0, 0, 0);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text(thankYouMessage, 105, yPosition, { align: 'center' });
+      
+      yPosition += 8;
       this.doc.setFontSize(10);
-      this.doc.setTextColor(100, 100, 100);
-      this.doc.text('Thank you for your business!', 105, yPosition, { align: 'center' });
-      this.doc.text('Visit us again!', 105, yPosition + 7, { align: 'center' });
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(`Visit us again at ${shopName}`, 105, yPosition, { align: 'center' });
 
       // Save PDF
       const pdfBuffer = this.doc.output('arraybuffer');
@@ -154,7 +187,7 @@ class PDFService {
     }
   }
 
-  async generateInventoryReport(inventoryData, filePath) {
+  async generateStockReport(reportData, reportType, filePath) {
     try {
       this.doc = new jsPDF({
         orientation: 'landscape',
@@ -164,30 +197,58 @@ class PDFService {
 
       // Header
       this.doc.setFontSize(18);
-      this.doc.text('Inventory Report', 148, 20, { align: 'center' });
+      this.doc.setFont('helvetica', 'bold');
+      const reportTitle = reportType === 'godown' ? 'Godown Stock Report' : 
+                         reportType === 'counter' ? 'Counter Stock Report' : 
+                         'Total Stock Report';
+      this.doc.text(reportTitle, 148, 20, { align: 'center' });
+      
       this.doc.setFontSize(12);
-      this.doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 148, 30, { align: 'center' });
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(`Generated on: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}`, 148, 30, { align: 'center' });
+
+      // Bar details from settings
+      if (reportData.barSettings) {
+        this.doc.setFontSize(10);
+        this.doc.text(reportData.barSettings.bar_name || 'Bar Name', 148, 40, { align: 'center' });
+        if (reportData.barSettings.address) {
+          this.doc.text(reportData.barSettings.address, 148, 47, { align: 'center' });
+        }
+      }
 
       // Table header
-      let yPosition = 50;
+      let yPosition = 60;
       this.doc.setFontSize(10);
       this.doc.setTextColor(255, 255, 255);
-      this.doc.setFillColor(100, 100, 100);
+      this.doc.setFillColor(50, 50, 50);
       this.doc.rect(15, yPosition - 5, 267, 8, 'F');
       
-      this.doc.text('Product', 18, yPosition);
-      this.doc.text('SKU', 80, yPosition);
-      this.doc.text('Godown', 120, yPosition);
-      this.doc.text('Counter', 150, yPosition);
-      this.doc.text('Total', 180, yPosition);
-      this.doc.text('Price', 210, yPosition);
-      this.doc.text('Value', 240, yPosition);
+      this.doc.text('Product Name', 18, yPosition);
+      this.doc.text('Variant/Size', 80, yPosition);
+      
+      if (reportType === 'godown') {
+        this.doc.text('Godown Stock', 140, yPosition);
+        this.doc.text('Unit Price', 180, yPosition);
+        this.doc.text('Total Value', 220, yPosition);
+      } else if (reportType === 'counter') {
+        this.doc.text('Counter Stock', 140, yPosition);
+        this.doc.text('Unit Price', 180, yPosition);
+        this.doc.text('Total Value', 220, yPosition);
+      } else {
+        this.doc.text('Godown', 120, yPosition);
+        this.doc.text('Counter', 150, yPosition);
+        this.doc.text('Total', 180, yPosition);
+        this.doc.text('Price', 210, yPosition);
+        this.doc.text('Value', 240, yPosition);
+      }
 
       // Table items
       this.doc.setTextColor(0, 0, 0);
       yPosition += 10;
       
-      inventoryData.forEach((item, index) => {
+      let totalValue = 0;
+      
+      reportData.inventory.forEach((item, index) => {
         if (yPosition > 190) {
           this.doc.addPage();
           yPosition = 30;
@@ -199,22 +260,137 @@ class PDFService {
         }
         
         this.doc.text(item.name, 18, yPosition);
-        this.doc.text(item.sku, 80, yPosition);
-        this.doc.text(item.godown_stock.toString(), 120, yPosition);
-        this.doc.text(item.counter_stock.toString(), 150, yPosition);
-        this.doc.text(item.total_stock.toString(), 180, yPosition);
-        this.doc.text(`₹${item.price.toFixed(2)}`, 210, yPosition);
-        this.doc.text(`₹${(item.total_stock * item.price).toFixed(2)}`, 240, yPosition);
+        this.doc.text(item.variant || '-', 80, yPosition);
+        
+        if (reportType === 'godown') {
+          const value = item.godown_stock * item.price;
+          this.doc.text(item.godown_stock.toString(), 140, yPosition, { align: 'center' });
+          this.doc.text(`₹${item.price.toFixed(2)}`, 180, yPosition, { align: 'center' });
+          this.doc.text(`₹${value.toFixed(2)}`, 220, yPosition, { align: 'center' });
+          totalValue += value;
+        } else if (reportType === 'counter') {
+          const value = item.counter_stock * item.price;
+          this.doc.text(item.counter_stock.toString(), 140, yPosition, { align: 'center' });
+          this.doc.text(`₹${item.price.toFixed(2)}`, 180, yPosition, { align: 'center' });
+          this.doc.text(`₹${value.toFixed(2)}`, 220, yPosition, { align: 'center' });
+          totalValue += value;
+        } else {
+          const value = item.total_stock * item.price;
+          this.doc.text(item.godown_stock.toString(), 120, yPosition, { align: 'center' });
+          this.doc.text(item.counter_stock.toString(), 150, yPosition, { align: 'center' });
+          this.doc.text(item.total_stock.toString(), 180, yPosition, { align: 'center' });
+          this.doc.text(`₹${item.price.toFixed(2)}`, 210, yPosition, { align: 'center' });
+          this.doc.text(`₹${value.toFixed(2)}`, 240, yPosition, { align: 'center' });
+          totalValue += value;
+        }
         
         yPosition += 8;
       });
+
+      // Total section
+      yPosition += 10;
+      this.doc.setFontSize(12);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFillColor(220, 220, 220);
+      this.doc.rect(15, yPosition - 5, 267, 10, 'F');
+      this.doc.text(`Total Inventory Value: ₹${totalValue.toFixed(2)}`, 148, yPosition + 2, { align: 'center' });
 
       const pdfBuffer = this.doc.output('arraybuffer');
       fs.writeFileSync(filePath, Buffer.from(pdfBuffer));
 
       return { success: true, filePath };
     } catch (error) {
-      console.error('Inventory report generation error:', error);
+      console.error('Stock report generation error:', error);
+      throw error;
+    }
+  }
+
+  async generateTransferReport(transferData, filePath) {
+    try {
+      this.doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Header
+      this.doc.setFontSize(18);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text('Daily Transfer Report', 105, 20, { align: 'center' });
+      
+      this.doc.setFontSize(12);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(`Date: ${transferData.transfer_date}`, 105, 30, { align: 'center' });
+      this.doc.text(`Generated on: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}`, 105, 37, { align: 'center' });
+
+      // Summary section
+      let yPosition = 55;
+      this.doc.setFontSize(12);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text('Transfer Summary', 20, yPosition);
+      
+      yPosition += 10;
+      this.doc.setFontSize(11);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(`Total Items Transferred: ${transferData.total_items}`, 20, yPosition);
+      
+      yPosition += 7;
+      this.doc.text(`Total Quantity: ${transferData.total_quantity}`, 20, yPosition);
+
+      // Table header
+      yPosition += 20;
+      this.doc.setFontSize(11);
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.setFillColor(50, 50, 50);
+      this.doc.rect(15, yPosition - 5, 180, 8, 'F');
+      
+      this.doc.text('Product Name', 18, yPosition);
+      this.doc.text('Variant/Size', 80, yPosition);
+      this.doc.text('Quantity', 140, yPosition);
+      this.doc.text('Time', 165, yPosition);
+
+      // Table items
+      this.doc.setTextColor(0, 0, 0);
+      yPosition += 10;
+      
+      transferData.items_transferred.forEach((item, index) => {
+        if (yPosition > 250) {
+          this.doc.addPage();
+          yPosition = 30;
+        }
+        
+        if (index % 2 === 0) {
+          this.doc.setFillColor(245, 245, 245);
+          this.doc.rect(15, yPosition - 5, 180, 8, 'F');
+        }
+        
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.text(item.name, 18, yPosition);
+        this.doc.text(item.variant || '-', 80, yPosition);
+        this.doc.text(item.quantity.toString(), 140, yPosition, { align: 'center' });
+        
+        const transferTime = item.transfer_time ? new Date(item.transfer_time).toLocaleTimeString('en-IN', { 
+          hour12: false, 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }) : '-';
+        this.doc.text(transferTime, 165, yPosition, { align: 'center' });
+        
+        yPosition += 8;
+      });
+
+      // Footer
+      yPosition = Math.max(yPosition + 20, 260);
+      this.doc.setFontSize(10);
+      this.doc.setFont('helvetica', 'italic');
+      this.doc.text('This is a system generated report', 105, yPosition, { align: 'center' });
+
+      const pdfBuffer = this.doc.output('arraybuffer');
+      fs.writeFileSync(filePath, Buffer.from(pdfBuffer));
+
+      return { success: true, filePath };
+    } catch (error) {
+      console.error('Transfer report generation error:', error);
       throw error;
     }
   }

@@ -6,7 +6,9 @@ import {
   Search,
   Edit,
   Save,
-  X
+  X,
+  FileText,
+  Download
 } from 'lucide-react';
 
 const InventoryManagement = () => {
@@ -15,10 +17,21 @@ const InventoryManagement = () => {
   const [editingStock, setEditingStock] = useState(null);
   const [transferModal, setTransferModal] = useState({ open: false, product: null });
   const [loading, setLoading] = useState(false);
+  const [barSettings, setBarSettings] = useState(null);
 
   useEffect(() => {
     loadInventory();
+    loadBarSettings();
   }, []);
+
+  const loadBarSettings = async () => {
+    try {
+      const settings = await window.electronAPI.getBarSettings();
+      setBarSettings(settings);
+    } catch (error) {
+      console.error('Failed to load bar settings:', error);
+    }
+  };
 
   const loadInventory = async () => {
     try {
@@ -196,6 +209,31 @@ const InventoryManagement = () => {
     );
   };
 
+  const exportStockReport = async (reportType) => {
+    try {
+      setLoading(true);
+      const reportData = {
+        inventory: inventory.map(item => ({
+          ...item,
+          total_stock: item.godown_stock + item.counter_stock
+        })),
+        barSettings
+      };
+      
+      const result = await window.electronAPI.exportStockReport(reportData, reportType);
+      if (result.success) {
+        alert(`${reportType} stock report exported successfully to ${result.filePath}`);
+      } else {
+        alert('Failed to export report: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export stock report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="inventory-management">
       <div className="page-header">
@@ -212,17 +250,49 @@ const InventoryManagement = () => {
         </div>
       )}
 
-      {/* Search */}
-      <div className="search-section">
-        <div className="search-input-container">
-          <Search size={20} />
-          <input
-            type="text"
-            placeholder="Search by product name or SKU..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
+      {/* Search and Export Section */}
+      <div className="inventory-controls">
+        <div className="search-section">
+          <div className="search-input-container">
+            <Search size={20} />
+            <input
+              type="text"
+              placeholder="Search by product name or SKU..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+          </div>
+        </div>
+        
+        <div className="export-section">
+          <h4><FileText size={16} /> Export Stock Reports</h4>
+          <div className="export-buttons">
+            <button 
+              onClick={() => exportStockReport('godown')} 
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+            >
+              <Download size={14} />
+              Godown Stock
+            </button>
+            <button 
+              onClick={() => exportStockReport('counter')} 
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+            >
+              <Download size={14} />
+              Counter Stock
+            </button>
+            <button 
+              onClick={() => exportStockReport('total')} 
+              className="btn btn-primary btn-sm"
+              disabled={loading}
+            >
+              <Download size={14} />
+              Total Stock
+            </button>
+          </div>
         </div>
       </div>
 

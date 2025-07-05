@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Mail, Send } from 'lucide-react';
 
 const SalesReports = () => {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [emailLoading, setEmailLoading] = useState(false);
   const [dateRange, setDateRange] = useState({
     start: new Date().toISOString().substr(0, 10),
     end: new Date().toISOString().substr(0, 10)
@@ -33,10 +34,35 @@ const SalesReports = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  const sendEmailReport = async () => {
+    try {
+      setEmailLoading(true);
+      const result = await window.electronAPI.sendDailyEmailNow();
+      if (result.success) {
+        alert('Email report sent successfully!');
+      } else {
+        alert(`Failed to send email report: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Failed to send email report');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return (
     <div className="sales-reports">
       <div className="page-header">
         <h1><BarChart3 size={24} /> Sales Reports</h1>
+        <button 
+          onClick={sendEmailReport}
+          disabled={emailLoading}
+          className="btn btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Mail size={16} />
+          {emailLoading ? 'Sending...' : 'Email Report to Owner'}
+        </button>
       </div>
 
       {/* Date Range */}
@@ -69,6 +95,8 @@ const SalesReports = () => {
           <thead>
             <tr>
               <th>Sale Number</th>
+              <th>Type</th>
+              <th>Table/Parcel</th>
               <th>Customer</th>
               <th>Items</th>
               <th>Total Amount</th>
@@ -78,7 +106,7 @@ const SalesReports = () => {
           {loading ? (
             <tbody>
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '40px' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '40px' }}>
                   Loading...
                 </td>
               </tr>
@@ -86,7 +114,7 @@ const SalesReports = () => {
           ) : sales.length === 0 ? (
             <tbody>
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
                   No sales found for the selected date range
                 </td>
               </tr>
@@ -96,6 +124,10 @@ const SalesReports = () => {
               {sales.map(sale => (
                 <tr key={sale.id}>
                   <td>{sale.sale_number}</td>
+                  <td className={`sale-type ${sale.sale_type}`}>
+                    {sale.sale_type === 'table' ? 'Table' : 'Parcel'}
+                  </td>
+                  <td>{sale.sale_type === 'table' ? sale.table_number || '-' : 'Parcel'}</td>
                   <td>{sale.customer_name || 'Walk-in Customer'}</td>
                   <td>{sale.item_count}</td>
                   <td>₹{sale.total_amount.toFixed(2)}</td>

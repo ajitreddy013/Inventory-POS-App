@@ -6,7 +6,9 @@ import {
   BarChart3, 
   Settings as SettingsIcon,
   Menu,
-  X
+  X,
+  Coffee,
+  ArrowRight
 } from 'lucide-react';
 import './App.css';
 
@@ -14,23 +16,41 @@ import './App.css';
 import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
 import InventoryManagement from './components/InventoryManagement';
+import DailyTransfer from './components/DailyTransfer';
 import POSSystem from './components/POSSystem';
+import TableManagement from './components/TableManagement';
+import TablePOS from './components/TablePOS';
 import SalesReports from './components/SalesReports';
 import Settings from './components/Settings';
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentUser] = useState('Admin'); // In a real app, this would come from authentication
+  const [selectedTable, setSelectedTable] = useState(null);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
+  const handleTableSelect = (table) => {
+    setSelectedTable(table);
+  };
+
+  const handleTableUpdate = (updatedTable) => {
+    setSelectedTable(updatedTable);
+  };
+
+  const handleBackToTables = () => {
+    setSelectedTable(null);
+  };
+
   const menuItems = [
     { path: '/', name: 'Dashboard', icon: BarChart3 },
-    { path: '/pos', name: 'POS System', icon: ShoppingCart },
+    { path: '/tables', name: 'Tables', icon: Coffee },
     { path: '/products', name: 'Products', icon: Package },
     { path: '/inventory', name: 'Inventory', icon: Package },
+    { path: '/transfer', name: 'Daily Transfer', icon: ArrowRight },
+    { path: '/pos', name: 'POS', icon: ShoppingCart },
     { path: '/reports', name: 'Reports', icon: BarChart3 },
     { path: '/settings', name: 'Settings', icon: SettingsIcon }
   ];
@@ -72,9 +92,21 @@ function App() {
         <div className={`main-content ${sidebarOpen ? 'with-sidebar' : 'full-width'}`}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/pos" element={<POSSystem />} />
+            <Route path="/tables" element={
+              selectedTable ? (
+                <TablePOS 
+                  table={selectedTable} 
+                  onBack={handleBackToTables} 
+                  onTableUpdate={handleTableUpdate} 
+                />
+              ) : (
+                <TableManagement onSelectTable={handleTableSelect} />
+              )
+            } />
             <Route path="/products" element={<ProductManagement />} />
             <Route path="/inventory" element={<InventoryManagement />} />
+            <Route path="/transfer" element={<DailyTransfer />} />
+            <Route path="/pos" element={<POSSystem />} />
             <Route path="/reports" element={<SalesReports />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>

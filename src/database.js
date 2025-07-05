@@ -1,10 +1,22 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const { app } = require('electron');
+const os = require('os');
 
 class Database {
   constructor() {
-    const userDataPath = app.getPath('userData');
+    // Handle both Electron and Node.js contexts
+    let userDataPath;
+    try {
+      const { app } = require('electron');
+      userDataPath = app.getPath('userData');
+    } catch (error) {
+      // Fallback for testing outside Electron
+      userDataPath = path.join(os.homedir(), 'ajit-pos-data');
+      const fs = require('fs');
+      if (!fs.existsSync(userDataPath)) {
+        fs.mkdirSync(userDataPath, { recursive: true });
+      }
+    }
     this.dbPath = path.join(userDataPath, 'inventory.db');
     this.db = null;
   }
@@ -30,6 +42,7 @@ class Database {
         `CREATE TABLE IF NOT EXISTS products (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
+          variant TEXT,
           sku TEXT UNIQUE NOT NULL,
           barcode TEXT UNIQUE,
           price REAL NOT NULL,
@@ -57,6 +70,8 @@ class Database {
         `CREATE TABLE IF NOT EXISTS sales (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           sale_number TEXT UNIQUE NOT NULL,
+          sale_type TEXT DEFAULT 'table',
+          table_number TEXT,
           customer_name TEXT,
           customer_phone TEXT,
           total_amount REAL NOT NULL,
@@ -91,6 +106,58 @@ class Database {
           notes TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (product_id) REFERENCES products (id)
+        )`,
+        
+        // Tables table
+        `CREATE TABLE IF NOT EXISTS tables (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          capacity INTEGER NOT NULL,
+          area TEXT NOT NULL, -- 'restaurant' or 'bar'
+          status TEXT DEFAULT 'available', -- 'available', 'occupied', 'reserved'
+          current_bill_amount REAL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Table orders table (for saving orders before completion)
+        `CREATE TABLE IF NOT EXISTS table_orders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          table_id INTEGER NOT NULL,
+          customer_name TEXT,
+          customer_phone TEXT,
+          items TEXT, -- JSON string of cart items
+          discount REAL DEFAULT 0,
+          tax REAL DEFAULT 0,
+          notes TEXT,
+          subtotal REAL DEFAULT 0,
+          total REAL DEFAULT 0,
+          kot_printed BOOLEAN DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (table_id) REFERENCES tables (id) ON DELETE CASCADE
+        )`,
+        
+        // Daily transfer reports table
+        `CREATE TABLE IF NOT EXISTS daily_transfers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          transfer_date DATE NOT NULL,
+          total_items INTEGER DEFAULT 0,
+          total_quantity INTEGER DEFAULT 0,
+          items_transferred TEXT, -- JSON string of transferred items
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Bar settings table
+        `CREATE TABLE IF NOT EXISTS bar_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bar_name TEXT NOT NULL,
+          contact_number TEXT,
+          gst_number TEXT,
+          address TEXT,
+          thank_you_message TEXT DEFAULT 'Thank you for visiting!',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`
       ];
 
@@ -129,18 +196,19 @@ class Database {
 
   addProduct(product) {
     return new Promise((resolve, reject) => {
-      const { name, sku, barcode, price, cost, category, description, unit } = product;
+      const { name, variant, sku, barcode, price, cost, category, description, unit } = product;
       
-      this.db.run(`
-        INSERT INTO products (name, sku, barcode, price, cost, category, description, unit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [name, sku, barcode, price, cost, category, description, unit], function(err) {
+      const db = this.db;
+      db.run(`
+        INSERT INTO products (name, variant, sku, barcode, price, cost, category, description, unit)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [name, variant, sku, barcode, price, cost, category, description, unit], function(err) {
         if (err) {
           reject(err);
         } else {
           // Create inventory record
           const productId = this.lastID;
-          this.db.run(`
+          db.run(`
             INSERT INTO inventory (product_id, godown_stock, counter_stock)
             VALUES (?, 0, 0)
           `, [productId], (err) => {
@@ -154,14 +222,14 @@ class Database {
 
   updateProduct(id, product) {
     return new Promise((resolve, reject) => {
-      const { name, sku, barcode, price, cost, category, description, unit } = product;
+      const { name, variant, sku, barcode, price, cost, category, description, unit } = product;
       
       this.db.run(`
         UPDATE products 
-        SET name = ?, sku = ?, barcode = ?, price = ?, cost = ?, 
+        SET name = ?, variant = ?, sku = ?, barcode = ?, price = ?, cost = ?, 
             category = ?, description = ?, unit = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, [name, sku, barcode, price, cost, category, description, unit, id], function(err) {
+      `, [name, variant, sku, barcode, price, cost, category, description, unit, id], function(err) {
         if (err) reject(err);
         else resolve({ id, ...product });
       });
@@ -208,29 +276,30 @@ class Database {
 
   transferStock(productId, quantity, fromLocation, toLocation) {
     return new Promise((resolve, reject) => {
-      this.db.serialize(() => {
-        this.db.run('BEGIN TRANSACTION');
+      const db = this.db;
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
         
         // Update inventory
         const updateQuery = fromLocation === 'godown' 
           ? 'UPDATE inventory SET godown_stock = godown_stock - ?, counter_stock = counter_stock + ? WHERE product_id = ?'
           : 'UPDATE inventory SET counter_stock = counter_stock - ?, godown_stock = godown_stock + ? WHERE product_id = ?';
         
-        this.db.run(updateQuery, [quantity, quantity, productId], function(err) {
+        db.run(updateQuery, [quantity, quantity, productId], function(err) {
           if (err) {
-            this.db.run('ROLLBACK');
+            db.run('ROLLBACK');
             reject(err);
           } else {
             // Record stock movement
-            this.db.run(`
+            db.run(`
               INSERT INTO stock_movements (product_id, movement_type, quantity, from_location, to_location)
               VALUES (?, 'transfer', ?, ?, ?)
             `, [productId, quantity, fromLocation, toLocation], function(err) {
               if (err) {
-                this.db.run('ROLLBACK');
+                db.run('ROLLBACK');
                 reject(err);
               } else {
-                this.db.run('COMMIT');
+                db.run('COMMIT');
                 resolve({ transferred: true });
               }
             });
@@ -243,18 +312,19 @@ class Database {
   // Sales operations
   createSale(saleData) {
     return new Promise((resolve, reject) => {
-      const { saleNumber, customerName, customerPhone, items, totalAmount, taxAmount, discountAmount, paymentMethod } = saleData;
+      const { saleNumber, saleType, tableNumber, customerName, customerPhone, items, totalAmount, taxAmount, discountAmount, paymentMethod } = saleData;
       
-      this.db.serialize(() => {
-        this.db.run('BEGIN TRANSACTION');
+      const db = this.db;
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
         
         // Insert sale
-        this.db.run(`
-          INSERT INTO sales (sale_number, customer_name, customer_phone, total_amount, tax_amount, discount_amount, payment_method)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, [saleNumber, customerName, customerPhone, totalAmount, taxAmount, discountAmount, paymentMethod], function(err) {
+        db.run(`
+          INSERT INTO sales (sale_number, sale_type, table_number, customer_name, customer_phone, total_amount, tax_amount, discount_amount, payment_method)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [saleNumber, saleType, tableNumber, customerName, customerPhone, totalAmount, taxAmount, discountAmount, paymentMethod], function(err) {
           if (err) {
-            this.db.run('ROLLBACK');
+            db.run('ROLLBACK');
             reject(err);
             return;
           }
@@ -264,42 +334,42 @@ class Database {
           
           items.forEach(item => {
             // Insert sale item
-            this.db.run(`
+            db.run(`
               INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, total_price)
               VALUES (?, ?, ?, ?, ?)
             `, [saleId, item.productId, item.quantity, item.unitPrice, item.totalPrice], (err) => {
               if (err) {
-                this.db.run('ROLLBACK');
+                db.run('ROLLBACK');
                 reject(err);
                 return;
               }
               
               // Update counter stock
-              this.db.run(`
+              db.run(`
                 UPDATE inventory 
                 SET counter_stock = counter_stock - ?
                 WHERE product_id = ?
               `, [item.quantity, item.productId], (err) => {
                 if (err) {
-                  this.db.run('ROLLBACK');
+                  db.run('ROLLBACK');
                   reject(err);
                   return;
                 }
                 
                 // Record stock movement
-                this.db.run(`
+                db.run(`
                   INSERT INTO stock_movements (product_id, movement_type, quantity, from_location, reference_id)
                   VALUES (?, 'out', ?, 'counter', ?)
                 `, [item.productId, item.quantity, saleId], (err) => {
                   if (err) {
-                    this.db.run('ROLLBACK');
+                    db.run('ROLLBACK');
                     reject(err);
                     return;
                   }
                   
                   itemsProcessed++;
                   if (itemsProcessed === items.length) {
-                    this.db.run('COMMIT');
+                    db.run('COMMIT');
                     resolve({ id: saleId, ...saleData });
                   }
                 });
@@ -334,6 +404,254 @@ class Database {
       this.db.all(query, params, (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
+      });
+    });
+  }
+
+  // Table operations
+  getTables() {
+    return new Promise((resolve, reject) => {
+      this.db.all(`
+        SELECT t.*, to.total as current_bill_amount
+        FROM tables t
+        LEFT JOIN table_orders to ON t.id = to.table_id
+        ORDER BY t.area, t.name
+      `, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+  }
+
+  addTable(table) {
+    return new Promise((resolve, reject) => {
+      const { name, capacity, area, status } = table;
+      
+      this.db.run(`
+        INSERT INTO tables (name, capacity, area, status)
+        VALUES (?, ?, ?, ?)
+      `, [name, capacity, area, status], function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ id: this.lastID, ...table });
+        }
+      });
+    });
+  }
+
+  updateTable(id, table) {
+    return new Promise((resolve, reject) => {
+      const fields = [];
+      const values = [];
+      
+      Object.keys(table).forEach(key => {
+        if (table[key] !== undefined) {
+          fields.push(`${key} = ?`);
+          values.push(table[key]);
+        }
+      });
+      
+      if (fields.length === 0) {
+        resolve({ updated: false });
+        return;
+      }
+      
+      values.push(id);
+      
+      this.db.run(`
+        UPDATE tables 
+        SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, values, function(err) {
+        if (err) reject(err);
+        else resolve({ updated: this.changes > 0 });
+      });
+    });
+  }
+
+  deleteTable(id) {
+    return new Promise((resolve, reject) => {
+      this.db.run('DELETE FROM tables WHERE id = ?', [id], function(err) {
+        if (err) reject(err);
+        else resolve({ deleted: this.changes > 0 });
+      });
+    });
+  }
+
+  // Table order operations
+  getTableOrder(tableId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(`
+        SELECT * FROM table_orders WHERE table_id = ?
+      `, [tableId], (err, row) => {
+        if (err) {
+          reject(err);
+        } else if (row) {
+          // Parse the items JSON
+          try {
+            row.items = JSON.parse(row.items || '[]');
+          } catch (e) {
+            row.items = [];
+          }
+          resolve(row);
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  }
+
+  saveTableOrder(orderData) {
+    return new Promise((resolve, reject) => {
+      const { table_id, customer_name, customer_phone, items, discount, tax, notes, subtotal, total, kot_printed } = orderData;
+      
+      // Convert items to JSON string
+      const itemsJson = JSON.stringify(items);
+      
+      // Check if order already exists
+      this.db.get('SELECT id FROM table_orders WHERE table_id = ?', [table_id], (err, existing) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        
+        if (existing) {
+          // Update existing order
+          this.db.run(`
+            UPDATE table_orders 
+            SET customer_name = ?, customer_phone = ?, items = ?, discount = ?, 
+                tax = ?, notes = ?, subtotal = ?, total = ?, kot_printed = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE table_id = ?
+          `, [customer_name, customer_phone, itemsJson, discount, tax, notes, subtotal, total, kot_printed, table_id], function(err) {
+            if (err) reject(err);
+            else resolve({ id: existing.id, updated: true });
+          });
+        } else {
+          // Insert new order
+          this.db.run(`
+            INSERT INTO table_orders (table_id, customer_name, customer_phone, items, discount, tax, notes, subtotal, total, kot_printed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [table_id, customer_name, customer_phone, itemsJson, discount, tax, notes, subtotal, total, kot_printed], function(err) {
+            if (err) reject(err);
+            else resolve({ id: this.lastID, created: true });
+          });
+        }
+      });
+    });
+  }
+
+  clearTableOrder(tableId) {
+    return new Promise((resolve, reject) => {
+      this.db.run('DELETE FROM table_orders WHERE table_id = ?', [tableId], function(err) {
+        if (err) reject(err);
+        else resolve({ deleted: this.changes > 0 });
+      });
+    });
+  }
+
+  // Daily transfer operations
+  saveDailyTransfer(transferData) {
+    return new Promise((resolve, reject) => {
+      const { transfer_date, total_items, total_quantity, items_transferred } = transferData;
+      const itemsJson = JSON.stringify(items_transferred);
+      
+      this.db.run(`
+        INSERT INTO daily_transfers (transfer_date, total_items, total_quantity, items_transferred)
+        VALUES (?, ?, ?, ?)
+      `, [transfer_date, total_items, total_quantity, itemsJson], function(err) {
+        if (err) reject(err);
+        else resolve({ id: this.lastID, ...transferData });
+      });
+    });
+  }
+
+  getDailyTransfers(dateRange) {
+    return new Promise((resolve, reject) => {
+      let query = 'SELECT * FROM daily_transfers';
+      const params = [];
+      
+      if (dateRange && dateRange.start && dateRange.end) {
+        query += ' WHERE transfer_date BETWEEN ? AND ?';
+        params.push(dateRange.start, dateRange.end);
+      }
+      
+      query += ' ORDER BY transfer_date DESC';
+      
+      this.db.all(query, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Parse the items_transferred JSON
+          const transfers = rows.map(row => {
+            try {
+              row.items_transferred = JSON.parse(row.items_transferred || '[]');
+            } catch (e) {
+              row.items_transferred = [];
+            }
+            return row;
+          });
+          resolve(transfers);
+        }
+      });
+    });
+  }
+
+  // Bar settings operations
+  getBarSettings() {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM bar_settings ORDER BY id DESC LIMIT 1', (err, row) => {
+        if (err) {
+          reject(err);
+        } else if (row) {
+          resolve(row);
+        } else {
+          // Return default settings if none exist
+          resolve({
+            bar_name: 'My Bar',
+            contact_number: '',
+            gst_number: '',
+            address: '',
+            thank_you_message: 'Thank you for visiting!'
+          });
+        }
+      });
+    });
+  }
+
+  saveBarSettings(settings) {
+    return new Promise((resolve, reject) => {
+      const { bar_name, contact_number, gst_number, address, thank_you_message } = settings;
+      
+      // Check if settings exist
+      this.db.get('SELECT id FROM bar_settings LIMIT 1', (err, existing) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        
+        if (existing) {
+          // Update existing settings
+          this.db.run(`
+            UPDATE bar_settings 
+            SET bar_name = ?, contact_number = ?, gst_number = ?, address = ?, 
+                thank_you_message = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `, [bar_name, contact_number, gst_number, address, thank_you_message, existing.id], function(err) {
+            if (err) reject(err);
+            else resolve({ id: existing.id, updated: true });
+          });
+        } else {
+          // Insert new settings
+          this.db.run(`
+            INSERT INTO bar_settings (bar_name, contact_number, gst_number, address, thank_you_message)
+            VALUES (?, ?, ?, ?, ?)
+          `, [bar_name, contact_number, gst_number, address, thank_you_message], function(err) {
+            if (err) reject(err);
+            else resolve({ id: this.lastID, created: true });
+          });
+        }
       });
     });
   }
