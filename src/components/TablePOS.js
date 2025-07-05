@@ -163,14 +163,15 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
     const year = now.getFullYear().toString().slice(-2);
 
-    // Get today's sales count from database with retry mechanism
+    // Use timestamp-based approach to ensure uniqueness
+    const timestamp = now.getTime();
+    const milliseconds = (timestamp % 1000).toString().padStart(3, "0");
+
+    // Get today's sales count from database
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // Add a small delay to prevent race conditions
-    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       const sales = await window.electronAPI.getSales({
@@ -184,9 +185,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       return `${day}${month}${year}${sequenceNumber}`;
     } catch (error) {
       console.error("Error getting sales count:", error);
-      // Fallback to timestamp if database query fails
-      const timestamp = now.getTime().toString().slice(-6);
-      return `${table.name}-${timestamp}`;
+      // Fallback to timestamp-based unique number
+      return `${day}${month}${year}${milliseconds}`;
     }
   };
 
