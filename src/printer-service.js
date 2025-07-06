@@ -29,12 +29,21 @@ class PrinterService {
       shopName = "Your Shop Name",
     } = kotData;
 
+    // Format date as DD/MM/YYYY
+    const date = new Date(timestamp);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const formattedDate = `${day}/${month}/${year}`;
+    const formattedTime = date.toLocaleTimeString("en-IN");
+
     const kot = `
       ${shopName.toUpperCase()}
       === KITCHEN ORDER TICKET ===
       
       Table: ${table}
-      Time: ${new Date(timestamp).toLocaleString()}
+      Date: ${formattedDate}
+      Time: ${formattedTime}
       ================================
       Item                      Qty
       ================================
@@ -86,6 +95,13 @@ class PrinterService {
     const thankYouMessage =
       barSettings?.thank_you_message || "Thank you for visiting!";
 
+    // Format date as DD/MM/YYYY
+    const date = new Date(saleDate);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const formattedDate = `${day}/${month}/${year}`;
+
     // Simulate thermal printer output with proper formatting
     const receipt = `
 ${shopName.toUpperCase().padEnd(32)}
@@ -94,15 +110,23 @@ Tel: ${shopPhone.padEnd(25)}
 ${gstNumber ? `GST: ${gstNumber.padEnd(25)}` : ""}
 ${"=".repeat(32)}
 BILL NO: ${saleNumber.padEnd(20)}
-DATE: ${new Date(saleDate).toLocaleDateString("en-IN").padEnd(20)}
+DATE: ${formattedDate.padEnd(20)}
 TIME: ${new Date(saleDate).toLocaleTimeString("en-IN").padEnd(20)}
 ${
   saleType === "table" && tableNumber
     ? `TABLE: ${tableNumber.padEnd(20)}`
     : "PARCEL ORDER".padEnd(32)
 }
-CUSTOMER: ${(customerName || "Walk-in").padEnd(20)}
-${customerPhone ? `PHONE: ${customerPhone.padEnd(20)}` : ""}
+${
+  customerName && customerName.trim() !== ""
+    ? `CUSTOMER: ${customerName.padEnd(20)}`
+    : ""
+}
+${
+  customerPhone && customerPhone.trim() !== ""
+    ? `PHONE: ${customerPhone.padEnd(20)}`
+    : ""
+}
 ${"=".repeat(32)}
 ITEM                    QTY   RATE    AMOUNT
 ${"=".repeat(32)}

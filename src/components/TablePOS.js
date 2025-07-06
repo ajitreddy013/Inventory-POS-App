@@ -163,31 +163,10 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
     const year = now.getFullYear().toString().slice(-2);
 
-    // Use timestamp-based approach to ensure uniqueness
-    const timestamp = now.getTime();
-    const milliseconds = (timestamp % 1000).toString().padStart(3, "0");
+    // Generate a random 3-digit number
+    const randomNum = Math.floor(Math.random() * 900) + 100; // 100-999
 
-    // Get today's sales count from database
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    try {
-      const sales = await window.electronAPI.getSales({
-        start: today.toISOString(),
-        end: tomorrow.toISOString(),
-      });
-
-      const todaySalesCount = sales.length;
-      const sequenceNumber = (todaySalesCount + 1).toString().padStart(3, "0");
-
-      return `${day}${month}${year}${sequenceNumber}`;
-    } catch (error) {
-      console.error("Error getting sales count:", error);
-      // Fallback to timestamp-based unique number
-      return `${day}${month}${year}${milliseconds}`;
-    }
+    return `${day}${month}${year}${randomNum}`;
   };
 
   const saveTableOrder = async () => {

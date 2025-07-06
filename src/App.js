@@ -1,31 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { 
-  Package, 
-  ShoppingCart, 
-  BarChart3, 
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import {
+  Package,
+  ShoppingCart,
+  BarChart3,
   Settings as SettingsIcon,
   Menu,
   X,
   Coffee,
-  ArrowRight
-} from 'lucide-react';
-import './App.css';
+  ArrowRight,
+  DollarSign,
+  Wallet,
+} from "lucide-react";
+import "./App.css";
 
 // Import components
-import Dashboard from './components/Dashboard';
-import ProductManagement from './components/ProductManagement';
-import InventoryManagement from './components/InventoryManagement';
-import DailyTransfer from './components/DailyTransfer';
-import POSSystem from './components/POSSystem';
-import TableManagement from './components/TableManagement';
-import TablePOS from './components/TablePOS';
-import SalesReports from './components/SalesReports';
-import Settings from './components/Settings';
+import Dashboard from "./components/Dashboard";
+import ProductManagement from "./components/ProductManagement";
+import InventoryManagement from "./components/InventoryManagement";
+import DailyTransfer from "./components/DailyTransfer";
+import POSSystem from "./components/POSSystem";
+import TableManagement from "./components/TableManagement";
+import TablePOS from "./components/TablePOS";
+import SalesReports from "./components/SalesReports";
+import Settings from "./components/Settings";
+import Spendings from "./components/Spendings";
+import CounterBalance from "./components/CounterBalance";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [currentUser] = useState('Admin'); // In a real app, this would come from authentication
+  const [currentUser] = useState("Admin"); // In a real app, this would come from authentication
   const [selectedTable, setSelectedTable] = useState(null);
 
   const toggleSidebar = () => {
@@ -45,28 +49,30 @@ function App() {
   };
 
   const menuItems = [
-    { path: '/', name: 'Dashboard', icon: BarChart3 },
-    { path: '/tables', name: 'Tables', icon: Coffee },
-    { path: '/products', name: 'Products', icon: Package },
-    { path: '/inventory', name: 'Inventory', icon: Package },
-    { path: '/transfer', name: 'Daily Transfer', icon: ArrowRight },
-    { path: '/pos', name: 'POS', icon: ShoppingCart },
-    { path: '/reports', name: 'Reports', icon: BarChart3 },
-    { path: '/settings', name: 'Settings', icon: SettingsIcon }
+    { path: "/", name: "Dashboard", icon: BarChart3 },
+    { path: "/tables", name: "Tables", icon: Coffee },
+    { path: "/products", name: "Products", icon: Package },
+    { path: "/inventory", name: "Inventory", icon: Package },
+    { path: "/transfer", name: "Daily Transfer", icon: ArrowRight },
+    { path: "/pos", name: "POS", icon: ShoppingCart },
+    { path: "/reports", name: "Reports", icon: BarChart3 },
+    { path: "/settings", name: "Settings", icon: SettingsIcon },
+    { path: "/spendings", name: "Spendings", icon: DollarSign },
+    { path: "/counter-balance", name: "Counter Balance", icon: Wallet },
   ];
 
   return (
     <Router>
       <div className="app">
         {/* Sidebar */}
-        <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
           <div className="sidebar-header">
             <h2>Inventory POS</h2>
             <button onClick={toggleSidebar} className="toggle-btn">
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
-          
+
           <nav className="sidebar-nav">
             {menuItems.map((item) => {
               const IconComponent = item.icon;
@@ -78,7 +84,7 @@ function App() {
               );
             })}
           </nav>
-          
+
           {sidebarOpen && (
             <div className="sidebar-footer">
               <div className="user-info">
@@ -89,26 +95,35 @@ function App() {
         </div>
 
         {/* Main Content */}
-        <div className={`main-content ${sidebarOpen ? 'with-sidebar' : 'full-width'}`}>
+        <div
+          className={`main-content ${
+            sidebarOpen ? "with-sidebar" : "full-width"
+          }`}
+        >
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/tables" element={
-              selectedTable ? (
-                <TablePOS 
-                  table={selectedTable} 
-                  onBack={handleBackToTables} 
-                  onTableUpdate={handleTableUpdate} 
-                />
-              ) : (
-                <TableManagement onSelectTable={handleTableSelect} />
-              )
-            } />
+            <Route
+              path="/tables"
+              element={
+                selectedTable ? (
+                  <TablePOS
+                    table={selectedTable}
+                    onBack={handleBackToTables}
+                    onTableUpdate={handleTableUpdate}
+                  />
+                ) : (
+                  <TableManagement onSelectTable={handleTableSelect} />
+                )
+              }
+            />
             <Route path="/products" element={<ProductManagement />} />
             <Route path="/inventory" element={<InventoryManagement />} />
             <Route path="/transfer" element={<DailyTransfer />} />
             <Route path="/pos" element={<POSSystem />} />
             <Route path="/reports" element={<SalesReports />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/spendings" element={<Spendings />} />
+            <Route path="/counter-balance" element={<CounterBalance />} />
           </Routes>
         </div>
       </div>

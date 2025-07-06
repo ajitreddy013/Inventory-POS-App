@@ -60,7 +60,7 @@ class PDFService {
       this.doc.setLineWidth(0.3);
       this.doc.line(5, 35, 75, 35);
 
-      // Invoice details
+      // Invoice details - Two column layout
       this.doc.setFontSize(12);
       this.doc.setTextColor(0, 0, 0);
       this.doc.setFont("helvetica", "bold");
@@ -69,7 +69,15 @@ class PDFService {
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");
       const date = new Date(saleDate);
-      this.doc.text(`Date: ${date.toLocaleDateString("en-IN")}`, 5, 55);
+
+      // Format date as DD/MM/YYYY
+      const day = date.getDate().toString().padStart(2, "0");
+      const month = (date.getMonth() + 1).toString().padStart(2, "0");
+      const year = date.getFullYear();
+      const formattedDate = `${day}/${month}/${year}`;
+
+      // Left column (x=5 to x=35)
+      this.doc.text(`Date: ${formattedDate}`, 5, 55);
       this.doc.text(`Time: ${date.toLocaleTimeString("en-IN")}`, 5, 61);
 
       // Sale type and table info
@@ -83,19 +91,23 @@ class PDFService {
         );
       }
 
-      // Customer details on right side - left aligned
-      this.doc.text(`Bill No: ${saleNumber}`, 75, 55, { align: "left" });
-      
-      // Truncate customer name if too long for proper alignment
-      const displayCustomerName = customerName && customerName.length > 15 
-        ? customerName.substring(0, 12) + "..." 
-        : customerName || "Walk-in";
-      this.doc.text(`Customer: ${displayCustomerName}`, 75, 61, {
-        align: "left",
-      });
-      
-      if (customerPhone) {
-        this.doc.text(`Phone: ${customerPhone}`, 75, 67, { align: "left" });
+      // Right column (x=40 to x=75) - Customer details center aligned
+      this.doc.text(`Bill No: ${saleNumber}`, 57.5, 55, { align: "center" });
+
+      // Only show customer details if they exist
+      if (customerName && customerName.trim() !== "") {
+        // Truncate customer name if too long for proper alignment
+        const displayCustomerName =
+          customerName.length > 15
+            ? customerName.substring(0, 12) + "..."
+            : customerName;
+        this.doc.text(`Customer: ${displayCustomerName}`, 57.5, 61, {
+          align: "center",
+        });
+      }
+
+      if (customerPhone && customerPhone.trim() !== "") {
+        this.doc.text(`Phone: ${customerPhone}`, 57.5, 67, { align: "center" });
       }
 
       // Separator line
@@ -255,10 +267,18 @@ class PDFService {
 
       this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "normal");
+
+      // Format generation date as DD/MM/YYYY
+      const genDate = new Date();
+      const day = genDate.getDate().toString().padStart(2, "0");
+      const month = (genDate.getMonth() + 1).toString().padStart(2, "0");
+      const year = genDate.getFullYear();
+      const formattedGenDate = `${day}/${month}/${year}`;
+
       this.doc.text(
-        `Generated on: ${new Date().toLocaleDateString(
+        `Generated on: ${formattedGenDate} ${genDate.toLocaleTimeString(
           "en-IN"
-        )} ${new Date().toLocaleTimeString("en-IN")}`,
+        )}`,
         148,
         30,
         { align: "center" }
@@ -411,10 +431,18 @@ class PDFService {
       this.doc.text(`Date: ${transferData.transfer_date}`, 105, 30, {
         align: "center",
       });
+
+      // Format generation date as DD/MM/YYYY
+      const genDate = new Date();
+      const day = genDate.getDate().toString().padStart(2, "0");
+      const month = (genDate.getMonth() + 1).toString().padStart(2, "0");
+      const year = genDate.getFullYear();
+      const formattedGenDate = `${day}/${month}/${year}`;
+
       this.doc.text(
-        `Generated on: ${new Date().toLocaleDateString(
+        `Generated on: ${formattedGenDate} ${genDate.toLocaleTimeString(
           "en-IN"
-        )} ${new Date().toLocaleTimeString("en-IN")}`,
+        )}`,
         105,
         37,
         { align: "center" }

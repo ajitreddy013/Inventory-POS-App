@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Package, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  BarChart3,
+  TrendingUp,
+  Package,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react";
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
@@ -7,52 +13,139 @@ const Dashboard = () => {
     lowStockItems: 0,
     todaySales: 0,
     totalRevenue: 0,
-    recentSales: []
+    todaySpendings: 0,
+    netIncome: 0,
+    counterBalance: 0,
+    leftoverMoney: 0,
+    totalBalance: 0,
+    recentSales: [],
   });
+  const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadDashboardData, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadDashboardData = async () => {
     try {
+      setLoading(true);
+
       // Get inventory data
       const inventory = await window.electronAPI.getInventory();
-      const lowStockItems = inventory.filter(item => 
-        (item.godown_stock + item.counter_stock) <= item.min_stock_level
+      const lowStockItems = inventory.filter(
+        (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
       );
 
-      // Get today's sales
+      // Get today's sales - Fix date calculation
       const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
-      
+      const startOfDay = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        0,
+        0,
+        0,
+        0
+      );
+      const endOfDay = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+        23,
+        59,
+        59,
+        999
+      );
+
       const todaySales = await window.electronAPI.getSales({
-        start: startOfDay,
-        end: endOfDay
+        start: startOfDay.toISOString(),
+        end: endOfDay.toISOString(),
       });
 
-      const todayRevenue = todaySales.reduce((sum, sale) => sum + sale.total_amount, 0);
+      const todayRevenue = todaySales.reduce(
+        (sum, sale) => sum + sale.total_amount,
+        0
+      );
 
-      // Get recent sales (last 10)
-      const recentSales = await window.electronAPI.getSales();
+      // Get today's spendings
+      const todayDate = today.toISOString().split("T")[0];
+      const todaySpendings = await window.electronAPI.getDailySpendingTotal(
+        todayDate
+      );
+      const netIncome = todayRevenue - todaySpendings;
+
+      // Get today's counter balance
+      const todayCounterBalance = await window.electronAPI.getCounterBalance(
+        todayDate
+      );
+      const counterBalance = todayCounterBalance
+        ? todayCounterBalance.closing_balance
+        : 0;
+
+      // Get previous day's closing balance (leftover money)
+      const previousDayBalance =
+        await window.electronAPI.getPreviousDayClosingBalance(todayDate);
+      const leftoverMoney = previousDayBalance || 0;
+
+      // Calculate total balance (net income + leftover money)
+      const totalBalance = netIncome + leftoverMoney;
+
+      // Get recent sales
+      const recentSales = await window.electronAPI.getSales({
+        start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        end: new Date().toISOString(),
+      });
 
       setDashboardData({
         totalProducts: inventory.length,
         lowStockItems: lowStockItems.length,
         todaySales: todaySales.length,
         totalRevenue: todayRevenue,
-        recentSales: recentSales.slice(0, 10)
+        todaySpendings: todaySpendings,
+        netIncome: netIncome,
+        counterBalance: counterBalance,
+        leftoverMoney: leftoverMoney,
+        totalBalance: totalBalance,
+        recentSales: recentSales.slice(0, 10),
       });
+
+      setLastUpdated(new Date());
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error("Failed to load dashboard data:", error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   return (
     <div className="dashboard">
       <div className="page-header">
-        <h1><BarChart3 size={24} /> Dashboard</h1>
+        <h1>
+          <BarChart3 size={24} /> Dashboard
+        </h1>
+        <button
+          onClick={loadDashboardData}
+          disabled={loading}
+          className="btn btn-secondary"
+          style={{ marginLeft: "auto" }}
+        >
+          <RefreshCw size={16} style={{ marginRight: "8px" }} />
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -73,15 +166,66 @@ const Dashboard = () => {
           <h3>Today's Revenue</h3>
           <div className="value">₹{dashboardData.totalRevenue.toFixed(2)}</div>
         </div>
+        <div className="summary-card">
+          <h3>Today's Spendings</h3>
+          <div className="value">
+            ₹{dashboardData.todaySpendings.toFixed(2)}
+          </div>
+        </div>
+        <div className="summary-card">
+          <h3>Net Income</h3>
+          <div
+            className={`value ${
+              dashboardData.netIncome >= 0 ? "positive" : "negative"
+            }`}
+          >
+            ₹{dashboardData.netIncome.toFixed(2)}
+          </div>
+        </div>
+        <div className="summary-card">
+          <h3>Counter Balance</h3>
+          <div className="value">
+            ₹{dashboardData.counterBalance.toFixed(2)}
+          </div>
+        </div>
+        <div className="summary-card">
+          <h3>Leftover Money</h3>
+          <div className="value">₹{dashboardData.leftoverMoney.toFixed(2)}</div>
+        </div>
+        <div className="summary-card">
+          <h3>Total Balance</h3>
+          <div className="value">₹{dashboardData.totalBalance.toFixed(2)}</div>
+        </div>
       </div>
+
+      {/* Last Updated Info */}
+      {lastUpdated && (
+        <div
+          style={{
+            textAlign: "center",
+            margin: "20px 0",
+            color: "#7f8c8d",
+            fontSize: "0.9rem",
+          }}
+        >
+          Last updated: {formatDate(lastUpdated)}
+        </div>
+      )}
 
       {/* Alerts */}
       {dashboardData.lowStockItems > 0 && (
         <div className="alert alert-warning">
           <AlertTriangle size={20} />
           <span>
-            {dashboardData.lowStockItems} item(s) are running low on stock! 
-            <a href="/inventory" style={{ marginLeft: '10px', color: '#856404', textDecoration: 'underline' }}>
+            {dashboardData.lowStockItems} item(s) are running low on stock!
+            <a
+              href="/inventory"
+              style={{
+                marginLeft: "10px",
+                color: "#856404",
+                textDecoration: "underline",
+              }}
+            >
               View Inventory
             </a>
           </span>
@@ -90,7 +234,13 @@ const Dashboard = () => {
 
       {/* Recent Sales */}
       <div className="table-container">
-        <h2 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #e9ecef' }}>
+        <h2
+          style={{
+            padding: "20px",
+            margin: 0,
+            borderBottom: "1px solid #e9ecef",
+          }}
+        >
           Recent Sales
         </h2>
         <table>
@@ -107,29 +257,38 @@ const Dashboard = () => {
           <tbody>
             {dashboardData.recentSales.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
+                <td
+                  colSpan="6"
+                  style={{
+                    textAlign: "center",
+                    padding: "40px",
+                    color: "#7f8c8d",
+                  }}
+                >
                   No sales recorded yet
                 </td>
               </tr>
             ) : (
-              dashboardData.recentSales.map(sale => (
+              dashboardData.recentSales.map((sale) => (
                 <tr key={sale.id}>
                   <td>{sale.sale_number}</td>
-                  <td>{sale.customer_name || 'Walk-in Customer'}</td>
+                  <td>{sale.customer_name || "Walk-in Customer"}</td>
                   <td>{sale.item_count} items</td>
                   <td>₹{sale.total_amount.toFixed(2)}</td>
                   <td>
-                    <span style={{ 
-                      textTransform: 'capitalize',
-                      background: '#e9ecef',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '0.8rem'
-                    }}>
+                    <span
+                      style={{
+                        textTransform: "capitalize",
+                        background: "#e9ecef",
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        fontSize: "0.8rem",
+                      }}
+                    >
                       {sale.payment_method}
                     </span>
                   </td>
-                  <td>{new Date(sale.sale_date).toLocaleDateString()}</td>
+                  <td>{formatDate(sale.sale_date)}</td>
                 </tr>
               ))
             )}

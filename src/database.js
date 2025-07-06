@@ -159,6 +159,30 @@ class Database {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
+
+        // Spendings table
+        `CREATE TABLE IF NOT EXISTS spendings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          description TEXT NOT NULL,
+          amount REAL NOT NULL,
+          category TEXT NOT NULL,
+          spending_date DATE NOT NULL,
+          payment_method TEXT DEFAULT 'cash',
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // Counter balance table
+        `CREATE TABLE IF NOT EXISTS counter_balance (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          balance_date DATE UNIQUE NOT NULL,
+          opening_balance REAL DEFAULT 0,
+          closing_balance REAL DEFAULT 0,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
       ];
 
       let completed = 0;
@@ -841,56 +865,276 @@ class Database {
 
   saveBarSettings(settings) {
     return new Promise((resolve, reject) => {
-      const {
-        bar_name,
-        contact_number,
-        gst_number,
-        address,
-        thank_you_message,
-      } = settings;
+      const query = `
+        INSERT OR REPLACE INTO bar_settings (id, bar_name, contact_number, gst_number, address, thank_you_message, updated_at)
+        VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `;
 
-      // Check if settings exist
-      this.db.get("SELECT id FROM bar_settings LIMIT 1", (err, existing) => {
+      this.db.run(
+        query,
+        [
+          settings.barName,
+          settings.contactNumber,
+          settings.gstNumber,
+          settings.address,
+          settings.thankYouMessage,
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ id: this.lastID });
+          }
+        }
+      );
+    });
+  }
+
+  // Spendings methods
+  addSpending(spending) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        INSERT INTO spendings (description, amount, category, spending_date, payment_method, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+
+      this.db.run(
+        query,
+        [
+          spending.description,
+          spending.amount,
+          spending.category,
+          spending.spendingDate,
+          spending.paymentMethod || "cash",
+          spending.notes || "",
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ id: this.lastID });
+          }
+        }
+      );
+    });
+  }
+
+  updateSpending(id, spending) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE spendings 
+        SET description = ?, amount = ?, category = ?, spending_date = ?, 
+            payment_method = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+
+      this.db.run(
+        query,
+        [
+          spending.description,
+          spending.amount,
+          spending.category,
+          spending.spendingDate,
+          spending.paymentMethod || "cash",
+          spending.notes || "",
+          id,
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ changes: this.changes });
+          }
+        }
+      );
+    });
+  }
+
+  deleteSpending(id) {
+    return new Promise((resolve, reject) => {
+      const query = `DELETE FROM spendings WHERE id = ?`;
+
+      this.db.run(query, [id], function (err) {
         if (err) {
           reject(err);
-          return;
-        }
-
-        if (existing) {
-          // Update existing settings
-          this.db.run(
-            `
-            UPDATE bar_settings 
-            SET bar_name = ?, contact_number = ?, gst_number = ?, address = ?, 
-                thank_you_message = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-          `,
-            [
-              bar_name,
-              contact_number,
-              gst_number,
-              address,
-              thank_you_message,
-              existing.id,
-            ],
-            function (err) {
-              if (err) reject(err);
-              else resolve({ id: existing.id, updated: true });
-            }
-          );
         } else {
-          // Insert new settings
-          this.db.run(
-            `
-            INSERT INTO bar_settings (bar_name, contact_number, gst_number, address, thank_you_message)
-            VALUES (?, ?, ?, ?, ?)
-          `,
-            [bar_name, contact_number, gst_number, address, thank_you_message],
-            function (err) {
-              if (err) reject(err);
-              else resolve({ id: this.lastID, created: true });
-            }
-          );
+          resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
+  getSpendings(dateRange = null) {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT * FROM spendings 
+        ORDER BY spending_date DESC, created_at DESC
+      `;
+
+      let params = [];
+
+      if (dateRange && dateRange.start && dateRange.end) {
+        query = `
+          SELECT * FROM spendings 
+          WHERE spending_date BETWEEN ? AND ?
+          ORDER BY spending_date DESC, created_at DESC
+        `;
+        params = [dateRange.start, dateRange.end];
+      }
+
+      this.db.all(query, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
+    });
+  }
+
+  getSpendingCategories() {
+    return new Promise((resolve, reject) => {
+      const query = `SELECT DISTINCT category FROM spendings ORDER BY category`;
+
+      this.db.all(query, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows.map((row) => row.category));
+        }
+      });
+    });
+  }
+
+  getDailySpendingTotal(date) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT COALESCE(SUM(amount), 0) as total 
+        FROM spendings 
+        WHERE spending_date = ?
+      `;
+
+      this.db.get(query, [date], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row.total);
+        }
+      });
+    });
+  }
+
+  // Counter balance methods
+  addCounterBalance(balance) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        INSERT OR REPLACE INTO counter_balance (balance_date, opening_balance, closing_balance, notes, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `;
+
+      this.db.run(
+        query,
+        [
+          balance.balanceDate,
+          balance.openingBalance,
+          balance.closingBalance,
+          balance.notes || "",
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ id: this.lastID });
+          }
+        }
+      );
+    });
+  }
+
+  updateCounterBalance(date, balance) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE counter_balance 
+        SET opening_balance = ?, closing_balance = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE balance_date = ?
+      `;
+
+      this.db.run(
+        query,
+        [
+          balance.openingBalance,
+          balance.closingBalance,
+          balance.notes || "",
+          date,
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ changes: this.changes });
+          }
+        }
+      );
+    });
+  }
+
+  getCounterBalance(date) {
+    return new Promise((resolve, reject) => {
+      const query = `SELECT * FROM counter_balance WHERE balance_date = ?`;
+
+      this.db.get(query, [date], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+  }
+
+  getCounterBalances(dateRange = null) {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT * FROM counter_balance 
+        ORDER BY balance_date DESC
+      `;
+
+      let params = [];
+
+      if (dateRange && dateRange.start && dateRange.end) {
+        query = `
+          SELECT * FROM counter_balance 
+          WHERE balance_date BETWEEN ? AND ?
+          ORDER BY balance_date DESC
+        `;
+        params = [dateRange.start, dateRange.end];
+      }
+
+      this.db.all(query, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
+    });
+  }
+
+  getPreviousDayClosingBalance(date) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT closing_balance 
+        FROM counter_balance 
+        WHERE balance_date < ? 
+        ORDER BY balance_date DESC 
+        LIMIT 1
+      `;
+
+      this.db.get(query, [date], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row ? row.closing_balance : 0);
         }
       });
     });
