@@ -12,7 +12,10 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint src/**/*.js --fix",
+    "format": "prettier --write src/**/*.{js,jsx,css,md}"
   },
   "build": {
     "appId": "com.inventorypos.app",
@@ -37,17 +40,24 @@
   },
   "homepage": "./",
   "devDependencies": {
+    "@eslint/js": "^9.30.1",
     "concurrently": "^7.6.0",
-    "electron": "^22.0.0",
+    "electron": "^37.2.0",
     "electron-builder": "^24.0.0",
     "electron-is-dev": "^2.0.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.36.0",
     "wait-on": "^7.0.1"
   },
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
-    "jspdf": "^2.5.1",
+    "jspdf": "^3.0.1",
     "lucide-react": "^0.263.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.1",
@@ -57,6 +67,11 @@
     "react-scripts": "5.0.1",
     "sqlite3": "^5.1.6",
     "web-vitals": "^2.1.4"
+  },
+  "overrides": {
+    "nth-check": ">=2.0.1",
+    "postcss": ">=8.4.31",
+    "webpack-dev-server": ">=5.0.4"
   },
   "browserslist": {
     "production": [

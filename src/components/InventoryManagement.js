@@ -304,6 +304,7 @@ const InventoryManagement = () => {
               <th>Product</th>
               <th>SKU</th>
               <th>Category</th>
+              <th>Pricing & Profit</th>
               <th>Godown Stock</th>
               <th>Counter Stock</th>
               <th>Total Stock</th>
@@ -312,57 +313,81 @@ const InventoryManagement = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredInventory.map(item => (
-              <React.Fragment key={item.id}>
-                <tr className={item.total_stock <= item.min_stock_level ? 'low-stock' : ''}>
-                  <td>
-                    <div className="product-info">
-                      <strong>{item.name}</strong>
-                      <small>Price: ₹{item.price.toFixed(2)}</small>
-                    </div>
-                  </td>
-                  <td>{item.sku}</td>
-                  <td>{item.category || '-'}</td>
-                  <td className="stock-cell">{item.godown_stock}</td>
-                  <td className="stock-cell">{item.counter_stock}</td>
-                  <td className="stock-cell total">{item.total_stock}</td>
-                  <td>
-                    {item.total_stock <= item.min_stock_level ? (
-                      <span className="status low-stock">Low Stock</span>
-                    ) : item.total_stock >= item.max_stock_level ? (
-                      <span className="status overstock">Overstock</span>
-                    ) : (
-                      <span className="status normal">Normal</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <button
-                        onClick={() => setEditingStock(item.id)}
-                        className="btn btn-sm btn-secondary"
-                        title="Edit Stock"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => setTransferModal({ open: true, product: item })}
-                        className="btn btn-sm btn-primary"
-                        title="Transfer Stock"
-                      >
-                        <ArrowUpDown size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {editingStock === item.id && (
-                  <StockEditForm
-                    product={item}
-                    onSave={updateStock}
-                    onCancel={() => setEditingStock(null)}
-                  />
-                )}
-              </React.Fragment>
-            ))}
+            {filteredInventory.map(item => {
+              const cost = item.cost || 0;
+              const price = item.price || 0;
+              const profit = price - cost;
+              const profitPercentage = cost > 0 ? ((profit / cost) * 100) : 0;
+              
+              return (
+                <React.Fragment key={item.id}>
+                  <tr className={item.total_stock <= item.min_stock_level ? 'low-stock' : ''}>
+                    <td>
+                      <div className="product-info">
+                        <strong>{item.name}</strong>
+                        {item.variant && (
+                          <small style={{ display: 'block', color: '#667eea' }}>
+                            {item.variant}
+                          </small>
+                        )}
+                      </div>
+                    </td>
+                    <td>{item.sku}</td>
+                    <td>{item.category || '-'}</td>
+                    <td>
+                      <div className="pricing-info">
+                        <div style={{ fontSize: '0.85rem', marginBottom: '4px' }}>
+                          <strong>Cost:</strong> ₹{cost.toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', marginBottom: '4px' }}>
+                          <strong>Price:</strong> ₹{price.toFixed(2)}
+                        </div>
+                        <div className={`profit-mini ${profit >= 0 ? 'positive' : 'negative'}`}>
+                          <strong>Profit:</strong> ₹{profit.toFixed(2)} ({profitPercentage.toFixed(1)}%)
+                        </div>
+                      </div>
+                    </td>
+                    <td className="stock-cell">{item.godown_stock}</td>
+                    <td className="stock-cell">{item.counter_stock}</td>
+                    <td className="stock-cell total">{item.total_stock}</td>
+                    <td>
+                      {item.total_stock <= item.min_stock_level ? (
+                        <span className="status low-stock">Low Stock</span>
+                      ) : item.total_stock >= item.max_stock_level ? (
+                        <span className="status overstock">Overstock</span>
+                      ) : (
+                        <span className="status normal">Normal</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => setEditingStock(item.id)}
+                          className="btn btn-sm btn-secondary"
+                          title="Edit Stock"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => setTransferModal({ open: true, product: item })}
+                          className="btn btn-sm btn-primary"
+                          title="Transfer Stock"
+                        >
+                          <ArrowUpDown size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {editingStock === item.id && (
+                    <StockEditForm
+                      product={item}
+                      onSave={updateStock}
+                      onCancel={() => setEditingStock(null)}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

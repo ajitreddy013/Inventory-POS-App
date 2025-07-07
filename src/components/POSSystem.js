@@ -11,6 +11,7 @@ import {
   Phone,
   Calculator,
 } from "lucide-react";
+import { getLocalDateTimeString } from "../utils/dateUtils";
 
 const POSSystem = () => {
   const [products, setProducts] = useState([]);
@@ -175,7 +176,7 @@ const POSSystem = () => {
         discountAmount: calculateDiscountAmount(),
         totalAmount: calculateTotal(),
         paymentMethod,
-        saleDate: new Date().toISOString(),
+        saleDate: getLocalDateTimeString(),
         barSettings,
       };
 
@@ -203,6 +204,9 @@ const POSSystem = () => {
 
       // Reload products to update stock
       await loadProducts();
+
+      // Trigger dashboard refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent("saleCompleted"));
     } catch (error) {
       console.error("Failed to process sale:", error);
       alert("Failed to process sale. Please try again.");
@@ -500,5 +504,6 @@ const POSSystem = () => {
     </div>
   );
 };
+
 
 export default POSSystem;

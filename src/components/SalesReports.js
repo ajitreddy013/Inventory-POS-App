@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { BarChart3, Mail, Send, DollarSign } from "lucide-react";
+import { 
+  getLocalDateString,
+  formatDateForDisplay,
+  createDateRange
+} from "../utils/dateUtils";
 
 const SalesReports = () => {
   const [sales, setSales] = useState([]);
@@ -20,11 +25,11 @@ const SalesReports = () => {
     try {
       setLoading(true);
 
+      // Create proper date range with start/end times
+      const range = createDateRange(dateRange.start, dateRange.end);
+
       // Load sales data
-      const salesData = await window.electronAPI.getSales({
-        start: `${dateRange.start}T00:00:00`,
-        end: `${dateRange.end}T23:59:59`,
-      });
+      const salesData = await window.electronAPI.getSales(range);
       setSales(salesData);
 
       // Load spendings data
@@ -48,11 +53,7 @@ const SalesReports = () => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+    return formatDateForDisplay(dateString);
   };
 
   const sendEmailReport = async () => {
@@ -100,18 +101,6 @@ const SalesReports = () => {
 
   const leftoverMoney = getLeftoverMoney();
   const totalBalance = netIncome + leftoverMoney;
-
-  // Helper to get local date in YYYY-MM-DD
-  const getLocalDateString = () => {
-    const today = new Date();
-    return (
-      today.getFullYear() +
-      "-" +
-      String(today.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(today.getDate()).padStart(2, "0")
-    );
-  };
 
   return (
     <div className="sales-reports">

@@ -1,6 +1,31 @@
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+
+// Simple encryption for stored passwords
+const ENCRYPTION_KEY = crypto.scryptSync('inventory-pos-secret', 'salt', 32);
+const IV_LENGTH = 16;
+
+function encrypt(text) {
+  if (!text) return text;
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decrypt(text) {
+  if (!text || !text.includes(':')) return text;
+  const textParts = text.split(':');
+  const iv = Buffer.from(textParts.shift(), 'hex');
+  const encryptedText = textParts.join(':');
+  const decipher = crypto.createDecipher('aes-256-cbc', ENCRYPTION_KEY);
+  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 class EmailService {
   constructor() {
@@ -25,18 +50,75 @@ class EmailService {
     try {
       if (fs.existsSync(settingsPath)) {
         const data = fs.readFileSync(settingsPath, 'utf8');
-        this.settings = { ...this.settings, ...JSON.parse(data) };
+        const loadedSettings = JSON.parse(data);
+        
+        // Decrypt password if it exists
+        if (loadedSettings.auth && loadedSettings.auth.pass) {
+          try {
+            loadedSettings.auth.pass = decrypt(loadedSettings.auth.pass);
+          } catch (error) {
+            console.error('Error decrypting email password:', error);
+            loadedSettings.auth.pass = '';
+          }
+        }
+        
+        this.settings = { ...this.settings, ...loadedSettings };
       }
     } catch (error) {
       console.error('Error loading email settings:', error);
     }
   }
 
+  validateEmailSettings(settings) {
+    if (settings.host && typeof settings.host !== 'string') {
+      throw new Error('Email host must be a string');
+    }
+    if (settings.port && (!Number.isInteger(settings.port) || settings.port < 1 || settings.port > 65535)) {
+      throw new Error('Email port must be a valid port number (1-65535)');
+    }
+    if (settings.auth) {
+      if (settings.auth.user && typeof settings.auth.user !== 'string') {
+        throw new Error('Email username must be a string');
+      }
+      if (settings.auth.pass && typeof settings.auth.pass !== 'string') {
+        throw new Error('Email password must be a string');
+      }
+    }
+    if (settings.from && typeof settings.from !== 'string') {
+      throw new Error('From email address must be a string');
+    }
+    if (settings.to && typeof settings.to !== 'string') {
+      throw new Error('To email address must be a string');
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (settings.from && !emailRegex.test(settings.from)) {
+      throw new Error('From email address is not valid');
+    }
+    if (settings.to && !emailRegex.test(settings.to)) {
+      throw new Error('To email address is not valid');
+    }
+  }
+
   saveSettings(settings) {
     const settingsPath = path.join(__dirname, '../email-settings.json');
-    this.settings = { ...this.settings, ...settings };
+    
     try {
-      fs.writeFileSync(settingsPath, JSON.stringify(this.settings, null, 2));
+      this.validateEmailSettings(settings);
+      
+      const sanitizedSettings = { ...this.settings, ...settings };
+      
+      // Encrypt password before saving
+      if (sanitizedSettings.auth && sanitizedSettings.auth.pass) {
+        const settingsToSave = JSON.parse(JSON.stringify(sanitizedSettings));
+        settingsToSave.auth.pass = encrypt(sanitizedSettings.auth.pass);
+        fs.writeFileSync(settingsPath, JSON.stringify(settingsToSave, null, 2));
+      } else {
+        fs.writeFileSync(settingsPath, JSON.stringify(sanitizedSettings, null, 2));
+      }
+      
+      this.settings = sanitizedSettings;
       this.initializeTransporter();
       return true;
     } catch (error) {

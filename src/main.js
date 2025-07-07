@@ -7,6 +7,13 @@ const PrinterService = require("./printer-service");
 const PDFService = require("./pdf-service");
 const EmailService = require("./email-service");
 const { initializeSampleData } = require("./init-sample-data");
+const { 
+  getLocalDateString, 
+  getLocalDateTimeString, 
+  getStartOfDay, 
+  getEndOfDay,
+  formatDateTimeToString
+} = require("./utils/dateUtils");
 
 let mainWindow;
 let database;
@@ -80,24 +87,11 @@ app.whenReady().then(async () => {
 // Function to send daily email report
 async function sendDailyEmailReport() {
   try {
-    const today = new Date();
-    const startOfDay = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate()
-    );
-    const endOfDay = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-      23,
-      59,
-      59
-    );
-
+    const todayDate = getLocalDateString();
+    
     const salesData = await database.getSales({
-      start: startOfDay.toISOString(),
-      end: endOfDay.toISOString(),
+      start: getStartOfDay(todayDate),
+      end: getEndOfDay(todayDate),
     });
 
     const reportData = {
@@ -381,8 +375,9 @@ ipcMain.handle("get-previous-day-closing-balance", async (event, date) => {
 // PDF generation for reports
 ipcMain.handle("export-stock-report", async (event, reportData, reportType) => {
   try {
+    const timestamp = new Date().getTime();
     const result = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `${reportType}-stock-report-${Date.now()}.pdf`,
+      defaultPath: `${reportType}-stock-report-${timestamp}.pdf`,
       filters: [{ name: "PDF Files", extensions: ["pdf"] }],
     });
 
@@ -402,8 +397,9 @@ ipcMain.handle("export-stock-report", async (event, reportData, reportType) => {
 
 ipcMain.handle("export-transfer-report", async (event, transferData) => {
   try {
+    const timestamp = new Date().getTime();
     const result = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `daily-transfer-report-${Date.now()}.pdf`,
+      defaultPath: `daily-transfer-report-${timestamp}.pdf`,
       filters: [{ name: "PDF Files", extensions: ["pdf"] }],
     });
 

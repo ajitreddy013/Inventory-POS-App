@@ -267,27 +267,58 @@ class Database {
     });
   }
 
+  validateProduct(product) {
+    const { name, sku, price, cost } = product;
+    
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      throw new Error('Product name is required and must be a valid string');
+    }
+    if (!sku || typeof sku !== 'string' || sku.trim().length === 0) {
+      throw new Error('Product SKU is required and must be a valid string');
+    }
+    if (typeof price !== 'number' || price < 0) {
+      throw new Error('Product price must be a valid positive number');
+    }
+    if (typeof cost !== 'number' || cost < 0) {
+      throw new Error('Product cost must be a valid positive number');
+    }
+    
+    // Sanitize strings
+    return {
+      ...product,
+      name: name.trim(),
+      sku: sku.trim(),
+      variant: product.variant ? product.variant.trim() : null,
+      barcode: product.barcode ? product.barcode.trim() : null,
+      category: product.category ? product.category.trim() : null,
+      description: product.description ? product.description.trim() : null,
+      unit: product.unit ? product.unit.trim() : 'pcs'
+    };
+  }
+
   addProduct(product) {
     return new Promise((resolve, reject) => {
-      const {
-        name,
-        variant,
-        sku,
-        barcode,
-        price,
-        cost,
-        category,
-        description,
-        unit,
-      } = product;
+      try {
+        const validatedProduct = this.validateProduct(product);
+        const {
+          name,
+          variant,
+          sku,
+          barcode,
+          price,
+          cost,
+          category,
+          description,
+          unit,
+        } = validatedProduct;
 
-      const db = this.db;
-      db.run(
-        `
-        INSERT INTO products (name, variant, sku, barcode, price, cost, category, description, unit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        [name, variant, sku, barcode, price, cost, category, description, unit],
+        const db = this.db;
+        db.run(
+          `
+          INSERT INTO products (name, variant, sku, barcode, price, cost, category, description, unit)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+          [name, variant, sku, barcode, price, cost, category, description, unit],
         function (err) {
           if (err) {
             reject(err);
@@ -302,37 +333,28 @@ class Database {
               [productId],
               (err) => {
                 if (err) reject(err);
-                else resolve({ id: productId, ...product });
+                else resolve({ id: productId, ...validatedProduct });
               }
             );
           }
         }
       );
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
   updateProduct(id, product) {
     return new Promise((resolve, reject) => {
-      const {
-        name,
-        variant,
-        sku,
-        barcode,
-        price,
-        cost,
-        category,
-        description,
-        unit,
-      } = product;
-
-      this.db.run(
-        `
-        UPDATE products 
-        SET name = ?, variant = ?, sku = ?, barcode = ?, price = ?, cost = ?, 
-            category = ?, description = ?, unit = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `,
-        [
+      try {
+        // Validate product ID
+        if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+          throw new Error('Invalid product ID');
+        }
+        
+        const validatedProduct = this.validateProduct(product);
+        const {
           name,
           variant,
           sku,
@@ -342,22 +364,53 @@ class Database {
           category,
           description,
           unit,
-          id,
-        ],
-        function (err) {
-          if (err) reject(err);
-          else resolve({ id, ...product });
-        }
-      );
+        } = validatedProduct;
+
+        this.db.run(
+          `
+          UPDATE products 
+          SET name = ?, variant = ?, sku = ?, barcode = ?, price = ?, cost = ?, 
+              category = ?, description = ?, unit = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+          [
+            name,
+            variant,
+            sku,
+            barcode,
+            price,
+            cost,
+            category,
+            description,
+            unit,
+            id,
+          ],
+          function (err) {
+            if (err) reject(err);
+            else resolve({ id, ...validatedProduct });
+          }
+        );
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
   deleteProduct(id) {
     return new Promise((resolve, reject) => {
-      this.db.run("DELETE FROM products WHERE id = ?", [id], function (err) {
-        if (err) reject(err);
-        else resolve({ deleted: this.changes > 0 });
-      });
+      try {
+        // Validate product ID
+        if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+          throw new Error('Invalid product ID');
+        }
+        
+        this.db.run("DELETE FROM products WHERE id = ?", [Number(id)], function (err) {
+          if (err) reject(err);
+          else resolve({ deleted: this.changes > 0 });
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
@@ -438,20 +491,60 @@ class Database {
   }
 
   // Sales operations
+  validateSaleData(saleData) {
+    const { saleNumber, items, totalAmount } = saleData;
+    
+    if (!saleNumber || typeof saleNumber !== 'string' || saleNumber.trim().length === 0) {
+      throw new Error('Sale number is required and must be a valid string');
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('Sale items are required and must be a non-empty array');
+    }
+    if (typeof totalAmount !== 'number' || totalAmount < 0) {
+      throw new Error('Total amount must be a valid positive number');
+    }
+    
+    // Validate each item
+    items.forEach((item, index) => {
+      if (!item.productId || !Number.isInteger(Number(item.productId)) || Number(item.productId) <= 0) {
+        throw new Error(`Item ${index + 1}: Invalid product ID`);
+      }
+      if (!item.quantity || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
+        throw new Error(`Item ${index + 1}: Invalid quantity`);
+      }
+      if (typeof item.unitPrice !== 'number' || item.unitPrice < 0) {
+        throw new Error(`Item ${index + 1}: Invalid unit price`);
+      }
+      if (typeof item.totalPrice !== 'number' || item.totalPrice < 0) {
+        throw new Error(`Item ${index + 1}: Invalid total price`);
+      }
+    });
+    
+    return {
+      ...saleData,
+      saleNumber: saleData.saleNumber.trim(),
+      customerName: saleData.customerName ? saleData.customerName.trim() : null,
+      customerPhone: saleData.customerPhone ? saleData.customerPhone.trim() : null,
+      tableNumber: saleData.tableNumber ? saleData.tableNumber.trim() : null,
+    };
+  }
+
   createSale(saleData) {
     return new Promise((resolve, reject) => {
-      const {
-        saleNumber,
-        saleType,
-        tableNumber,
-        customerName,
-        customerPhone,
-        items,
-        totalAmount,
-        taxAmount,
-        discountAmount,
-        paymentMethod,
-      } = saleData;
+      try {
+        const validatedSaleData = this.validateSaleData(saleData);
+        const {
+          saleNumber,
+          saleType,
+          tableNumber,
+          customerName,
+          customerPhone,
+          items,
+          totalAmount,
+          taxAmount,
+          discountAmount,
+          paymentMethod,
+        } = validatedSaleData;
 
       const db = this.db;
       db.serialize(() => {

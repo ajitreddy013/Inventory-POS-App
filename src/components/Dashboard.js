@@ -6,6 +6,13 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
+import { 
+  getLocalDateString,
+  formatDateForDisplay,
+  getStartOfDay,
+  getEndOfDay,
+  formatDateTimeToString
+} from "../utils/dateUtils";
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState({
@@ -53,26 +60,14 @@ const Dashboard = () => {
         (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
       );
 
-      // Helper to get local date in YYYY-MM-DD
-      const getLocalDateString = () => {
-        const today = new Date();
-        return (
-          today.getFullYear() +
-          "-" +
-          String(today.getMonth() + 1).padStart(2, "0") +
-          "-" +
-          String(today.getDate()).padStart(2, "0")
-        );
-      };
-
-      // Get today's sales - Fixed date calculation using local time
+      // Get today's sales using system local date
       const todayDate = getLocalDateString(); // YYYY-MM-DD format in local time
 
       console.log("Dashboard loading for date:", todayDate); // Debug log
 
       const todaySales = await window.electronAPI.getSales({
-        start: `${todayDate}T00:00:00`,
-        end: `${todayDate}T23:59:59`,
+        start: getStartOfDay(todayDate),
+        end: getEndOfDay(todayDate),
       });
 
       console.log("Today sales found:", todaySales.length); // Debug log
@@ -104,10 +99,12 @@ const Dashboard = () => {
       // Calculate total balance (net income + leftover money)
       const totalBalance = netIncome + leftoverMoney;
 
-      // Get recent sales
+      // Get recent sales (last 7 days)
+      const now = new Date();
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const recentSales = await window.electronAPI.getSales({
-        start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        end: new Date().toISOString(),
+        start: formatDateTimeToString(weekAgo),
+        end: formatDateTimeToString(now),
       });
 
       setDashboardData({
@@ -132,12 +129,9 @@ const Dashboard = () => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+    return formatDateForDisplay(dateString);
   };
+
 
   return (
     <div className="dashboard">

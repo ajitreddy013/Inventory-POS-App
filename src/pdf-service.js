@@ -1,5 +1,12 @@
 const { jsPDF } = require("jspdf");
 const fs = require("fs");
+const { 
+  parseLocalDateString, 
+  formatDateForDisplay,
+  formatTimeString,
+  getLocalDateString,
+  getCurrentTimeString
+} = require("./utils/dateUtils");
 
 class PDFService {
   constructor() {
@@ -68,17 +75,15 @@ class PDFService {
 
       this.doc.setFontSize(8);
       this.doc.setFont("helvetica", "normal");
-      const date = new Date(saleDate);
-
-      // Format date as DD/MM/YYYY
-      const day = date.getDate().toString().padStart(2, "0");
-      const month = (date.getMonth() + 1).toString().padStart(2, "0");
-      const year = date.getFullYear();
-      const formattedDate = `${day}/${month}/${year}`;
+      
+      // Parse and format the sale date using local time
+      const saleDateTime = parseLocalDateString(saleDate);
+      const formattedDate = formatDateForDisplay(saleDate);
+      const formattedTime = saleDateTime ? formatTimeString(saleDateTime) : getCurrentTimeString();
 
       // Left column (x=5 to x=35)
       this.doc.text(`Date: ${formattedDate}`, 5, 55);
-      this.doc.text(`Time: ${date.toLocaleTimeString("en-IN")}`, 5, 61);
+      this.doc.text(`Time: ${formattedTime}`, 5, 61);
 
       // Sale type and table info
       if (saleType === "table" && tableNumber) {
@@ -268,17 +273,13 @@ class PDFService {
       this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "normal");
 
-      // Format generation date as DD/MM/YYYY
-      const genDate = new Date();
-      const day = genDate.getDate().toString().padStart(2, "0");
-      const month = (genDate.getMonth() + 1).toString().padStart(2, "0");
-      const year = genDate.getFullYear();
-      const formattedGenDate = `${day}/${month}/${year}`;
+      // Format generation date using system local time
+      const todayDate = getLocalDateString();
+      const formattedGenDate = formatDateForDisplay(todayDate);
+      const currentTime = getCurrentTimeString();
 
       this.doc.text(
-        `Generated on: ${formattedGenDate} ${genDate.toLocaleTimeString(
-          "en-IN"
-        )}`,
+        `Generated on: ${formattedGenDate} ${currentTime}`,
         148,
         30,
         { align: "center" }
@@ -432,17 +433,13 @@ class PDFService {
         align: "center",
       });
 
-      // Format generation date as DD/MM/YYYY
-      const genDate = new Date();
-      const day = genDate.getDate().toString().padStart(2, "0");
-      const month = (genDate.getMonth() + 1).toString().padStart(2, "0");
-      const year = genDate.getFullYear();
-      const formattedGenDate = `${day}/${month}/${year}`;
+      // Format generation date using system local time
+      const todayDate = getLocalDateString();
+      const formattedGenDate = formatDateForDisplay(todayDate);
+      const currentTime = getCurrentTimeString();
 
       this.doc.text(
-        `Generated on: ${formattedGenDate} ${genDate.toLocaleTimeString(
-          "en-IN"
-        )}`,
+        `Generated on: ${formattedGenDate} ${currentTime}`,
         105,
         37,
         { align: "center" }
@@ -505,11 +502,10 @@ class PDFService {
         });
 
         const transferTime = item.transfer_time
-          ? new Date(item.transfer_time).toLocaleTimeString("en-IN", {
-              hour12: false,
-              hour: "2-digit",
-              minute: "2-digit",
-            })
+          ? (() => {
+              const transferDateTime = parseLocalDateString(item.transfer_time);
+              return transferDateTime ? formatTimeString(transferDateTime) : "-";
+            })()
           : "-";
         this.doc.text(transferTime, 165, yPosition, { align: "center" });
 
