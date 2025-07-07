@@ -8,8 +8,8 @@ const SalesReports = () => {
   const [loading, setLoading] = useState(true);
   const [emailLoading, setEmailLoading] = useState(false);
   const [dateRange, setDateRange] = useState({
-    start: new Date().toISOString().substr(0, 10),
-    end: new Date().toISOString().substr(0, 10),
+    start: getLocalDateString(),
+    end: getLocalDateString(),
   });
 
   useEffect(() => {
@@ -81,16 +81,11 @@ const SalesReports = () => {
   const totalTransactions = sales.length;
   const totalSpendingEntries = spendings.length;
 
-  // Calculate counter balance totals
+  // Calculate opening balance totals
   const totalOpeningBalance = counterBalances.reduce(
     (sum, balance) => sum + balance.opening_balance,
     0
   );
-  const totalClosingBalance = counterBalances.reduce(
-    (sum, balance) => sum + balance.closing_balance,
-    0
-  );
-  const totalBalanceDifference = totalClosingBalance - totalOpeningBalance;
 
   // Get leftover money from previous day
   const getLeftoverMoney = () => {
@@ -105,6 +100,18 @@ const SalesReports = () => {
 
   const leftoverMoney = getLeftoverMoney();
   const totalBalance = netIncome + leftoverMoney;
+
+  // Helper to get local date in YYYY-MM-DD
+  const getLocalDateString = () => {
+    const today = new Date();
+    return (
+      today.getFullYear() +
+      "-" +
+      String(today.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(today.getDate()).padStart(2, "0")
+    );
+  };
 
   return (
     <div className="sales-reports">
@@ -185,6 +192,16 @@ const SalesReports = () => {
               ₹{netIncome.toFixed(2)}
             </p>
             <small>{netIncome >= 0 ? "Profit" : "Loss"}</small>
+          </div>
+        </div>
+        <div className="summary-card">
+          <div className="card-icon">
+            <DollarSign size={24} />
+          </div>
+          <div className="card-content">
+            <h3>Opening Balance</h3>
+            <p className="amount">₹{totalOpeningBalance.toFixed(2)}</p>
+            <small>Total opening balances</small>
           </div>
         </div>
         <div className="summary-card">
@@ -319,42 +336,28 @@ const SalesReports = () => {
         </div>
       )}
 
-      {/* Counter Balance Table */}
+      {/* Opening Balance Table */}
       {counterBalances.length > 0 && (
         <div className="table-container" style={{ marginTop: "30px" }}>
           <h3 style={{ margin: "0 30px 20px 30px" }}>
-            Counter Balance Details
+            Opening Balance Details
           </h3>
           <table>
             <thead>
               <tr>
                 <th>Date</th>
                 <th>Opening Balance</th>
-                <th>Closing Balance</th>
-                <th>Difference</th>
                 <th>Notes</th>
               </tr>
             </thead>
             <tbody>
-              {counterBalances.map((balance) => {
-                const difference =
-                  balance.closing_balance - balance.opening_balance;
-                return (
-                  <tr key={balance.id}>
-                    <td>{formatDate(balance.balance_date)}</td>
-                    <td>₹{balance.opening_balance.toFixed(2)}</td>
-                    <td>₹{balance.closing_balance.toFixed(2)}</td>
-                    <td
-                      className={`amount ${
-                        difference >= 0 ? "positive" : "negative"
-                      }`}
-                    >
-                      ₹{difference.toFixed(2)}
-                    </td>
-                    <td>{balance.notes || "-"}</td>
-                  </tr>
-                );
-              })}
+              {counterBalances.map((balance) => (
+                <tr key={balance.id}>
+                  <td>{formatDate(balance.balance_date)}</td>
+                  <td>₹{balance.opening_balance.toFixed(2)}</td>
+                  <td>{balance.notes || "-"}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

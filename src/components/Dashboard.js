@@ -15,7 +15,7 @@ const Dashboard = () => {
     totalRevenue: 0,
     todaySpendings: 0,
     netIncome: 0,
-    counterBalance: 0,
+    openingBalance: 0,
     leftoverMoney: 0,
     totalBalance: 0,
     recentSales: [],
@@ -29,7 +29,18 @@ const Dashboard = () => {
     // Auto-refresh every 30 seconds
     const interval = setInterval(loadDashboardData, 30000);
 
-    return () => clearInterval(interval);
+    // Listen for sale completion events
+    const handleSaleCompleted = () => {
+      console.log("Sale completed event received, refreshing dashboard...");
+      loadDashboardData();
+    };
+
+    window.addEventListener("saleCompleted", handleSaleCompleted);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("saleCompleted", handleSaleCompleted);
+    };
   }, []);
 
   const loadDashboardData = async () => {
@@ -42,31 +53,29 @@ const Dashboard = () => {
         (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
       );
 
-      // Get today's sales - Fix date calculation
-      const today = new Date();
-      const startOfDay = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate(),
-        0,
-        0,
-        0,
-        0
-      );
-      const endOfDay = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate(),
-        23,
-        59,
-        59,
-        999
-      );
+      // Helper to get local date in YYYY-MM-DD
+      const getLocalDateString = () => {
+        const today = new Date();
+        return (
+          today.getFullYear() +
+          "-" +
+          String(today.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(today.getDate()).padStart(2, "0")
+        );
+      };
+
+      // Get today's sales - Fixed date calculation using local time
+      const todayDate = getLocalDateString(); // YYYY-MM-DD format in local time
+
+      console.log("Dashboard loading for date:", todayDate); // Debug log
 
       const todaySales = await window.electronAPI.getSales({
-        start: startOfDay.toISOString(),
-        end: endOfDay.toISOString(),
+        start: `${todayDate}T00:00:00`,
+        end: `${todayDate}T23:59:59`,
       });
+
+      console.log("Today sales found:", todaySales.length); // Debug log
 
       const todayRevenue = todaySales.reduce(
         (sum, sale) => sum + sale.total_amount,
@@ -74,18 +83,17 @@ const Dashboard = () => {
       );
 
       // Get today's spendings
-      const todayDate = today.toISOString().split("T")[0];
       const todaySpendings = await window.electronAPI.getDailySpendingTotal(
         todayDate
       );
       const netIncome = todayRevenue - todaySpendings;
 
-      // Get today's counter balance
+      // Get today's opening balance
       const todayCounterBalance = await window.electronAPI.getCounterBalance(
         todayDate
       );
-      const counterBalance = todayCounterBalance
-        ? todayCounterBalance.closing_balance
+      const openingBalance = todayCounterBalance
+        ? todayCounterBalance.opening_balance
         : 0;
 
       // Get previous day's closing balance (leftover money)
@@ -109,7 +117,7 @@ const Dashboard = () => {
         totalRevenue: todayRevenue,
         todaySpendings: todaySpendings,
         netIncome: netIncome,
-        counterBalance: counterBalance,
+        openingBalance: openingBalance,
         leftoverMoney: leftoverMoney,
         totalBalance: totalBalance,
         recentSales: recentSales.slice(0, 10),
@@ -183,9 +191,9 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="summary-card">
-          <h3>Counter Balance</h3>
+          <h3>Opening Balance</h3>
           <div className="value">
-            ₹{dashboardData.counterBalance.toFixed(2)}
+            ₹{dashboardData.openingBalance.toFixed(2)}
           </div>
         </div>
         <div className="summary-card">
