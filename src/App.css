@@ -43,6 +43,11 @@ body {
   align-items: center;
 }
 
+.sidebar.closed .sidebar-header {
+  justify-content: center;
+  padding: 20px 10px;
+}
+
 .sidebar-header h2 {
   font-size: 1.2rem;
   font-weight: 600;
@@ -65,6 +70,7 @@ body {
 .sidebar-nav {
   flex: 1;
   padding: 20px 0;
+  overflow-y: auto;
 }
 
 .nav-item {
@@ -77,10 +83,23 @@ body {
   border-left: 3px solid transparent;
 }
 
+.sidebar.closed .nav-item {
+  justify-content: center;
+  padding: 12px 10px;
+}
+
 .nav-item:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
   border-left-color: white;
+}
+
+.nav-item.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  border-left-color: white;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .nav-item span {
@@ -2890,5 +2909,247 @@ td:nth-child(7) { /* Profit column */
   .profit-mini {
     font-size: 0.7rem;
     padding: 1px 4px;
+  }
+}
+
+/* Pending Bills specific styles */
+.pending-bills {
+  height: 100vh;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+}
+
+.pending-bills-content {
+  margin: 0 30px;
+}
+
+.bill-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.info-item strong {
+  font-weight: 600;
+  color: #495057;
+}
+
+.info-item span {
+  font-weight: 500;
+  color: #212529;
+}
+
+.items-section {
+  margin-bottom: 30px;
+}
+
+.items-section h3 {
+  margin-bottom: 15px;
+  color: #495057;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.items-table th,
+.items-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.items-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #495057;
+}
+
+.items-table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.bill-summary {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.summary-row.total {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  border-top: 2px solid #dee2e6;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.customer-info .phone {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.table-info .table-number {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.bill-number {
+  font-weight: 600;
+  color: #495057;
+}
+
+.total-amount {
+  font-weight: 600;
+  color: #28a745;
+}
+
+.created-date {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.items-count {
+  font-size: 14px;
+  color: #495057;
+  font-weight: 500;
+}
+
+/* Search functionality enhancements */
+.search-section {
+  position: relative;
+}
+
+.search-input-container {
+  position: relative;
+  flex: 1;
+}
+
+.search-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.search-results-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 14px;
+  color: #6c757d;
+}
+
+.search-highlight {
+  background-color: #fff3cd;
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+/* Product Management specific styles */
+.summary-card h3 {
+  font-size: 14px;
+  line-height: 1.2;
+  margin-bottom: 10px;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+.summary-card .value {
+  font-size: 1.6rem;
+  line-height: 1.1;
+  word-wrap: break-word;
+}
+
+/* Ensure long currency values fit properly */
+@media (max-width: 1200px) {
+  .summary-card .value {
+    font-size: 1.4rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .summary-card .value {
+    font-size: 1.2rem;
+  }
+}
+
+/* Responsive design for pending bills */
+@media (max-width: 768px) {
+  .pending-bills-content {
+    margin: 0 20px;
+  }
+  
+  .bill-info-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  
+  .info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  
+  .items-table th,
+  .items-table td {
+    padding: 8px;
+    font-size: 12px;
+  }
+  
+  .summary-row {
+    font-size: 12px;
+  }
+  
+  .summary-row.total {
+    font-size: 16px;
+  }
+  
+  .search-section {
+    padding: 15px 20px;
+  }
+  
+  .search-section h3 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  
+  .search-input {
+    font-size: 16px;
+    padding: 12px 16px 12px 45px;
+  }
+  
+  .search-input-container svg {
+    width: 18px;
+    height: 18px;
   }
 }

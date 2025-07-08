@@ -64,12 +64,19 @@ const TableManagement = ({ onSelectTable }) => {
     }
   };
 
-  const handleResetTables = async () =>
+  const handleResetTables = async () => {
+    const userInput = prompt('To reset tables, type "reset app" exactly:');
+    
+    if (userInput !== 'reset app') {
+      alert('Reset cancelled. You must type "reset app" exactly to proceed.');
+      return;
+    }
+    
     try {
       const tableList = await window.electronAPI.getTables();
       
       // Find tables after T12 and delete them
-      const tablesToDelete = tableList.filter(table =) => {
+      const tablesToDelete = tableList.filter(table => {
         const tableNumberMatch = table.name.match(/^T(\d+)$/);
         return tableNumberMatch && parseInt(tableNumberMatch[1]) > 12;
       });
@@ -79,6 +86,7 @@ const TableManagement = ({ onSelectTable }) => {
       }
       
       loadTables();
+      alert('Tables reset successfully!');
     } catch (error) {
       console.error('Failed to reset tables:', error);
       alert('Failed to reset tables. Please try again.');
@@ -214,6 +222,14 @@ const TableManagement = ({ onSelectTable }) => {
           >
             <RefreshCw size={20} />
             Refresh
+          </button>
+          <button 
+            className="btn btn-warning"
+            onClick={handleResetTables}
+            title="Reset tables (removes tables after T12)"
+          >
+            <RefreshCw size={20} />
+            Reset Tables
           </button>
           <button 
             className="btn btn-primary"

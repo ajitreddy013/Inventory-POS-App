@@ -195,6 +195,24 @@ const InventoryManagement = () => {
         <h1><Package size={24} /> Inventory Management</h1>
       </div>
 
+      {/* Summary Cards - Moved to top for quick access */}
+      <div className="summary-cards">
+        <div className="summary-card">
+          <h3>Total Products</h3>
+          <div className="value">{inventory.length}</div>
+        </div>
+        <div className="summary-card warning">
+          <h3>Low Stock Items</h3>
+          <div className="value">{getLowStockItems().length}</div>
+        </div>
+        <div className="summary-card">
+          <h3>Total Inventory Value</h3>
+          <div className="value">
+            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * item.price), 0).toFixed(2)}
+          </div>
+        </div>
+      </div>
+
       {/* Low Stock Alert */}
       {getLowStockItems().length > 0 && (
         <div className="alert alert-warning">
@@ -357,23 +375,6 @@ const InventoryManagement = () => {
         />
       )}
 
-      {/* Summary Cards */}
-      <div className="summary-cards">
-        <div className="summary-card">
-          <h3>Total Products</h3>
-          <div className="value">{inventory.length}</div>
-        </div>
-        <div className="summary-card warning">
-          <h3>Low Stock Items</h3>
-          <div className="value">{getLowStockItems().length}</div>
-        </div>
-        <div className="summary-card">
-          <h3>Total Inventory Value</h3>
-          <div className="value">
-            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * item.price), 0).toFixed(2)}
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

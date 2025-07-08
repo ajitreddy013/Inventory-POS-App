@@ -9,26 +9,16 @@ class ReportService {
 
   async generateSalesReport(dateRange) {
     try {
-      // Fetch product cost and sales data
-      const salesData = await this.db.getSales(dateRange);
-      const productData = await this.db.getProducts();
+      // Fetch sales data with detailed cost and profit
+      const salesData = await this.db.getSalesWithDetails(dateRange);
       
-      // Calculate report data
+      // Transform report data
       const reportData = salesData.map(sale => {
-        const items = sale.items_summary.split(',');
-        let totalCost = 0;
-        for (let item of items) {
-          const [name, qty] = item.split(' x');
-          const product = productData.find(p => p.name === name.trim());
-          if (product) {
-            totalCost += (product.cost * parseInt(qty.trim()));
-          }
-        }
         return {
           saleNumber: sale.sale_number,
-          totalAmount: sale.total_amount,
-          totalCost: totalCost.toFixed(2),
-          profit: (sale.total_amount - totalCost).toFixed(2),
+          totalCostPrice: sale.total_cost_price.toFixed(2),
+          totalSalePrice: sale.total_sale_price.toFixed(2),
+          profit: sale.profit.toFixed(2),
           saleDate: sale.sale_date
         };
       });
@@ -44,11 +34,11 @@ class ReportService {
     const doc = new jsPDF();
     doc.text("Sales Report", 14, 20);
 
-    const headers = ["Sale Number", "Total Cost", "Total Amount", "Profit", "Sale Date"];
+    const headers = ["Sale Number", "Cost Price", "Sale Price", "Profit", "Sale Date"];
     const rows = data.map(item => ([
       item.saleNumber, 
-      `₹${item.totalCost}`,
-      `₹${item.totalAmount.toFixed(2)}`,
+      `₹${item.totalCostPrice}`,
+      `₹${item.totalSalePrice}`,
       `₹${item.profit}`,
       new Date(item.saleDate).toLocaleDateString()
     ]));

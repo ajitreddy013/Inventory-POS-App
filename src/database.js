@@ -702,6 +702,37 @@ class Database {
     });
   }
 
+  // Get sales with detailed cost price and profit calculations
+  getSalesWithDetails(dateRange) {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT s.*, 
+               COUNT(si.id) as item_count,
+               GROUP_CONCAT(p.name || ' x' || si.quantity) as items_summary,
+               SUM(si.quantity * p.cost) as total_cost_price,
+               SUM(si.total_price) as total_sale_price,
+               (SUM(si.total_price) - SUM(si.quantity * p.cost)) as profit
+        FROM sales s
+        LEFT JOIN sale_items si ON s.id = si.sale_id
+        LEFT JOIN products p ON si.product_id = p.id
+      `;
+
+      const params = [];
+
+      if (dateRange && dateRange.start && dateRange.end) {
+        query += " WHERE s.sale_date BETWEEN ? AND ?";
+        params.push(dateRange.start, dateRange.end);
+      }
+
+      query += " GROUP BY s.id ORDER BY s.sale_date DESC";
+
+      this.db.all(query, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+  }
+
   // Table operations
   getTables() {
     return new Promise((resolve, reject) => {
@@ -1267,6 +1298,63 @@ class Database {
     if (this.db) {
       this.db.close();
     }
+  }
+
+  // Reset application - clear all data and reinitialize
+  resetApplication() {
+    return new Promise((resolve, reject) => {
+      const tables = [
+        'pending_bills',
+        'counter_balance',
+        'spendings',
+        'daily_transfers',
+        'table_orders',
+        'tables',
+        'stock_movements',
+        'sale_items',
+        'sales',
+        'inventory',
+        'products',
+        'bar_settings'
+      ];
+
+      const db = this.db;
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        
+        let completed = 0;
+        const total = tables.length;
+        
+        tables.forEach((table) => {
+          db.run(`DELETE FROM ${table}`, (err) => {
+            if (err) {
+              console.error(`Error clearing table ${table}:`, err);
+              // Continue with other tables even if one fails
+            }
+            
+            completed++;
+            if (completed === total) {
+              // Reset sqlite_sequence for auto-increment IDs
+              db.run('DELETE FROM sqlite_sequence', (err) => {
+                if (err) {
+                  console.error('Error resetting sequences:', err);
+                }
+                
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    db.run('ROLLBACK');
+                    reject(err);
+                  } else {
+                    console.log('Application reset completed successfully');
+                    resolve({ success: true, message: 'Application reset completed' });
+                  }
+                });
+              });
+            }
+          });
+        });
+      });
+    });
   }
 
   // Pending bills methods

@@ -16,23 +16,50 @@ import {
   DollarSign,
   FileText,
   AlertCircle,
+  Search,
 } from "lucide-react";
 
 const PendingBills = () => {
   const [pendingBills, setPendingBills] = useState([]);
+  const [filteredBills, setFilteredBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     fetchPendingBills();
   }, []);
 
+  // Filter bills based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredBills(pendingBills);
+    } else {
+      const filtered = pendingBills.filter(bill => 
+        bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (bill.customer_phone && bill.customer_phone.includes(searchTerm)) ||
+        (bill.table_number && bill.table_number.toString().includes(searchTerm))
+      );
+      setFilteredBills(filtered);
+    }
+  }, [searchTerm, pendingBills]);
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm("");
+  };
+
   const fetchPendingBills = async () => {
     try {
       const bills = await getPendingBills();
       setPendingBills(bills);
+      setFilteredBills(bills);
     } catch (error) {
       console.error("Failed to fetch pending bills", error);
       alert("Failed to load pending bills");
@@ -50,7 +77,14 @@ const PendingBills = () => {
     try {
       const result = await clearPendingBill(id);
       if (result.success) {
-        setPendingBills((prev) => prev.filter((bill) => bill.id !== id));
+        const updatedBills = pendingBills.filter((bill) => bill.id !== id);
+        setPendingBills(updatedBills);
+        setFilteredBills(updatedBills.filter(bill => 
+          bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (bill.customer_phone && bill.customer_phone.includes(searchTerm)) ||
+          (bill.table_number && bill.table_number.toString().includes(searchTerm))
+        ));
         alert(`Bill cleared successfully! Sale number: ${result.saleNumber}`);
         // Close modal if it's open and showing this bill
         if (selectedBill && selectedBill.id === id) {
@@ -73,7 +107,14 @@ const PendingBills = () => {
     setProcessing(true);
     try {
       await deletePendingBill(id);
-      setPendingBills((prev) => prev.filter((bill) => bill.id !== id));
+      const updatedBills = pendingBills.filter((bill) => bill.id !== id);
+      setPendingBills(updatedBills);
+      setFilteredBills(updatedBills.filter(bill => 
+        bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (bill.customer_phone && bill.customer_phone.includes(searchTerm)) ||
+        (bill.table_number && bill.table_number.toString().includes(searchTerm))
+      ));
       alert("Pending bill deleted successfully!");
       // Close modal if it's open and showing this bill
       if (selectedBill && selectedBill.id === id) {
@@ -103,7 +144,7 @@ const PendingBills = () => {
 
   return (
     <div className="pending-bills">
-      <div className="pending-bills-header">
+      <div className="page-header">
         <h1>
           <Clock size={24} /> Pending Bills
         </h1>
@@ -112,33 +153,84 @@ const PendingBills = () => {
         </button>
       </div>
 
+      {/* Search Section */}
+      <div className="search-section">
+        <h3>Search Bills</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div className="search-input-container">
+            <Search size={20} />
+            <input
+              type="text"
+              placeholder="Search by bill number, customer name, phone, or table number..."
+              value={searchTerm}
+              onChange={handleSearch}
+              className="search-input"
+            />
+          </div>
+          {searchTerm && (
+            <button
+              onClick={clearSearch}
+              className="btn btn-secondary"
+              style={{ minWidth: '80px' }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
       {loading ? (
-        <div className="loading-state">
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px',
+          fontSize: '1.1rem',
+          color: '#6c757d' 
+        }}>
           <p>Loading pending bills...</p>
         </div>
-      ) : pendingBills.length === 0 ? (
-        <div className="empty-state">
-          <AlertCircle size={48} />
-          <h3>No Pending Bills</h3>
-          <p>All bills have been processed or no bills are pending.</p>
+      ) : filteredBills.length === 0 ? (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '400px',
+          textAlign: 'center',
+          color: '#6c757d',
+          margin: '20px 30px'
+        }}>
+          <AlertCircle size={48} style={{ marginBottom: '20px', opacity: 0.5 }} />
+          <h3 style={{ marginBottom: '10px', fontSize: '1.5rem' }}>
+            {searchTerm ? 'No Bills Found' : 'No Pending Bills'}
+          </h3>
+          <p style={{ fontSize: '1rem', opacity: 0.8 }}>
+            {searchTerm 
+              ? `No bills match your search term "${searchTerm}"` 
+              : 'All bills have been processed or no bills are pending.'
+            }
+          </p>
         </div>
       ) : (
-        <div className="pending-bills-content">
-          <div className="bills-stats">
-            <div className="stat-card">
-              <div className="stat-value">{pendingBills.length}</div>
-              <div className="stat-label">Total Pending</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">
-                ₹{pendingBills.reduce((sum, bill) => sum + bill.total_amount, 0).toFixed(2)}
+<div className="pending-bills-content">
+          <div className="summary-cards">
+            <div className="summary-card">
+              <h3>{searchTerm ? 'Found Bills' : 'Total Pending'}</h3>
+              <div className="value">
+                {searchTerm ? `${filteredBills.length} / ${pendingBills.length}` : pendingBills.length}
               </div>
-              <div className="stat-label">Total Amount</div>
+            </div>
+            <div className="summary-card">
+              <h3>{searchTerm ? 'Found Amount' : 'Total Amount'}</h3>
+              <div className="value">
+                ₹{filteredBills.reduce((sum, bill) => sum + bill.total_amount, 0).toFixed(2)}
+              </div>
             </div>
           </div>
 
-          <div className="bills-table-container">
-            <table className="bills-table">
+          <div className="table-container">
+            <table>
               <thead>
                 <tr>
                   <th>Bill Number</th>
@@ -151,7 +243,7 @@ const PendingBills = () => {
                 </tr>
               </thead>
               <tbody>
-                {pendingBills.map((bill) => (
+                {filteredBills.map((bill) => (
                   <tr key={bill.id}>
                     <td className="bill-number">{bill.bill_number}</td>
                     <td className="customer-info">
@@ -176,29 +268,31 @@ const PendingBills = () => {
                       {formatDate(bill.created_at)}
                     </td>
                     <td className="actions">
-                      <button
-                        onClick={() => handleViewDetails(bill)}
-                        className="btn btn-sm btn-secondary"
-                        title="View Details"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleClearBill(bill.id)}
-                        disabled={processing}
-                        className="btn btn-sm btn-success"
-                        title="Process Bill"
-                      >
-                        <CheckCircle size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteBill(bill.id)}
-                        disabled={processing}
-                        className="btn btn-sm btn-danger"
-                        title="Delete Bill"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => handleViewDetails(bill)}
+                          className="btn btn-sm btn-secondary"
+                          title="View Details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleClearBill(bill.id)}
+                          disabled={processing}
+                          className="btn btn-sm btn-success"
+                          title="Process Bill"
+                        >
+                          <CheckCircle size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBill(bill.id)}
+                          disabled={processing}
+                          className="btn btn-sm btn-danger"
+                          title="Delete Bill"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -211,7 +305,7 @@ const PendingBills = () => {
       {/* Bill Details Modal */}
       {showDetails && selectedBill && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal">
             <div className="modal-header">
               <h2>
                 <FileText size={24} /> Bill Details
@@ -220,7 +314,7 @@ const PendingBills = () => {
                 <X size={20} />
               </button>
             </div>
-            <div className="modal-body">
+            <div className="modal-content">
               <div className="bill-details">
                 <div className="bill-info-grid">
                   <div className="info-item">
@@ -305,7 +399,7 @@ const PendingBills = () => {
                 </div>
               </div>
             </div>
-            <div className="modal-footer">
+            <div className="modal-actions">
               <button
                 onClick={() => handleClearBill(selectedBill.id)}
                 disabled={processing}

@@ -309,6 +309,29 @@ const ProductManagement = () => {
         </button>
       </div>
 
+      {/* Summary Cards - moved to top for quick look */}
+      <div className="summary-cards">
+        <div className="summary-card">
+          <h3>Total Products</h3>
+          <div className="value">{products.length}</div>
+        </div>
+        <div className="summary-card">
+          <h3>Total Inventory Value</h3>
+          <div className="value">
+            ₹{products.reduce((sum, product) => {
+              const stock = (product.godown_stock || 0) + (product.counter_stock || 0);
+              return sum + (stock * (product.cost || 0));
+            }, 0).toFixed(2)}
+          </div>
+        </div>
+        <div className="summary-card">
+          <h3>Categories</h3>
+          <div className="value">
+            {new Set(products.filter(p => p.category).map(p => p.category)).size}
+          </div>
+        </div>
+      </div>
+
       {/* Search */}
       <div className="search-section">
         <div className="search-input-container">
@@ -334,7 +357,6 @@ const ProductManagement = () => {
               <th>Category</th>
               <th>Cost Price</th>
               <th>Selling Price</th>
-              <th>Profit</th>
               <th>Unit</th>
               <th>Stock</th>
               <th>Actions</th>
@@ -343,7 +365,7 @@ const ProductManagement = () => {
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="10" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
                   {searchTerm ? 'No products found matching your search' : 'No products added yet'}
                 </td>
               </tr>
@@ -351,8 +373,6 @@ const ProductManagement = () => {
               filteredProducts.map(product => {
                 const cost = product.cost || 0;
                 const price = product.price || 0;
-                const profit = price - cost;
-                const profitPercentage = cost > 0 ? ((profit / cost) * 100) : 0;
                 
                 return (
                   <tr key={product.id}>
@@ -376,16 +396,6 @@ const ProductManagement = () => {
                     <td>{product.category || '-'}</td>
                     <td>₹{cost.toFixed(2)}</td>
                     <td>₹{price.toFixed(2)}</td>
-                    <td>
-                      <div className="profit-cell">
-                        <div className={`profit-amount ${profit >= 0 ? 'positive' : 'negative'}`}>
-                          ₹{profit.toFixed(2)}
-                        </div>
-                        <div className={`profit-percentage ${profit >= 0 ? 'positive' : 'negative'}`}>
-                          ({profitPercentage.toFixed(1)}%)
-                        </div>
-                      </div>
-                    </td>
                     <td>{product.unit}</td>
                     <td>
                       <div style={{ fontSize: '0.85rem' }}>
@@ -434,52 +444,6 @@ const ProductManagement = () => {
         />
       )}
 
-      {/* Summary */}
-      <div className="summary-cards">
-        <div className="summary-card">
-          <h3>Total Products</h3>
-          <div className="value">{products.length}</div>
-        </div>
-        <div className="summary-card">
-          <h3>Total Inventory Value</h3>
-          <div className="value">
-            ₹{products.reduce((sum, product) => {
-              const stock = (product.godown_stock || 0) + (product.counter_stock || 0);
-              return sum + (stock * (product.cost || 0));
-            }, 0).toFixed(2)}
-          </div>
-        </div>
-        <div className="summary-card">
-          <h3>Potential Profit</h3>
-          <div className="value positive">
-            ₹{products.reduce((sum, product) => {
-              const stock = (product.godown_stock || 0) + (product.counter_stock || 0);
-              const profit = ((product.price || 0) - (product.cost || 0)) * stock;
-              return sum + profit;
-            }, 0).toFixed(2)}
-          </div>
-        </div>
-        <div className="summary-card">
-          <h3>Avg Profit Margin</h3>
-          <div className="value">
-            {(() => {
-              const validProducts = products.filter(p => p.cost > 0 && p.price > 0);
-              if (validProducts.length === 0) return '0%';
-              const avgMargin = validProducts.reduce((sum, product) => {
-                const margin = ((product.price - product.cost) / product.cost) * 100;
-                return sum + margin;
-              }, 0) / validProducts.length;
-              return `${avgMargin.toFixed(1)}%`;
-            })()} 
-          </div>
-        </div>
-        <div className="summary-card">
-          <h3>Categories</h3>
-          <div className="value">
-            {new Set(products.filter(p => p.category).map(p => p.category)).size}
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

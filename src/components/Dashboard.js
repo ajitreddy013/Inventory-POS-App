@@ -169,11 +169,7 @@ const Dashboard = () => {
         </div>
         <div className="summary-card">
           <h3>Net Income</h3>
-          <div
-            className={`value ${
-              dashboardData.netIncome >= 0 ? "positive" : "negative"
-            }`}
-          >
+          <div className="value">
             ₹{dashboardData.netIncome.toFixed(2)}
           </div>
         </div>
@@ -185,7 +181,7 @@ const Dashboard = () => {
         </div>
         <div className="summary-card">
           <h3>Total Balance</h3>
-          <div className="value">₹{dashboardData.totalBalance.toFixed(2)}</div>
+          <div className="value positive">₹{dashboardData.totalBalance.toFixed(2)}</div>
         </div>
       </div>
 

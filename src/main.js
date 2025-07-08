@@ -41,7 +41,10 @@ function createWindow() {
     ? "http://localhost:3000"
     : `file://${path.join(__dirname, "../build/index.html")}`;
 
-  mainWindow.loadURL(startUrl);
+  // Force production mode for now
+  const forcedUrl = `file://${path.join(__dirname, "../build/index.html")}`;
+  console.log('Loading URL:', forcedUrl);
+  mainWindow.loadURL(forcedUrl);
 
   if (isDev) {
     mainWindow.webContents.openDevTools();
@@ -590,5 +593,26 @@ const template = [
     ],
   },
 ];
+
+// Reset application IPC handler
+ipcMain.handle("reset-application", async () => {
+  try {
+    const result = await database.resetApplication();
+    
+    // Reinitialize sample data after reset
+    try {
+      console.log('Reinitializing sample data after reset...');
+      await initializeSampleData(database);
+      console.log('Sample data reinitialized successfully');
+    } catch (error) {
+      console.log('Sample data reinitialization failed:', error.message);
+    }
+    
+    return { success: true, message: 'Application reset completed successfully' };
+  } catch (error) {
+    console.error('Error in reset-application:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 Menu.setApplicationMenu(Menu.buildFromTemplate(template));

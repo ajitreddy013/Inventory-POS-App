@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Wifi, Store, Save, Edit, Mail, Send, TestTube } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Wifi, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle } from 'lucide-react';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
@@ -23,6 +23,9 @@ const Settings = () => {
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
 
   useEffect(() => {
     checkPrinterStatus();
@@ -160,6 +163,47 @@ const Settings = () => {
         [field]: value
       }));
     }
+  };
+
+  const handleResetApplication = async () => {
+    if (!showResetConfirm) {
+      setShowResetConfirm(true);
+      return;
+    }
+
+    // Check if user typed "reset app" correctly
+    if (resetConfirmText.trim().toLowerCase() !== 'reset app') {
+      alert('Please type "reset app" exactly to confirm the reset.');
+      return;
+    }
+
+    try {
+      setResetLoading(true);
+      const result = await window.electronAPI.resetApplication();
+      
+      if (result.success) {
+        alert('Application reset completed successfully!\n\nAll data has been cleared and sample data has been restored.\n\nPlease restart the application for best results.');
+        setShowResetConfirm(false);
+        setResetConfirmText('');
+        
+        // Reload the page to reflect changes
+        window.location.reload();
+      } else {
+        alert(`Failed to reset application: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to reset application:', error);
+      alert('Failed to reset application. Please try again.');
+    } finally {
+      setResetLoading(false);
+      setShowResetConfirm(false);
+      setResetConfirmText('');
+    }
+  };
+
+  const cancelReset = () => {
+    setShowResetConfirm(false);
+    setResetConfirmText('');
   };
 
   return (
@@ -491,6 +535,148 @@ const Settings = () => {
                     <strong>Daily Reports Schedule:</strong> Reports are automatically sent every day at 11:59 PM.
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Reset Application Section */}
+        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #e74c3c' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '20px',
+            borderBottom: '1px solid #e74c3c',
+            backgroundColor: '#fdf2f2'
+          }}>
+            <h2 style={{ margin: 0, color: '#e74c3c' }}>
+              <AlertTriangle size={20} style={{ marginRight: '10px' }} />
+              Reset Application
+            </h2>
+          </div>
+          
+          <div style={{ padding: '20px' }}>
+            <div style={{ 
+              background: '#fff3cd', 
+              border: '1px solid #ffeaa7', 
+              borderRadius: '6px', 
+              padding: '15px', 
+              marginBottom: '20px' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <AlertTriangle size={16} style={{ marginRight: '8px', color: '#856404' }} />
+                <strong style={{ color: '#856404' }}>Warning: This action cannot be undone!</strong>
+              </div>
+              <p style={{ margin: '0', color: '#856404', fontSize: '0.9rem' }}>
+                Resetting the application will permanently delete all data including:
+              </p>
+              <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#856404', fontSize: '0.9rem' }}>
+                <li>All products and inventory</li>
+                <li>All sales records and transactions</li>
+                <li>All pending bills and table orders</li>
+                <li>All spendings and counter balance records</li>
+                <li>All settings and configurations</li>
+              </ul>
+              <p style={{ margin: '10px 0 0 0', color: '#856404', fontSize: '0.9rem' }}>
+                Sample data will be restored after reset.
+              </p>
+            </div>
+            
+            {!showResetConfirm ? (
+              <button 
+                onClick={handleResetApplication}
+                disabled={resetLoading}
+                className="btn"
+                style={{
+                  backgroundColor: '#e74c3c',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 20px',
+                  borderRadius: '6px',
+                  cursor: resetLoading ? 'not-allowed' : 'pointer',
+                  opacity: resetLoading ? 0.6 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <RotateCcw size={16} />
+                {resetLoading ? 'Resetting...' : 'Reset Application'}
+              </button>
+            ) : (
+              <div style={{ 
+                background: '#f8d7da', 
+                border: '1px solid #f5c6cb', 
+                borderRadius: '6px', 
+                padding: '15px'
+              }}>
+                <p style={{ margin: '0 0 15px 0', color: '#721c24', fontWeight: 'bold' }}>
+                  Are you absolutely sure you want to reset the application?
+                </p>
+                <p style={{ margin: '0 0 15px 0', color: '#721c24', fontSize: '0.9rem' }}>
+                  This will permanently delete all your data and cannot be undone.
+                </p>
+                <div style={{ marginBottom: '15px' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#721c24', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                    To confirm, please type &quot;reset app&quot; below:
+                  </p>
+                  <input
+                    type="text"
+                    value={resetConfirmText}
+                    onChange={(e) => setResetConfirmText(e.target.value)}
+                    placeholder="Type 'reset app' to confirm"
+                    disabled={resetLoading}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #dc3545',
+                      borderRadius: '4px',
+                      fontSize: '0.9rem',
+                      backgroundColor: resetLoading ? '#f8f9fa' : 'white',
+                      color: '#721c24'
+                    }}
+                    autoComplete="off"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={handleResetApplication}
+                    disabled={resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app'}
+                    className="btn"
+                    style={{
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 16px',
+                      borderRadius: '4px',
+                      cursor: (resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app') ? 'not-allowed' : 'pointer',
+                      opacity: (resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app') ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <RotateCcw size={14} />
+                    {resetLoading ? 'Resetting...' : 'Yes, Reset Everything'}
+                  </button>
+                  <button 
+                    onClick={cancelReset}
+                    disabled={resetLoading}
+                    className="btn"
+                    style={{
+                      backgroundColor: '#6c757d',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 16px',
+                      borderRadius: '4px',
+                      cursor: resetLoading ? 'not-allowed' : 'pointer',
+                      opacity: resetLoading ? 0.6 : 1
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
           </div>

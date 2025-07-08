@@ -160,6 +160,8 @@ const DailyTransfer = () => {
       // Clear transfers and reload products
       setTransfers([]);
       await loadProducts();
+      // Reload transfer history after successful transfer
+      await loadTransferHistory();
     } catch (error) {
       console.error("Failed to transfer stock:", error);
       alert("Failed to transfer stock. Please try again.");

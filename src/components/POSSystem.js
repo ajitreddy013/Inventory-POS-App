@@ -22,7 +22,7 @@ const POSSystem = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [saleType, setSaleType] = useState("table");
+  const [saleType, setSaleType] = useState("parcel");
   const [tableNumber, setTableNumber] = useState("");
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
@@ -177,8 +177,8 @@ const POSSystem = () => {
       return;
     }
 
-    if (saleType === "table" && (!tableNumber || tableNumber.trim() === "")) {
-      alert("Table number is required for table sales!");
+    if ((saleType === "table" || saleType === "moving table") && (!tableNumber || tableNumber.trim() === "")) {
+      alert("Table number is required for table and moving table sales!");
       return;
     }
 
@@ -187,7 +187,7 @@ const POSSystem = () => {
       const billData = {
         billNumber: await generateSaleNumber(),
         saleType,
-        tableNumber: saleType === "table" ? tableNumber : null,
+        tableNumber: (saleType === "table" || saleType === "moving table") ? tableNumber : null,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         items: cart.map((item) => ({
@@ -234,7 +234,7 @@ const POSSystem = () => {
       const saleData = {
         saleNumber: await generateSaleNumber(),
         saleType,
-        tableNumber: saleType === "table" ? tableNumber : null,
+        tableNumber: (saleType === "table" || saleType === "moving table") ? tableNumber : null,
         customerName: customerName || "Walk-in Customer",
         customerPhone,
         items: cart.map((item) => ({
@@ -379,23 +379,32 @@ const POSSystem = () => {
               <label>
                 <input
                   type="radio"
-                  value="table"
-                  checked={saleType === "table"}
-                  onChange={(e) => setSaleType(e.target.value)}
-                />
-                Table
-              </label>
-              <label>
-                <input
-                  type="radio"
                   value="parcel"
                   checked={saleType === "parcel"}
                   onChange={(e) => setSaleType(e.target.value)}
                 />
                 Parcel
               </label>
+              <label>
+                <input
+                  type="radio"
+                  value="moving table"
+                  checked={saleType === "moving table"}
+                  onChange={(e) => setSaleType(e.target.value)}
+                />
+                Moving Table
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  value="table"
+                  checked={saleType === "table"}
+                  onChange={(e) => setSaleType(e.target.value)}
+                />
+                Table
+              </label>
             </div>
-            {saleType === "table" && (
+            {(saleType === "table" || saleType === "moving table") && (
               <div className="form-row">
                 <input
                   type="text"

@@ -96,4 +96,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updatePendingBill: (id, billData) => ipcRenderer.invoke("update-pending-bill", id, billData),
   deletePendingBill: (id) => ipcRenderer.invoke("delete-pending-bill", id),
   clearPendingBill: (id) => ipcRenderer.invoke("clear-pending-bill", id),
+
+  // Application reset
+  resetApplication: () => ipcRenderer.invoke("reset-application"),
 });

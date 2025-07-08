@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import React, { useState } from "react";
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
 import {
   Package,
   ShoppingCart,
@@ -29,10 +29,11 @@ import Spendings from "./components/Spendings";
 import CounterBalance from "./components/CounterBalance";
 import PendingBills from "./components/PendingBills";
 
-function App() {
+function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentUser] = useState("Admin"); // In a real app, this would come from authentication
   const [selectedTable, setSelectedTable] = useState(null);
+  const location = useLocation();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -58,79 +59,86 @@ function App() {
     { path: "/transfer", name: "Daily Transfer", icon: ArrowRight },
     { path: "/pos", name: "POS", icon: ShoppingCart },
     { path: "/reports", name: "Reports", icon: BarChart3 },
-    { path: "/settings", name: "Settings", icon: SettingsIcon },
     { path: "/spendings", name: "Spendings", icon: DollarSign },
     { path: "/counter-balance", name: "Counter Balance", icon: Wallet },
     { path: "/pending-bills", name: "Pending Bills", icon: Clock },
+    { path: "/settings", name: "Settings", icon: SettingsIcon },
   ];
 
   return (
-    <Router>
-      <div className="app">
-        {/* Sidebar */}
-        <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-          <div className="sidebar-header">
-            <h2>Inventory POS</h2>
-            <button onClick={toggleSidebar} className="toggle-btn">
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
+    <div className="app">
+      {/* Sidebar */}
+      <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
+        <div className="sidebar-header">
+          {sidebarOpen && <h2>Inventory POS</h2>}
+          <button onClick={toggleSidebar} className="toggle-btn">
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
 
-          <nav className="sidebar-nav">
-            {menuItems.map((item) => {
-              const IconComponent = item.icon;
-              return (
-                <Link key={item.path} to={item.path} className="nav-item">
-                  <IconComponent size={20} />
-                  {sidebarOpen && <span>{item.name}</span>}
-                </Link>
-              );
-            })}
-          </nav>
+        <nav className="sidebar-nav">
+          {menuItems.map((item) => {
+            const IconComponent = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <Link key={item.path} to={item.path} className={`nav-item ${isActive ? "active" : ""}`}>
+                <IconComponent size={20} />
+                {sidebarOpen && <span>{item.name}</span>}
+              </Link>
+            );
+          })}
+        </nav>
 
-          {sidebarOpen && (
-            <div className="sidebar-footer">
-              <div className="user-info">
-                <span>Welcome, {currentUser}</span>
-              </div>
+        {sidebarOpen && (
+          <div className="sidebar-footer">
+            <div className="user-info">
+              <span>Welcome, {currentUser}</span>
             </div>
-          )}
-        </div>
-
-        {/* Main Content */}
-        <div
-          className={`main-content ${
-            sidebarOpen ? "with-sidebar" : "full-width"
-          }`}
-        >
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route
-              path="/tables"
-              element={
-                selectedTable ? (
-                  <TablePOS
-                    table={selectedTable}
-                    onBack={handleBackToTables}
-                    onTableUpdate={handleTableUpdate}
-                  />
-                ) : (
-                  <TableManagement onSelectTable={handleTableSelect} />
-                )
-              }
-            />
-            <Route path="/products" element={<ProductManagement />} />
-            <Route path="/inventory" element={<InventoryManagement />} />
-            <Route path="/transfer" element={<DailyTransfer />} />
-            <Route path="/pos" element={<POSSystem />} />
-            <Route path="/reports" element={<SalesReports />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/spendings" element={<Spendings />} />
-            <Route path="/counter-balance" element={<CounterBalance />} />
-            <Route path="/pending-bills" element={<PendingBills />} />
-          </Routes>
-        </div>
+          </div>
+        )}
       </div>
+
+      {/* Main Content */}
+      <div
+        className={`main-content ${
+          sidebarOpen ? "with-sidebar" : "full-width"
+        }`}
+      >
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route
+            path="/tables"
+            element={
+              selectedTable ? (
+                <TablePOS
+                  table={selectedTable}
+                  onBack={handleBackToTables}
+                  onTableUpdate={handleTableUpdate}
+                />
+              ) : (
+                <TableManagement onSelectTable={handleTableSelect} />
+              )
+            }
+          />
+          <Route path="/products" element={<ProductManagement />} />
+          <Route path="/inventory" element={<InventoryManagement />} />
+          <Route path="/transfer" element={<DailyTransfer />} />
+          <Route path="/pos" element={<POSSystem />} />
+          <Route path="/reports" element={<SalesReports />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/spendings" element={<Spendings />} />
+          <Route path="/counter-balance" element={<CounterBalance />} />
+          <Route path="/pending-bills" element={<PendingBills />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }
