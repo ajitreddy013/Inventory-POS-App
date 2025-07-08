@@ -23,7 +23,6 @@ const Dashboard = () => {
     todaySpendings: 0,
     netIncome: 0,
     openingBalance: 0,
-    leftoverMoney: 0,
     totalBalance: 0,
     recentSales: [],
   });
@@ -91,13 +90,8 @@ const Dashboard = () => {
         ? todayCounterBalance.opening_balance
         : 0;
 
-      // Get previous day's closing balance (leftover money)
-      const previousDayBalance =
-        await window.electronAPI.getPreviousDayClosingBalance(todayDate);
-      const leftoverMoney = previousDayBalance || 0;
-
-      // Calculate total balance (net income + leftover money)
-      const totalBalance = netIncome + leftoverMoney;
+      // Calculate total balance (net income + opening balance)
+      const totalBalance = netIncome + openingBalance;
 
       // Get recent sales (last 7 days)
       const now = new Date();
@@ -115,12 +109,11 @@ const Dashboard = () => {
         todaySpendings: todaySpendings,
         netIncome: netIncome,
         openingBalance: openingBalance,
-        leftoverMoney: leftoverMoney,
         totalBalance: totalBalance,
         recentSales: recentSales.slice(0, 10),
       });
 
-      setLastUpdated(new Date());
+      setLastUpdated(formatDateTimeToString(new Date()));
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
     } finally {
@@ -161,15 +154,15 @@ const Dashboard = () => {
           <div className="value">{dashboardData.lowStockItems}</div>
         </div>
         <div className="summary-card">
-          <h3>Today's Sales</h3>
+          <h3>Today&apos;s Sales</h3>
           <div className="value">{dashboardData.todaySales}</div>
         </div>
         <div className="summary-card">
-          <h3>Today's Revenue</h3>
+          <h3>Today&apos;s Revenue</h3>
           <div className="value">₹{dashboardData.totalRevenue.toFixed(2)}</div>
         </div>
         <div className="summary-card">
-          <h3>Today's Spendings</h3>
+          <h3>Today&apos;s Spendings</h3>
           <div className="value">
             ₹{dashboardData.todaySpendings.toFixed(2)}
           </div>
@@ -191,10 +184,6 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="summary-card">
-          <h3>Leftover Money</h3>
-          <div className="value">₹{dashboardData.leftoverMoney.toFixed(2)}</div>
-        </div>
-        <div className="summary-card">
           <h3>Total Balance</h3>
           <div className="value">₹{dashboardData.totalBalance.toFixed(2)}</div>
         </div>
@@ -210,7 +199,7 @@ const Dashboard = () => {
             fontSize: "0.9rem",
           }}
         >
-          Last updated: {formatDate(lastUpdated)}
+          Last updated: {lastUpdated}
         </div>
       )}
 

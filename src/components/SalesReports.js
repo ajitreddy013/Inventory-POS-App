@@ -88,19 +88,8 @@ const SalesReports = () => {
     0
   );
 
-  // Get leftover money from previous day
-  const getLeftoverMoney = () => {
-    if (counterBalances.length > 0) {
-      const sortedBalances = [...counterBalances].sort(
-        (a, b) => new Date(a.balance_date) - new Date(b.balance_date)
-      );
-      return sortedBalances[0].opening_balance;
-    }
-    return 0;
-  };
-
-  const leftoverMoney = getLeftoverMoney();
-  const totalBalance = netIncome + leftoverMoney;
+  // Calculate total balance (net income + opening balance)
+  const totalBalance = netIncome + totalOpeningBalance;
 
   return (
     <div className="sales-reports">
@@ -195,16 +184,6 @@ const SalesReports = () => {
         </div>
         <div className="summary-card">
           <div className="card-icon">
-            <DollarSign size={24} />
-          </div>
-          <div className="card-content">
-            <h3>Leftover Money</h3>
-            <p className="amount">₹{leftoverMoney.toFixed(2)}</p>
-            <small>From previous day</small>
-          </div>
-        </div>
-        <div className="summary-card">
-          <div className="card-icon">
             <BarChart3 size={24} />
           </div>
           <div className="card-content">
@@ -216,7 +195,7 @@ const SalesReports = () => {
             >
               ₹{totalBalance.toFixed(2)}
             </p>
-            <small>Net Income + Leftover</small>
+            <small>Net Income + Opening Balance</small>
           </div>
         </div>
       </div>

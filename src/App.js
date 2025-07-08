@@ -11,6 +11,7 @@ import {
   ArrowRight,
   DollarSign,
   Wallet,
+  Clock,
 } from "lucide-react";
 import "./App.css";
 
@@ -26,6 +27,7 @@ import SalesReports from "./components/SalesReports";
 import Settings from "./components/Settings";
 import Spendings from "./components/Spendings";
 import CounterBalance from "./components/CounterBalance";
+import PendingBills from "./components/PendingBills";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -59,6 +61,7 @@ function App() {
     { path: "/settings", name: "Settings", icon: SettingsIcon },
     { path: "/spendings", name: "Spendings", icon: DollarSign },
     { path: "/counter-balance", name: "Counter Balance", icon: Wallet },
+    { path: "/pending-bills", name: "Pending Bills", icon: Clock },
   ];
 
   return (
@@ -124,6 +127,7 @@ function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/spendings" element={<Spendings />} />
             <Route path="/counter-balance" element={<CounterBalance />} />
+            <Route path="/pending-bills" element={<PendingBills />} />
           </Routes>
         </div>
       </div>

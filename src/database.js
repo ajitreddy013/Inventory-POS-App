@@ -183,6 +183,25 @@ class Database {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
+
+        // Pending bills table
+        `CREATE TABLE IF NOT EXISTS pending_bills (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bill_number TEXT UNIQUE NOT NULL,
+          sale_type TEXT DEFAULT 'table',
+          table_number TEXT,
+          customer_name TEXT,
+          customer_phone TEXT,
+          items TEXT NOT NULL, -- JSON string of cart items
+          subtotal REAL NOT NULL,
+          tax_amount REAL DEFAULT 0,
+          discount_amount REAL DEFAULT 0,
+          total_amount REAL NOT NULL,
+          payment_method TEXT DEFAULT 'cash',
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
       ];
 
       let completed = 0;
@@ -492,7 +511,7 @@ class Database {
 
   // Sales operations
   validateSaleData(saleData) {
-    const { saleNumber, items, totalAmount } = saleData;
+    const { saleNumber, items, totalAmount, saleDate } = saleData;
     
     if (!saleNumber || typeof saleNumber !== 'string' || saleNumber.trim().length === 0) {
       throw new Error('Sale number is required and must be a valid string');
@@ -502,6 +521,11 @@ class Database {
     }
     if (typeof totalAmount !== 'number' || totalAmount < 0) {
       throw new Error('Total amount must be a valid positive number');
+    }
+    
+    // Validate saleDate - it should be provided and be a valid date string or Date object
+    if (!saleDate) {
+      throw new Error('Sale date is required');
     }
     
     // Validate each item
@@ -526,6 +550,7 @@ class Database {
       customerName: saleData.customerName ? saleData.customerName.trim() : null,
       customerPhone: saleData.customerPhone ? saleData.customerPhone.trim() : null,
       tableNumber: saleData.tableNumber ? saleData.tableNumber.trim() : null,
+      saleDate: saleDate, // Ensure saleDate is passed through
     };
   }
 
@@ -544,104 +569,109 @@ class Database {
           taxAmount,
           discountAmount,
           paymentMethod,
+          saleDate,
         } = validatedSaleData;
 
-      const db = this.db;
-      db.serialize(() => {
-        db.run("BEGIN TRANSACTION");
+        const db = this.db;
+        db.serialize(() => {
+          db.run("BEGIN TRANSACTION");
 
-        // Insert sale
-        db.run(
-          `
-          INSERT INTO sales (sale_number, sale_type, table_number, customer_name, customer_phone, total_amount, tax_amount, discount_amount, payment_method)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          [
-            saleNumber,
-            saleType,
-            tableNumber,
-            customerName,
-            customerPhone,
-            totalAmount,
-            taxAmount,
-            discountAmount,
-            paymentMethod,
-          ],
-          function (err) {
-            if (err) {
-              db.run("ROLLBACK");
-              reject(err);
-              return;
-            }
+          // Insert sale
+          db.run(
+            `
+            INSERT INTO sales (sale_number, sale_type, table_number, customer_name, customer_phone, total_amount, tax_amount, discount_amount, payment_method, sale_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+            [
+              saleNumber,
+              saleType,
+              tableNumber,
+              customerName,
+              customerPhone,
+              totalAmount,
+              taxAmount,
+              discountAmount,
+              paymentMethod,
+              saleDate,
+            ],
+            function (err) {
+              if (err) {
+                db.run("ROLLBACK");
+                reject(err);
+                return;
+              }
 
-            const saleId = this.lastID;
-            let itemsProcessed = 0;
+              const saleId = this.lastID;
+              let itemsProcessed = 0;
 
-            items.forEach((item) => {
-              // Insert sale item
-              db.run(
-                `
-              INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, total_price)
-              VALUES (?, ?, ?, ?, ?)
-            `,
-                [
-                  saleId,
-                  item.productId,
-                  item.quantity,
-                  item.unitPrice,
-                  item.totalPrice,
-                ],
-                (err) => {
-                  if (err) {
-                    db.run("ROLLBACK");
-                    reject(err);
-                    return;
-                  }
-
-                  // Update counter stock
-                  db.run(
-                    `
-                UPDATE inventory 
-                SET counter_stock = counter_stock - ?
-                WHERE product_id = ?
+              items.forEach((item) => {
+                // Insert sale item
+                db.run(
+                  `
+                INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, total_price)
+                VALUES (?, ?, ?, ?, ?)
               `,
-                    [item.quantity, item.productId],
-                    (err) => {
-                      if (err) {
-                        db.run("ROLLBACK");
-                        reject(err);
-                        return;
-                      }
-
-                      // Record stock movement
-                      db.run(
-                        `
-                  INSERT INTO stock_movements (product_id, movement_type, quantity, from_location, reference_id)
-                  VALUES (?, 'out', ?, 'counter', ?)
-                `,
-                        [item.productId, item.quantity, saleId],
-                        (err) => {
-                          if (err) {
-                            db.run("ROLLBACK");
-                            reject(err);
-                            return;
-                          }
-
-                          itemsProcessed++;
-                          if (itemsProcessed === items.length) {
-                            db.run("COMMIT");
-                            resolve({ id: saleId, ...saleData });
-                          }
-                        }
-                      );
+                  [
+                    saleId,
+                    Number(item.productId),
+                    Number(item.quantity),
+                    item.unitPrice,
+                    item.totalPrice,
+                  ],
+                  (err) => {
+                    if (err) {
+                      db.run("ROLLBACK");
+                      reject(err);
+                      return;
                     }
-                  );
-                }
-              );
-            });
-          }
-        );
-      });
+
+                    // Update counter stock
+                    db.run(
+                      `
+                  UPDATE inventory 
+                  SET counter_stock = counter_stock - ?
+                  WHERE product_id = ?
+                `,
+                      [Number(item.quantity), Number(item.productId)],
+                      (err) => {
+                        if (err) {
+                          db.run("ROLLBACK");
+                          reject(err);
+                          return;
+                        }
+
+                        // Record stock movement
+                        db.run(
+                          `
+                    INSERT INTO stock_movements (product_id, movement_type, quantity, from_location, reference_id)
+                    VALUES (?, 'out', ?, 'counter', ?)
+                  `,
+                          [Number(item.productId), Number(item.quantity), saleId],
+                          (err) => {
+                            if (err) {
+                              db.run("ROLLBACK");
+                              reject(err);
+                              return;
+                            }
+
+                            itemsProcessed++;
+                            if (itemsProcessed === items.length) {
+                              db.run("COMMIT");
+                              resolve({ id: saleId, ...validatedSaleData });
+                            }
+                          }
+                        );
+                      }
+                    );
+                  }
+                );
+              });
+            }
+          );
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
@@ -1237,6 +1267,290 @@ class Database {
     if (this.db) {
       this.db.close();
     }
+  }
+
+  // Pending bills methods
+  addPendingBill(billData) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        INSERT INTO pending_bills (bill_number, sale_type, table_number, customer_name, customer_phone, items, 
+                                  subtotal, tax_amount, discount_amount, total_amount, payment_method, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      this.db.run(
+        query,
+        [
+          billData.billNumber,
+          billData.saleType,
+          billData.tableNumber,
+          billData.customerName,
+          billData.customerPhone,
+          JSON.stringify(billData.items),
+          billData.subtotal,
+          billData.taxAmount,
+          billData.discountAmount,
+          billData.totalAmount,
+          billData.paymentMethod,
+          billData.notes || "",
+        ],
+        function (err) {
+          if (err) {
+            console.error("Failed to add pending bill:", err);
+            reject(err);
+          } else {
+            resolve({ id: this.lastID, ...billData });
+          }
+        }
+      );
+    });
+  }
+
+  getPendingBills() {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT * FROM pending_bills 
+        ORDER BY created_at DESC
+      `;
+
+      this.db.all(query, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const bills = rows.map((row) => {
+            try {
+              row.items = JSON.parse(row.items || "[]");
+            } catch (e) {
+              row.items = [];
+            }
+            return row;
+          });
+          resolve(bills);
+        }
+      });
+    });
+  }
+
+  updatePendingBill(id, billData) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE pending_bills 
+        SET sale_type = ?, table_number = ?, customer_name = ?, customer_phone = ?, items = ?, 
+            subtotal = ?, tax_amount = ?, discount_amount = ?, total_amount = ?, payment_method = ?, 
+            notes = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+
+      this.db.run(
+        query,
+        [
+          billData.saleType,
+          billData.tableNumber,
+          billData.customerName,
+          billData.customerPhone,
+          JSON.stringify(billData.items),
+          billData.subtotal,
+          billData.taxAmount,
+          billData.discountAmount,
+          billData.totalAmount,
+          billData.paymentMethod,
+          billData.notes || "",
+          id,
+        ],
+        function (err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ changes: this.changes });
+          }
+        }
+      );
+    });
+  }
+
+  deletePendingBill(id) {
+    return new Promise((resolve, reject) => {
+      const query = `DELETE FROM pending_bills WHERE id = ?`;
+
+      this.db.run(query, [id], function (err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ changes: this.changes });
+        }
+      });
+    });
+  }
+
+  clearPendingBill(id) {
+    return new Promise((resolve, reject) => {
+      const db = this.db;
+      db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+
+        // Get the pending bill data
+        db.get(
+          "SELECT * FROM pending_bills WHERE id = ?",
+          [id],
+          (err, pendingBill) => {
+            if (err) {
+              db.run("ROLLBACK");
+              reject(err);
+              return;
+            }
+
+            if (!pendingBill) {
+              db.run("ROLLBACK");
+              reject(new Error("Pending bill not found"));
+              return;
+            }
+
+            // Parse items
+            let items;
+            try {
+              items = JSON.parse(pendingBill.items);
+            } catch (e) {
+              db.run("ROLLBACK");
+              reject(new Error("Invalid items data"));
+              return;
+            }
+
+            // Generate new sale number
+            const now = new Date();
+            const day = now.getDate().toString().padStart(2, "0");
+            const month = (now.getMonth() + 1).toString().padStart(2, "0");
+            const year = now.getFullYear().toString().slice(-2);
+            const randomNum = Math.floor(Math.random() * 900) + 100;
+            const saleNumber = `${day}${month}${year}${randomNum}`;
+
+            // Create sale record
+            db.run(
+              `
+              INSERT INTO sales (sale_number, sale_type, table_number, customer_name, customer_phone, 
+                                total_amount, tax_amount, discount_amount, payment_method, sale_date)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+              [
+                saleNumber,
+                pendingBill.sale_type,
+                pendingBill.table_number,
+                pendingBill.customer_name,
+                pendingBill.customer_phone,
+                pendingBill.total_amount,
+                pendingBill.tax_amount,
+                pendingBill.discount_amount,
+                pendingBill.payment_method,
+                new Date().toISOString(),
+              ],
+              function (err) {
+                if (err) {
+                  db.run("ROLLBACK");
+                  reject(err);
+                  return;
+                }
+
+                const saleId = this.lastID;
+                let itemsProcessed = 0;
+
+                items.forEach((item) => {
+                  // Insert sale item
+                  db.run(
+                    `
+                    INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, total_price)
+                    VALUES (?, ?, ?, ?, ?)
+                  `,
+                    [
+                      saleId,
+                      item.productId,
+                      item.quantity,
+                      item.unitPrice,
+                      item.totalPrice,
+                    ],
+                    (err) => {
+                      if (err) {
+                        db.run("ROLLBACK");
+                        reject(err);
+                        return;
+                      }
+
+                      // Update counter stock
+                      db.run(
+                        `
+                        UPDATE inventory 
+                        SET counter_stock = counter_stock - ?
+                        WHERE product_id = ?
+                      `,
+                        [item.quantity, item.productId],
+                        (err) => {
+                          if (err) {
+                            db.run("ROLLBACK");
+                            reject(err);
+                            return;
+                          }
+
+                          // Record stock movement
+                          db.run(
+                            `
+                            INSERT INTO stock_movements (product_id, movement_type, quantity, from_location, reference_id)
+                            VALUES (?, 'out', ?, 'counter', ?)
+                          `,
+                            [item.productId, item.quantity, saleId],
+                            (err) => {
+                              if (err) {
+                                db.run("ROLLBACK");
+                                reject(err);
+                                return;
+                              }
+
+                              itemsProcessed++;
+                              if (itemsProcessed === items.length) {
+                                // Delete the pending bill
+                                db.run(
+                                  "DELETE FROM pending_bills WHERE id = ?",
+                                  [id],
+                                  (err) => {
+                                    if (err) {
+                                      db.run("ROLLBACK");
+                                      reject(err);
+                                      return;
+                                    }
+
+                                    db.run("COMMIT");
+                                    resolve({ 
+                                      success: true, 
+                                      saleId: saleId, 
+                                      saleNumber: saleNumber,
+                                      saleData: {
+                                        saleNumber: saleNumber,
+                                        saleType: pendingBill.sale_type,
+                                        tableNumber: pendingBill.table_number,
+                                        customerName: pendingBill.customer_name,
+                                        customerPhone: pendingBill.customer_phone,
+                                        items: items,
+                                        subtotal: pendingBill.subtotal,
+                                        taxAmount: pendingBill.tax_amount,
+                                        discountAmount: pendingBill.discount_amount,
+                                        totalAmount: pendingBill.total_amount,
+                                        paymentMethod: pendingBill.payment_method,
+                                        saleDate: new Date().toISOString()
+                                      }
+                                    });
+                                  }
+                                );
+                              }
+                            }
+                          );
+                        }
+                      );
+                    }
+                  );
+                });
+              }
+            );
+          }
+        );
+      });
+    });
   }
 }
 

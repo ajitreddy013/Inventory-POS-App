@@ -1,0 +1,335 @@
+import React, { useEffect, useState } from "react";
+import {
+  getPendingBills,
+  clearPendingBill,
+  deletePendingBill,
+} from "../services/billService";
+import {
+  Clock,
+  CheckCircle,
+  Trash2,
+  Eye,
+  X,
+  User,
+  Phone,
+  Calendar,
+  DollarSign,
+  FileText,
+  AlertCircle,
+} from "lucide-react";
+
+const PendingBills = () => {
+  const [pendingBills, setPendingBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    fetchPendingBills();
+  }, []);
+
+  const fetchPendingBills = async () => {
+    try {
+      const bills = await getPendingBills();
+      setPendingBills(bills);
+    } catch (error) {
+      console.error("Failed to fetch pending bills", error);
+      alert("Failed to load pending bills");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearBill = async (id) => {
+    if (!window.confirm("Are you sure you want to clear this pending bill?")) {
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const result = await clearPendingBill(id);
+      if (result.success) {
+        setPendingBills((prev) => prev.filter((bill) => bill.id !== id));
+        alert(`Bill cleared successfully! Sale number: ${result.saleNumber}`);
+        // Close modal if it's open and showing this bill
+        if (selectedBill && selectedBill.id === id) {
+          closeDetails();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to clear pending bill", error);
+      alert("Failed to clear pending bill");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDeleteBill = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this pending bill?")) {
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      await deletePendingBill(id);
+      setPendingBills((prev) => prev.filter((bill) => bill.id !== id));
+      alert("Pending bill deleted successfully!");
+      // Close modal if it's open and showing this bill
+      if (selectedBill && selectedBill.id === id) {
+        closeDetails();
+      }
+    } catch (error) {
+      console.error("Failed to delete pending bill", error);
+      alert("Failed to delete pending bill");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleViewDetails = (bill) => {
+    setSelectedBill(bill);
+    setShowDetails(true);
+  };
+
+  const closeDetails = () => {
+    setSelectedBill(null);
+    setShowDetails(false);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  return (
+    <div className="pending-bills">
+      <div className="pending-bills-header">
+        <h1>
+          <Clock size={24} /> Pending Bills
+        </h1>
+        <button onClick={fetchPendingBills} className="btn btn-secondary">
+          Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="loading-state">
+          <p>Loading pending bills...</p>
+        </div>
+      ) : pendingBills.length === 0 ? (
+        <div className="empty-state">
+          <AlertCircle size={48} />
+          <h3>No Pending Bills</h3>
+          <p>All bills have been processed or no bills are pending.</p>
+        </div>
+      ) : (
+        <div className="pending-bills-content">
+          <div className="bills-stats">
+            <div className="stat-card">
+              <div className="stat-value">{pendingBills.length}</div>
+              <div className="stat-label">Total Pending</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">
+                ₹{pendingBills.reduce((sum, bill) => sum + bill.total_amount, 0).toFixed(2)}
+              </div>
+              <div className="stat-label">Total Amount</div>
+            </div>
+          </div>
+
+          <div className="bills-table-container">
+            <table className="bills-table">
+              <thead>
+                <tr>
+                  <th>Bill Number</th>
+                  <th>Customer</th>
+                  <th>Table/Type</th>
+                  <th>Items</th>
+                  <th>Total Amount</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingBills.map((bill) => (
+                  <tr key={bill.id}>
+                    <td className="bill-number">{bill.bill_number}</td>
+                    <td className="customer-info">
+                      <div>{bill.customer_name || "Walk-in Customer"}</div>
+                      {bill.customer_phone && (
+                        <div className="phone">{bill.customer_phone}</div>
+                      )}
+                    </td>
+                    <td className="table-info">
+                      <div>{bill.sale_type}</div>
+                      {bill.table_number && (
+                        <div className="table-number">Table {bill.table_number}</div>
+                      )}
+                    </td>
+                    <td className="items-count">
+                      {bill.items.length} item{bill.items.length > 1 ? 's' : ''}
+                    </td>
+                    <td className="total-amount">
+                      ₹{bill.total_amount.toFixed(2)}
+                    </td>
+                    <td className="created-date">
+                      {formatDate(bill.created_at)}
+                    </td>
+                    <td className="actions">
+                      <button
+                        onClick={() => handleViewDetails(bill)}
+                        className="btn btn-sm btn-secondary"
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleClearBill(bill.id)}
+                        disabled={processing}
+                        className="btn btn-sm btn-success"
+                        title="Process Bill"
+                      >
+                        <CheckCircle size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBill(bill.id)}
+                        disabled={processing}
+                        className="btn btn-sm btn-danger"
+                        title="Delete Bill"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Bill Details Modal */}
+      {showDetails && selectedBill && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>
+                <FileText size={24} /> Bill Details
+              </h2>
+              <button onClick={closeDetails} className="close-btn">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="bill-details">
+                <div className="bill-info-grid">
+                  <div className="info-item">
+                    <strong>Bill Number:</strong>
+                    <span>{selectedBill.bill_number}</span>
+                  </div>
+                  <div className="info-item">
+                    <strong>Sale Type:</strong>
+                    <span>{selectedBill.sale_type}</span>
+                  </div>
+                  {selectedBill.table_number && (
+                    <div className="info-item">
+                      <strong>Table Number:</strong>
+                      <span>{selectedBill.table_number}</span>
+                    </div>
+                  )}
+                  <div className="info-item">
+                    <strong>Customer:</strong>
+                    <span>{selectedBill.customer_name || "Walk-in Customer"}</span>
+                  </div>
+                  {selectedBill.customer_phone && (
+                    <div className="info-item">
+                      <strong>Phone:</strong>
+                      <span>{selectedBill.customer_phone}</span>
+                    </div>
+                  )}
+                  <div className="info-item">
+                    <strong>Payment Method:</strong>
+                    <span>{selectedBill.payment_method}</span>
+                  </div>
+                  <div className="info-item">
+                    <strong>Created:</strong>
+                    <span>{formatDate(selectedBill.created_at)}</span>
+                  </div>
+                </div>
+
+                <div className="items-section">
+                  <h3>Items</h3>
+                  <table className="items-table">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedBill.items.map((item, index) => (
+                        <tr key={index}>
+                          <td>{item.name}</td>
+                          <td>{item.quantity}</td>
+                          <td>₹{item.unitPrice.toFixed(2)}</td>
+                          <td>₹{item.totalPrice.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="bill-summary">
+                  <div className="summary-row">
+                    <span>Subtotal:</span>
+                    <span>₹{selectedBill.subtotal.toFixed(2)}</span>
+                  </div>
+                  {selectedBill.discount_amount > 0 && (
+                    <div className="summary-row">
+                      <span>Discount:</span>
+                      <span>-₹{selectedBill.discount_amount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {selectedBill.tax_amount > 0 && (
+                    <div className="summary-row">
+                      <span>Tax:</span>
+                      <span>₹{selectedBill.tax_amount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="summary-row total">
+                    <span>Total:</span>
+                    <span>₹{selectedBill.total_amount.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                onClick={() => handleClearBill(selectedBill.id)}
+                disabled={processing}
+                className="btn btn-success"
+              >
+                <CheckCircle size={16} /> Process Bill
+              </button>
+              <button
+                onClick={() => handleDeleteBill(selectedBill.id)}
+                disabled={processing}
+                className="btn btn-danger"
+              >
+                <Trash2 size={16} /> Delete Bill
+              </button>
+              <button onClick={closeDetails} className="btn btn-secondary">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PendingBills;
+

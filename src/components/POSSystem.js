@@ -10,8 +10,10 @@ import {
   User,
   Phone,
   Calculator,
+  Clock,
 } from "lucide-react";
 import { getLocalDateTimeString } from "../utils/dateUtils";
+import { addPendingBill } from "../services/billService";
 
 const POSSystem = () => {
   const [products, setProducts] = useState([]);
@@ -148,6 +150,77 @@ const POSSystem = () => {
     const randomNum = Math.floor(Math.random() * 900) + 100; // 100-999
 
     return `${day}${month}${year}${randomNum}`;
+  };
+
+  const savePendingBill = async () => {
+    if (cart.length === 0) {
+      alert("Cart is empty!");
+      return;
+    }
+
+    // Validate required fields for pending bills
+    const errors = [];
+    
+    if (!customerName || customerName.trim() === "") {
+      errors.push("Customer name");
+    }
+
+    if (!customerPhone || customerPhone.trim() === "") {
+      errors.push("Customer phone number");
+    } else if (customerPhone.trim().length !== 10 || !/^\d{10}$/.test(customerPhone.trim())) {
+      alert("Phone number must be exactly 10 digits!");
+      return;
+    }
+
+    if (errors.length > 0) {
+      alert(`${errors.join(" and ")} ${errors.length > 1 ? 'are' : 'is'} mandatory for pending bills!`);
+      return;
+    }
+
+    if (saleType === "table" && (!tableNumber || tableNumber.trim() === "")) {
+      alert("Table number is required for table sales!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const billData = {
+        billNumber: await generateSaleNumber(),
+        saleType,
+        tableNumber: saleType === "table" ? tableNumber : null,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: cart.map((item) => ({
+          productId: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          totalPrice: item.price * item.quantity,
+        })),
+        subtotal: calculateSubtotal(),
+        taxAmount: calculateTaxAmount(),
+        discountAmount: calculateDiscountAmount(),
+        totalAmount: calculateTotal(),
+        paymentMethod,
+        notes: "",
+      };
+
+      await addPendingBill(billData);
+      alert("Bill saved as pending!");
+
+      // Clear cart and customer info
+      setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
+      setTableNumber("");
+      setDiscount(0);
+      setTax(0);
+    } catch (error) {
+      console.error("Failed to save pending bill:", error);
+      alert("Failed to save pending bill. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const processSale = async () => {
@@ -349,10 +422,16 @@ const POSSystem = () => {
               />
               <input
                 type="tel"
-                placeholder="Phone Number"
+                placeholder="Phone Number (10 digits)"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                  if (value.length <= 10) {
+                    setCustomerPhone(value);
+                  }
+                }}
                 className="form-input"
+                maxLength="10"
               />
             </div>
           </div>
@@ -483,6 +562,20 @@ const POSSystem = () => {
             </div>
 
             <div className="action-buttons">
+              <button
+                onClick={savePendingBill}
+                disabled={cart.length === 0 || loading}
+                className="btn btn-secondary save-pending-btn"
+              >
+                {loading ? (
+                  "Saving..."
+                ) : (
+                  <>
+                    <Clock size={20} />
+                    Save as Pending
+                  </>
+                )}
+              </button>
               <button
                 onClick={processSale}
                 disabled={cart.length === 0 || loading}

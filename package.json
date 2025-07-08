@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Inventory Management and POS Application",
   "main": "src/main.js",
+  "author": {
+    "name": "Ajit Reddy",
+    "email": "ajitreddy013@gmail.com",
+    "phone": "+91 7517323121"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "concurrently \"npm run start-react\" \"wait-on http://localhost:3000 && electron .\"",
@@ -58,6 +63,7 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.263.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.1",

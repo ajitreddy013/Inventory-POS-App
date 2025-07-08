@@ -89,4 +89,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-counter-balances", dateRange),
   getPreviousDayClosingBalance: (date) =>
     ipcRenderer.invoke("get-previous-day-closing-balance", date),
+
+  // Pending bills operations
+  addPendingBill: (billData) => ipcRenderer.invoke("add-pending-bill", billData),
+  getPendingBills: () => ipcRenderer.invoke("get-pending-bills"),
+  updatePendingBill: (id, billData) => ipcRenderer.invoke("update-pending-bill", id, billData),
+  deletePendingBill: (id) => ipcRenderer.invoke("delete-pending-bill", id),
+  clearPendingBill: (id) => ipcRenderer.invoke("clear-pending-bill", id),
 });

@@ -132,7 +132,7 @@ const CounterBalance = () => {
             <Sun size={24} />
           </div>
           <div className="card-content">
-            <h3>Today's Opening Balance</h3>
+            <h3>Today&apos;s Opening Balance</h3>
             <p className="amount">
               {todayBalance
                 ? `₹${todayBalance.opening_balance.toFixed(2)}`

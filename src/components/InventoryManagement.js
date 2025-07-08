@@ -10,11 +10,12 @@ import {
   FileText,
   Download
 } from 'lucide-react';
+import StockEditModal from './StockEditModal';
 
 const InventoryManagement = () => {
   const [inventory, setInventory] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingStock, setEditingStock] = useState(null);
+  const [editingStock, setEditingStock] = useState({ isOpen: false, product: null });
   const [transferModal, setTransferModal] = useState({ open: false, product: null });
   const [loading, setLoading] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
@@ -52,7 +53,7 @@ const InventoryManagement = () => {
       setLoading(true);
       await window.electronAPI.updateStock(productId, godownStock, counterStock);
       await loadInventory();
-      setEditingStock(null);
+      setEditingStock({ isOpen: false, product: null });
     } catch (error) {
       console.error('Failed to update stock:', error);
       alert('Failed to update stock');
@@ -75,52 +76,6 @@ const InventoryManagement = () => {
     }
   };
 
-  const StockEditForm = ({ product, onSave, onCancel }) => {
-    const [godownStock, setGodownStock] = useState(product.godown_stock);
-    const [counterStock, setCounterStock] = useState(product.counter_stock);
-
-    const handleSave = () => {
-      onSave(product.id, parseInt(godownStock), parseInt(counterStock));
-    };
-
-    return (
-      <tr className="stock-edit-row">
-        <td colSpan="8">
-          <div className="stock-edit-form">
-            <h4>Edit Stock for {product.name}</h4>
-            <div className="form-row">
-              <label>
-                Godown Stock:
-                <input
-                  type="number"
-                  value={godownStock}
-                  onChange={(e) => setGodownStock(e.target.value)}
-                  min="0"
-                />
-              </label>
-              <label>
-                Counter Stock:
-                <input
-                  type="number"
-                  value={counterStock}
-                  onChange={(e) => setCounterStock(e.target.value)}
-                  min="0"
-                />
-              </label>
-            </div>
-            <div className="form-actions">
-              <button onClick={handleSave} className="btn btn-primary">
-                <Save size={16} /> Save
-              </button>
-              <button onClick={onCancel} className="btn btn-secondary">
-                <X size={16} /> Cancel
-              </button>
-            </div>
-          </div>
-        </td>
-      </tr>
-    );
-  };
 
   const TransferModal = ({ product, onClose, onTransfer }) => {
     const [quantity, setQuantity] = useState('');
@@ -362,7 +317,7 @@ const InventoryManagement = () => {
                     <td>
                       <div className="action-buttons">
                         <button
-                          onClick={() => setEditingStock(item.id)}
+                          onClick={() => setEditingStock({ isOpen: true, product: item })}
                           className="btn btn-sm btn-secondary"
                           title="Edit Stock"
                         >
@@ -378,19 +333,20 @@ const InventoryManagement = () => {
                       </div>
                     </td>
                   </tr>
-                  {editingStock === item.id && (
-                    <StockEditForm
-                      product={item}
-                      onSave={updateStock}
-                      onCancel={() => setEditingStock(null)}
-                    />
-                  )}
                 </React.Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Stock Edit Modal */}
+      <StockEditModal
+        product={editingStock.product}
+        onSave={updateStock}
+        onCancel={() => setEditingStock({ isOpen: false, product: null })}
+        isOpen={editingStock.isOpen}
+      />
 
       {/* Transfer Modal */}
       {transferModal.open && (

@@ -15,6 +15,8 @@ import {
   Save,
   CheckCircle,
 } from "lucide-react";
+import { getLocalDateTimeString } from "../utils/dateUtils";
+import { addPendingBill } from "../services/billService";
 
 const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [products, setProducts] = useState([]);
@@ -26,9 +28,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [orderNotes, setOrderNotes] = useState("");
-  const [kotPrinted, setKotPrinted] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
+  const [autoSaving, setAutoSaving] = useState(false);
   const searchInputRef = useRef(null);
 
   useEffect(() => {
@@ -67,8 +68,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         setCustomerPhone(tableOrder.customer_phone || "");
         setDiscount(tableOrder.discount || 0);
         setTax(tableOrder.tax || 0);
-        setOrderNotes(tableOrder.notes || "");
-        setKotPrinted(tableOrder.kot_printed || false);
       }
     } catch (error) {
       console.error("Failed to load table order:", error);
@@ -82,23 +81,24 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       (product.barcode && product.barcode.includes(searchTerm))
   );
 
-  const addToCart = (product) => {
+  const addToCart = async (product) => {
     const existingItem = cart.find((item) => item.id === product.id);
+    let newCart;
 
     if (existingItem) {
       if (existingItem.quantity < product.counter_stock) {
-        setCart(
-          cart.map((item) =>
-            item.id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
+        newCart = cart.map((item) =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
+        setCart(newCart);
       } else {
         alert("Insufficient stock!");
+        return;
       }
     } else {
-      setCart([
+      newCart = [
         ...cart,
         {
           id: product.id,
@@ -107,8 +107,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           quantity: 1,
           maxStock: product.counter_stock,
         },
-      ]);
+      ];
+      setCart(newCart);
     }
+
+    // Auto-save the order after adding product
+    await autoSaveOrder(newCart);
 
     setSearchTerm("");
     if (searchInputRef.current) {
@@ -116,7 +120,45 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
   };
 
-  const updateQuantity = (productId, newQuantity) => {
+  const autoSaveOrder = async (currentCart) => {
+    setAutoSaving(true);
+    try {
+      const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const taxAmount = (subtotal * tax) / 100;
+      const discountAmount = (subtotal * discount) / 100;
+      const total = subtotal + taxAmount - discountAmount;
+
+      const orderData = {
+        table_id: table.id,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        items: currentCart,
+        discount,
+        tax,
+        notes: "",
+        subtotal,
+        total,
+        kot_printed: false,
+      };
+
+      await window.electronAPI.saveTableOrder(orderData);
+
+      // Update table status
+      const tableUpdate = {
+        status: currentCart.length > 0 ? "occupied" : "available",
+        current_bill_amount: total,
+      };
+
+      await window.electronAPI.updateTable(table.id, tableUpdate);
+      onTableUpdate({ ...table, ...tableUpdate });
+    } catch (error) {
+      console.error("Failed to auto-save order:", error);
+    } finally {
+      setAutoSaving(false);
+    }
+  };
+
+  const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(productId);
       return;
@@ -128,15 +170,21 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       return;
     }
 
-    setCart(
-      cart.map((item) =>
-        item.id === productId ? { ...item, quantity: newQuantity } : item
-      )
+    const newCart = cart.map((item) =>
+      item.id === productId ? { ...item, quantity: newQuantity } : item
     );
+    setCart(newCart);
+
+    // Auto-save the order after updating quantity
+    await autoSaveOrder(newCart);
   };
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter((item) => item.id !== productId));
+  const removeFromCart = async (productId) => {
+    const newCart = cart.filter((item) => item.id !== productId);
+    setCart(newCart);
+
+    // Auto-save the order after removing item
+    await autoSaveOrder(newCart);
   };
 
   const calculateSubtotal = () => {
@@ -169,6 +217,82 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     return `${day}${month}${year}${randomNum}`;
   };
 
+  const savePendingBill = async () => {
+    if (cart.length === 0) {
+      alert("Cart is empty!");
+      return;
+    }
+
+    // Validate required fields for pending bills
+    const errors = [];
+    
+    if (!customerName || customerName.trim() === "") {
+      errors.push("Customer name");
+    }
+
+    if (!customerPhone || customerPhone.trim() === "") {
+      errors.push("Customer phone number");
+    } else if (customerPhone.trim().length !== 10 || !/^\d{10}$/.test(customerPhone.trim())) {
+      alert("Phone number must be exactly 10 digits!");
+      return;
+    }
+
+    if (errors.length > 0) {
+      alert(`${errors.join(" and ")} ${errors.length > 1 ? 'are' : 'is'} mandatory for pending bills!`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const billData = {
+        billNumber: await generateSaleNumber(),
+        saleType: "table",
+        tableNumber: table.name,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: cart.map((item) => ({
+          productId: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          totalPrice: item.price * item.quantity,
+        })),
+        subtotal: calculateSubtotal(),
+        taxAmount: calculateTaxAmount(),
+        discountAmount: calculateDiscountAmount(),
+        totalAmount: calculateTotal(),
+        paymentMethod,
+        notes: "",
+      };
+
+      await addPendingBill(billData);
+      alert("Bill saved as pending!");
+
+      // Clear cart and customer info
+      setCart([]);
+      setCustomerName("");
+      setCustomerPhone("");
+      setDiscount(0);
+      setTax(0);
+      
+      // Clear table order
+      await window.electronAPI.clearTableOrder(table.id);
+      
+      // Update table status
+      await window.electronAPI.updateTable(table.id, {
+        status: "available",
+        current_bill_amount: 0,
+      });
+      
+      onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
+    } catch (error) {
+      console.error("Failed to save pending bill:", error);
+      alert("Failed to save pending bill. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const saveTableOrder = async () => {
     try {
       const orderData = {
@@ -178,10 +302,10 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         items: cart,
         discount,
         tax,
-        notes: orderNotes,
+        notes: "",
         subtotal: calculateSubtotal(),
         total: calculateTotal(),
-        kot_printed: kotPrinted,
+        kot_printed: false,
       };
 
       await window.electronAPI.saveTableOrder(orderData);
@@ -202,32 +326,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
   };
 
-  const printKOT = async () => {
-    if (cart.length === 0) {
-      alert("Cart is empty!");
-      return;
-    }
-
-    try {
-      const kotData = {
-        table: table.name,
-        items: cart,
-        notes: orderNotes,
-        timestamp: new Date().toISOString(),
-      };
-
-      const result = await window.electronAPI.printKOT(kotData);
-      if (result.success) {
-        setKotPrinted(true);
-        alert("KOT printed successfully!");
-      } else {
-        alert(`KOT print failed: ${result.error}`);
-      }
-    } catch (error) {
-      console.error("KOT print error:", error);
-      alert("Failed to print KOT");
-    }
-  };
 
   const processSale = async () => {
     if (cart.length === 0) {
@@ -255,7 +353,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         discountAmount: calculateDiscountAmount(),
         totalAmount: calculateTotal(),
         paymentMethod,
-        notes: orderNotes,
+        notes: "",
         saleDate: getLocalDateTimeString(),
         barSettings,
       };
@@ -287,8 +385,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       setCustomerPhone("");
       setDiscount(0);
       setTax(0);
-      setOrderNotes("");
-      setKotPrinted(false);
 
       await loadProducts();
       onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
@@ -357,6 +453,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
               {table.status}
             </span>
           </div>
+          {autoSaving && (
+            <div className="auto-save-indicator">
+              <Save size={16} className="spinning" />
+              <span>Auto-saving...</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -414,10 +516,16 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
               />
               <input
                 type="tel"
-                placeholder="Phone Number"
+                placeholder="Phone Number (10 digits)"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                  if (value.length <= 10) {
+                    setCustomerPhone(value);
+                  }
+                }}
                 className="form-input"
+                maxLength="10"
               />
             </div>
           </div>
@@ -479,15 +587,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
               )}
             </div>
 
-            <div className="order-notes">
-              <textarea
-                placeholder="Order notes (special instructions)..."
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-                className="notes-textarea"
-                rows="3"
-              />
-            </div>
           </div>
 
           <div className="billing-section">
@@ -568,12 +667,18 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
               </button>
 
               <button
-                onClick={printKOT}
-                disabled={cart.length === 0}
-                className="btn btn-info"
+                onClick={savePendingBill}
+                disabled={cart.length === 0 || loading}
+                className="btn btn-secondary save-pending-btn"
               >
-                <Printer size={20} />
-                Print KOT
+                {loading ? (
+                  "Saving..."
+                ) : (
+                  <>
+                    <Clock size={20} />
+                    Save as Pending
+                  </>
+                )}
               </button>
 
               <button
@@ -586,7 +691,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 ) : (
                   <>
                     <Calculator size={20} />
-                    Complete Order
+                    Process Sale
                   </>
                 )}
               </button>
@@ -598,16 +703,5 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   );
 };
 
-// Helper to get local date and time in YYYY-MM-DD HH:mm:ss
-function getLocalDateTimeString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  const seconds = String(now.getSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
 
 export default TablePOS;

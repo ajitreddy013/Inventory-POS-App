@@ -1,4 +1,5 @@
 const Database = require('./src/database');
+const { getLocalDateTimeString } = require('./src/utils/dateUtils');
 
 async function demonstrateFeatures() {
   console.log('🏪 Ajit Bar & Restaurant POS System Demo\n');
@@ -61,7 +62,8 @@ async function demonstrateFeatures() {
       totalAmount: (products[0].price * 2) + (products[1].price * 1),
       taxAmount: 0,
       discountAmount: 0,
-      paymentMethod: 'cash'
+      paymentMethod: 'cash',
+      saleDate: getLocalDateTimeString()
     };
     
     await db.createSale(saleData);

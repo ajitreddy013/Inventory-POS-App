@@ -9,7 +9,8 @@ import {
   Check,
   X,
   Clock,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from 'lucide-react';
 
 const TableManagement = ({ onSelectTable }) => {
@@ -25,6 +26,7 @@ const TableManagement = ({ onSelectTable }) => {
 
   useEffect(() => {
     loadTables();
+    initializeDefaultTables();
   }, []);
 
   const loadTables = async () => {
@@ -36,11 +38,86 @@ const TableManagement = ({ onSelectTable }) => {
     }
   };
 
+  const initializeDefaultTables = async () => {
+    try {
+      const tableList = await window.electronAPI.getTables();
+      
+      // Check if we have tables T1-T12
+      const existingTableNames = tableList.map(table => table.name);
+      const requiredTables = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
+      
+      for (const tableName of requiredTables) {
+        if (!existingTableNames.includes(tableName)) {
+          await window.electronAPI.addTable({
+            name: tableName,
+            capacity: 4,
+            area: 'restaurant',
+            status: 'available'
+          });
+        }
+      }
+      
+      // Reload tables after initialization
+      loadTables();
+    } catch (error) {
+      console.error('Failed to initialize default tables:', error);
+    }
+  };
+
+  const handleResetTables = async () =>
+    try {
+      const tableList = await window.electronAPI.getTables();
+      
+      // Find tables after T12 and delete them
+      const tablesToDelete = tableList.filter(table =) => {
+        const tableNumberMatch = table.name.match(/^T(\d+)$/);
+        return tableNumberMatch && parseInt(tableNumberMatch[1]) > 12;
+      });
+      
+      for (const table of tablesToDelete) {
+        await window.electronAPI.deleteTable(table.id);
+      }
+      
+      loadTables();
+    } catch (error) {
+      console.error('Failed to reset tables:', error);
+      alert('Failed to reset tables. Please try again.');
+    }
+  };
+
+  const getNextTableNumber = (existingTables) => {
+    // Get all table numbers from existing tables that follow the T{number} pattern
+    const tableNumbers = existingTables
+      .map(table => table.name.match(/^T(\d+)$/)) // Match T followed by digits
+      .filter(match => match !== null) // Remove non-matches
+      .map(match => parseInt(match[1])) // Extract the number
+      .sort((a, b) => a - b); // Sort numerically
+    
+    // Find the first gap or return the next number after the highest
+    let nextNumber = 1;
+    for (const num of tableNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else {
+        break;
+      }
+    }
+    
+    return `T${nextNumber}`;
+  };
+
   const handleAddTable = async () => {
     try {
-      await window.electronAPI.addTable(newTable);
-      setNewTable({ name: '', capacity: 4, area: 'restaurant', status: 'available' });
-      setShowAddForm(false);
+      const tableName = getNextTableNumber(tables);
+      
+      const tableToAdd = {
+        name: tableName,
+        capacity: 4,
+        area: 'restaurant',
+        status: 'available'
+      };
+      
+      await window.electronAPI.addTable(tableToAdd);
       loadTables();
     } catch (error) {
       console.error('Failed to add table:', error);
@@ -71,20 +148,26 @@ const TableManagement = ({ onSelectTable }) => {
     }
   };
 
-  const getTableStatusColor = (status) => {
+  const getTableStatusColor = (status, hasOrder) => {
+    if (hasOrder) {
+      return 'table-occupied'; // Green for ongoing orders
+    }
     switch (status) {
       case 'available':
-        return 'status-available';
+        return 'table-available'; // Red for empty tables
       case 'occupied':
-        return 'status-occupied';
+        return 'table-occupied'; // Green for occupied tables
       case 'reserved':
-        return 'status-reserved';
+        return 'table-reserved'; // Yellow for reserved tables
       default:
-        return 'status-available';
+        return 'table-available';
     }
   };
 
-  const getTableStatusIcon = (status) => {
+  const getTableStatusIcon = (status, hasOrder) => {
+    if (hasOrder) {
+      return <ShoppingCart size={16} />;
+    }
     switch (status) {
       case 'available':
         return <Check size={16} />;
@@ -97,29 +180,62 @@ const TableManagement = ({ onSelectTable }) => {
     }
   };
 
-  const restaurantTables = tables.filter(table => table.area === 'restaurant');
-  const barTables = tables.filter(table => table.area === 'bar');
+  // Filter and sort all tables that follow T{number} pattern
+  const numberedTables = tables
+    .filter(table => /^T\d+$/.test(table.name))
+    .sort((a, b) => {
+      const numA = parseInt(a.name.substring(1));
+      const numB = parseInt(b.name.substring(1));
+      return numA - numB;
+    });
+
+  // Calculate how many rows we need (4 columns per row)
+  const totalNumberedTables = numberedTables.length;
+  const rowsNeeded = Math.ceil(totalNumberedTables / 4);
+  const gridSize = rowsNeeded * 4;
+
+  // Create the grid with numbered tables, filling empty slots with null
+  const gridTables = [];
+  for (let i = 0; i < gridSize; i++) {
+    gridTables.push(numberedTables[i] || null);
+  }
+
+  // Other tables (non-numbered like Bar-A, Counter-1, etc.)
+  const otherTables = tables.filter(table => !/^T\d+$/.test(table.name));
 
   return (
     <div className="table-management">
       <div className="table-header">
         <h1>Table Management</h1>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowAddForm(true)}
-        >
-          <Plus size={20} />
-          Add Table
-        </button>
+        <div className="header-actions">
+          <button 
+            className="btn btn-secondary"
+            onClick={loadTables}
+          >
+            <RefreshCw size={20} />
+            Refresh
+          </button>
+          <button 
+            className="btn btn-primary"
+            onClick={() => setShowAddForm(true)}
+          >
+            <Plus size={20} />
+            Add Table
+          </button>
+        </div>
       </div>
 
       {showAddForm && (
         <div className="add-table-form">
           <h3>Add New Table</h3>
+          <div className="next-table-info">
+            <p>Next table number will be: <strong>{getNextTableNumber(tables)}</strong></p>
+            <p><em>Leave name empty to auto-generate, or enter custom name</em></p>
+          </div>
           <div className="form-row">
             <input
               type="text"
-              placeholder="Table Name (e.g., T1, Bar-A)"
+              placeholder={`Table Name (auto: ${getNextTableNumber(tables)} or custom name)`}
               value={newTable.name}
               onChange={(e) => setNewTable({...newTable, name: e.target.value})}
               className="form-input"
@@ -146,7 +262,6 @@ const TableManagement = ({ onSelectTable }) => {
             <button 
               className="btn btn-primary"
               onClick={handleAddTable}
-              disabled={!newTable.name}
             >
               Add Table
             </button>
@@ -161,127 +276,116 @@ const TableManagement = ({ onSelectTable }) => {
       )}
 
       <div className="tables-sections">
-        {/* Restaurant Tables */}
+        {/* Main Tables Grid - All numbered tables */}
         <div className="table-section">
           <h2>
             <Coffee size={24} />
-            Restaurant Tables ({restaurantTables.length})
+            Restaurant Tables ({numberedTables.length > 0 ? `T1-T${numberedTables[numberedTables.length - 1].name.substring(1)}` : 'None'})
           </h2>
-          <div className="tables-grid">
-            {restaurantTables.map(table => (
-              <div 
-                key={table.id} 
-                className={`table-card ${getTableStatusColor(table.status)}`}
-                onClick={() => onSelectTable(table)}
-              >
-                <div className="table-header">
-                  <h3>{table.name}</h3>
-                  <div className="table-actions">
-                    <button 
-                      className="action-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTable(table);
-                      }}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      className="action-btn delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTable(table.id);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+          
+          {/* Dynamic grid for all numbered tables */}
+          <div className="tables-main-grid">
+            {gridTables.map((table, index) => {
+              const hasOrder = table && table.current_bill_amount > 0;
+              const expectedTableNumber = index + 1;
+              const expectedTableName = `T${expectedTableNumber}`;
+              
+              return (
+                <div 
+                  key={table ? table.id : `empty-${index}`} 
+                  className={`table-square ${table ? getTableStatusColor(table.status, hasOrder) : 'table-empty'}`}
+                  onClick={table ? () => onSelectTable(table) : undefined}
+                >
+                  <div className="table-number">
+                    {table ? table.name : expectedTableName}
                   </div>
+                  {table ? (
+                    <>
+                      <div className="table-status-icon">
+                        {getTableStatusIcon(table.status, hasOrder)}
+                      </div>
+                      {table.current_bill_amount > 0 && (
+                        <div className="table-amount">
+                          ₹{table.current_bill_amount.toFixed(0)}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="table-status-icon">
+                      <X size={16} />
+                    </div>
+                  )}
                 </div>
-                <div className="table-info">
-                  <div className="table-capacity">
-                    <Users size={16} />
-                    <span>{table.capacity} seats</span>
-                  </div>
-                  <div className={`table-status ${getTableStatusColor(table.status)}`}>
-                    {getTableStatusIcon(table.status)}
-                    <span>{table.status}</span>
-                  </div>
-                </div>
-                {table.current_bill_amount > 0 && (
-                  <div className="table-bill">
-                    <DollarSign size={16} />
-                    <span>₹{table.current_bill_amount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="table-action">
-                  <ShoppingCart size={16} />
-                  <span>Open POS</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* Bar Tables */}
-        <div className="table-section">
-          <h2>
-            <Coffee size={24} />
-            Bar Tables ({barTables.length})
-          </h2>
-          <div className="tables-grid">
-            {barTables.map(table => (
-              <div 
-                key={table.id} 
-                className={`table-card ${getTableStatusColor(table.status)}`}
-                onClick={() => onSelectTable(table)}
-              >
-                <div className="table-header">
-                  <h3>{table.name}</h3>
-                  <div className="table-actions">
-                    <button 
-                      className="action-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTable(table);
-                      }}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      className="action-btn delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTable(table.id);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+        {/* Other Tables (if any) */}
+        {otherTables.length > 0 && (
+          <div className="table-section">
+            <h2>
+              <Coffee size={24} />
+              Custom Tables ({otherTables.length})
+            </h2>
+            <div className="tables-grid">
+              {otherTables.map(table => {
+                const hasOrder = table.current_bill_amount > 0;
+                return (
+                  <div 
+                    key={table.id} 
+                    className={`table-card ${getTableStatusColor(table.status, hasOrder)}`}
+                    onClick={() => onSelectTable(table)}
+                  >
+                    <div className="table-header">
+                      <h3>{table.name}</h3>
+                      <div className="table-actions">
+                        <button 
+                          className="action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTable(table);
+                          }}
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          className="action-btn delete-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTable(table.id);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="table-info">
+                      <div className="table-capacity">
+                        <Users size={16} />
+                        <span>{table.capacity} seats</span>
+                      </div>
+                      <div className={`table-status ${getTableStatusColor(table.status, hasOrder)}`}>
+                        {getTableStatusIcon(table.status, hasOrder)}
+                        <span>{table.status}</span>
+                      </div>
+                    </div>
+                    {table.current_bill_amount > 0 && (
+                      <div className="table-bill">
+                        <DollarSign size={16} />
+                        <span>₹{table.current_bill_amount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="table-action">
+                      <ShoppingCart size={16} />
+                      <span>Open POS</span>
+                    </div>
                   </div>
-                </div>
-                <div className="table-info">
-                  <div className="table-capacity">
-                    <Users size={16} />
-                    <span>{table.capacity} seats</span>
-                  </div>
-                  <div className={`table-status ${getTableStatusColor(table.status)}`}>
-                    {getTableStatusIcon(table.status)}
-                    <span>{table.status}</span>
-                  </div>
-                </div>
-                {table.current_bill_amount > 0 && (
-                  <div className="table-bill">
-                    <DollarSign size={16} />
-                    <span>₹{table.current_bill_amount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="table-action">
-                  <ShoppingCart size={16} />
-                  <span>Open POS</span>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Edit Table Modal */}

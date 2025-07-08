@@ -530,8 +530,8 @@ const Settings = () => {
             <h3>Support</h3>
             <div style={{ textAlign: 'left', fontSize: '0.9rem' }}>
               <p>For technical support:</p>
-              <p>Email: support@inventorypos.com</p>
-              <p>Phone: +1-XXX-XXX-XXXX</p>
+              <p>Email: ajitreddy013@gmail.com</p>
+              <p>Phone: +91 7517323121</p>
             </div>
           </div>
         </div>
@@ -580,7 +580,7 @@ const Settings = () => {
             <h3>For USB Connection:</h3>
             <ol style={{ marginLeft: '20px', lineHeight: '1.6' }}>
               <li>Connect the Epson TM-T82II printer to your computer via USB cable</li>
-              <li>Install the printer drivers from Epson's official website</li>
+              <li>Install the printer drivers from Epson&apos;s official website</li>
               <li>Set the printer to ESC/POS mode</li>
               <li>Restart the application to detect the printer</li>
             </ol>
@@ -588,9 +588,9 @@ const Settings = () => {
             <h3 style={{ marginTop: '20px' }}>For Network Connection:</h3>
             <ol style={{ marginLeft: '20px', lineHeight: '1.6' }}>
               <li>Connect the printer to your network</li>
-              <li>Note down the printer's IP address</li>
+              <li>Note down the printer&apos;s IP address</li>
               <li>Configure the network settings in the printer service</li>
-              <li>Test the connection using the "Check Status" button above</li>
+              <li>Test the connection using the &quot;Check Status&quot; button above</li>
             </ol>
 
             <div style={{ 
@@ -601,7 +601,7 @@ const Settings = () => {
               marginTop: '20px' 
             }}>
               <strong>Note:</strong> The application will automatically search for compatible printers on common ports. 
-              If your printer is not detected, ensure it's properly connected and powered on.
+              If your printer is not detected, ensure it&apos;s properly connected and powered on.
             </div>
           </div>
         </div>

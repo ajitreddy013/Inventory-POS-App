@@ -216,10 +216,14 @@ src/
 
 For technical support or feature requests, please contact the development team.
 
+**Contact Information:**
+- Email: ajitreddy013@gmail.com
+- Phone: +91 7517323121
+
 ## License
 
-This software is proprietary and developed specifically for Ajit Bar & Restaurant.
+This software is proprietary and developed specifically for Ajit Wines.
 
 ---
 
-**Built with ❤️ for Ajit Bar & Restaurant**
+**Built with ❤️ for Ajit Wines**

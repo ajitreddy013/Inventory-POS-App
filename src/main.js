@@ -28,7 +28,11 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      enableRemoteModule: false,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
       preload: path.join(__dirname, "preload.js"),
+      sandbox: false, // Keep false for preload script access
     },
     icon: path.join(__dirname, "../assets/icon.png"),
   });
@@ -150,21 +154,67 @@ app.on("window-all-closed", () => {
   }
 });
 
+// Input validation helpers
+function validateId(id) {
+  if (!id || !Number.isInteger(Number(id)) || Number(id) <= 0) {
+    throw new Error('Invalid ID provided');
+  }
+  return Number(id);
+}
+
+function validateObject(obj, requiredFields = []) {
+  if (!obj || typeof obj !== 'object') {
+    throw new Error('Invalid object provided');
+  }
+  
+  for (const field of requiredFields) {
+    if (!(field in obj)) {
+      throw new Error(`Missing required field: ${field}`);
+    }
+  }
+  
+  return obj;
+}
+
 // IPC handlers for database operations
 ipcMain.handle("get-products", async () => {
-  return await database.getProducts();
+  try {
+    return await database.getProducts();
+  } catch (error) {
+    console.error('Error in get-products:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle("add-product", async (event, product) => {
-  return await database.addProduct(product);
+  try {
+    validateObject(product, ['name', 'sku', 'price', 'cost']);
+    return await database.addProduct(product);
+  } catch (error) {
+    console.error('Error in add-product:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle("update-product", async (event, id, product) => {
-  return await database.updateProduct(id, product);
+  try {
+    const validId = validateId(id);
+    validateObject(product, ['name', 'sku', 'price', 'cost']);
+    return await database.updateProduct(validId, product);
+  } catch (error) {
+    console.error('Error in update-product:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle("delete-product", async (event, id) => {
-  return await database.deleteProduct(id);
+  try {
+    const validId = validateId(id);
+    return await database.deleteProduct(validId);
+  } catch (error) {
+    console.error('Error in delete-product:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle("get-inventory", async () => {
@@ -191,7 +241,22 @@ ipcMain.handle(
 );
 
 ipcMain.handle("create-sale", async (event, saleData) => {
-  return await database.createSale(saleData);
+  try {
+    validateObject(saleData, ['saleNumber', 'items', 'totalAmount']);
+    
+    if (!Array.isArray(saleData.items) || saleData.items.length === 0) {
+      throw new Error('Sale must contain at least one item');
+    }
+    
+    if (typeof saleData.totalAmount !== 'number' || saleData.totalAmount < 0) {
+      throw new Error('Total amount must be a valid positive number');
+    }
+    
+    return await database.createSale(saleData);
+  } catch (error) {
+    console.error('Error in create-sale:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle("get-sales", async (event, dateRange) => {
@@ -370,6 +435,78 @@ ipcMain.handle("get-counter-balances", async (event, dateRange) => {
 
 ipcMain.handle("get-previous-day-closing-balance", async (event, date) => {
   return await database.getPreviousDayClosingBalance(date);
+});
+
+// Pending bills IPC handlers
+ipcMain.handle("add-pending-bill", async (event, billData) => {
+  try {
+    validateObject(billData, ['billNumber', 'items', 'subtotal', 'totalAmount']);
+    
+    if (!Array.isArray(billData.items) || billData.items.length === 0) {
+      throw new Error('Pending bill must contain at least one item');
+    }
+    
+    if (typeof billData.totalAmount !== 'number' || billData.totalAmount < 0) {
+      throw new Error('Total amount must be a valid positive number');
+    }
+    
+    const result = await database.addPendingBill(billData);
+    console.log('Pending bill added successfully:', result);
+    return result;
+  } catch (error) {
+    console.error('Error in add-pending-bill:', error);
+    console.error('Bill data:', billData);
+    throw error;
+  }
+});
+
+ipcMain.handle("get-pending-bills", async () => {
+  try {
+    return await database.getPendingBills();
+  } catch (error) {
+    console.error('Error in get-pending-bills:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle("update-pending-bill", async (event, id, billData) => {
+  try {
+    const validId = validateId(id);
+    validateObject(billData, ['items', 'subtotal', 'totalAmount']);
+    
+    if (!Array.isArray(billData.items) || billData.items.length === 0) {
+      throw new Error('Pending bill must contain at least one item');
+    }
+    
+    if (typeof billData.totalAmount !== 'number' || billData.totalAmount < 0) {
+      throw new Error('Total amount must be a valid positive number');
+    }
+    
+    return await database.updatePendingBill(validId, billData);
+  } catch (error) {
+    console.error('Error in update-pending-bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle("delete-pending-bill", async (event, id) => {
+  try {
+    const validId = validateId(id);
+    return await database.deletePendingBill(validId);
+  } catch (error) {
+    console.error('Error in delete-pending-bill:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle("clear-pending-bill", async (event, id) => {
+  try {
+    const validId = validateId(id);
+    return await database.clearPendingBill(validId);
+  } catch (error) {
+    console.error('Error in clear-pending-bill:', error);
+    throw error;
+  }
 });
 
 // PDF generation for reports
