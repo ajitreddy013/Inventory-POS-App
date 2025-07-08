@@ -1,6 +1,6 @@
-# Ajit Bar & Restaurant - Inventory POS Application
+# Ajit Wines - Inventory POS Application
 
-A comprehensive Point of Sale (POS) and Inventory Management system built for Ajit Bar & Restaurant using Electron, React, and SQLite.
+A comprehensive Point of Sale (POS) and Inventory Management system built for Ajit Wines using Electron, React, and SQLite.
 
 ## Features
 
@@ -56,7 +56,7 @@ A comprehensive Point of Sale (POS) and Inventory Management system built for Aj
 The system generates professional bills with the following format:
 
 ```
-Ajit Bar & Restaurant
+Ajit Wines
 Date/Time
 Table/Parcel No.
 -------------------------------
