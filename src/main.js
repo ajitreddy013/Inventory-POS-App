@@ -5,6 +5,7 @@ const cron = require("node-cron");
 const Database = require("./database");
 const PrinterService = require("./printer-service");
 const PDFService = require("./pdf-service");
+const ReportService = require("./services/reportService");
 const EmailService = require("./email-service");
 const { initializeSampleData } = require("./init-sample-data");
 const { 
@@ -19,6 +20,7 @@ let mainWindow;
 let database;
 let printerService;
 let pdfService;
+let reportService;
 let emailService;
 
 function createWindow() {
@@ -74,6 +76,7 @@ app.whenReady().then(async () => {
   // Initialize services
   printerService = new PrinterService();
   pdfService = new PDFService();
+  reportService = new ReportService();
   emailService = new EmailService();
 
   // Setup daily email report cron job (runs at 11:59 PM every day)
@@ -264,6 +267,18 @@ ipcMain.handle("create-sale", async (event, saleData) => {
 
 ipcMain.handle("get-sales", async (event, dateRange) => {
   return await database.getSales(dateRange);
+});
+
+ipcMain.handle("get-sales-with-details", async (event, dateRange) => {
+  console.log('getSalesWithDetails called with dateRange:', dateRange);
+  try {
+    const result = await database.getSalesWithDetails(dateRange);
+    console.log('getSalesWithDetails result:', result.length, 'rows');
+    return result;
+  } catch (error) {
+    console.error('Error in getSalesWithDetails:', error);
+    throw error;
+  }
 });
 
 ipcMain.handle("print-bill", async (event, billData) => {
@@ -545,6 +560,44 @@ ipcMain.handle("export-transfer-report", async (event, transferData) => {
 
     if (!result.canceled) {
       await pdfService.generateTransferReport(transferData, result.filePath);
+      return { success: true, filePath: result.filePath };
+    }
+    return { success: false, error: "Save cancelled" };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Export sales report PDF
+ipcMain.handle("export-sales-report", async (event, salesData, selectedDate) => {
+  try {
+    const timestamp = new Date().getTime();
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `sales-report-${selectedDate}-${timestamp}.pdf`,
+      filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+    });
+
+    if (!result.canceled) {
+      await reportService.generateSalesReport(salesData, selectedDate, result.filePath);
+      return { success: true, filePath: result.filePath };
+    }
+    return { success: false, error: "Save cancelled" };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Export financial report PDF
+ipcMain.handle("export-financial-report", async (event, reportData, selectedDate) => {
+  try {
+    const timestamp = new Date().getTime();
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `financial-report-${selectedDate}-${timestamp}.pdf`,
+      filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+    });
+
+    if (!result.canceled) {
+      await pdfService.generateFinancialReport(reportData, selectedDate, result.filePath);
       return { success: true, filePath: result.filePath };
     }
     return { success: false, error: "Save cancelled" };

@@ -9,7 +9,14 @@ import {
   AlertCircle,
   FileText,
   Calendar,
+  Clock,
 } from "lucide-react";
+import {
+  getLocalDateString,
+  getLocalDateTimeString,
+  formatDateForDisplay,
+  formatTimeString,
+} from "../utils/dateUtils";
 
 const DailyTransfer = () => {
   const [products, setProducts] = useState([]);
@@ -28,15 +35,23 @@ const DailyTransfer = () => {
     try {
       // Load transfers from last 30 days
       const now = new Date();
-      const endDate = getLocalDateTimeString(now).split(" ")[0];
-      const weekAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const startDate = getLocalDateTimeString(weekAgo).split(" ")[0];
+      const endDate = getLocalDateString();
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const startDate = getLocalDateString();
 
       const history = await window.electronAPI.getDailyTransfers({
-        start: startDate,
+        start: getLocalDateString(thirtyDaysAgo),
         end: endDate,
       });
-      setTransferHistory(history);
+      
+      // Sort by created_at timestamp to ensure recent transfers appear first
+      const sortedHistory = history.sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      setTransferHistory(sortedHistory);
     } catch (error) {
       console.error("Failed to load transfer history:", error);
     }
@@ -139,7 +154,7 @@ const DailyTransfer = () => {
 
       // Save daily transfer record
       const transferRecord = {
-        transfer_date: getLocalDateTimeString(transferTime).split(" ")[0],
+        transfer_date: getLocalDateString(),
         total_items: transfers.length,
         total_quantity: getTotalItems(),
         items_transferred: transfers.map((t) => ({
@@ -147,7 +162,7 @@ const DailyTransfer = () => {
           name: t.name,
           variant: t.variant,
           quantity: t.quantity,
-          transfer_time: getLocalDateTimeString(transferTime),
+          transfer_time: getLocalDateTimeString(),
         })),
       };
 
@@ -362,15 +377,27 @@ const DailyTransfer = () => {
         {/* Transfer History */}
         {showHistory && (
           <div className="transfer-history">
-            <h3>Recent Transfer History</h3>
+            <div className="history-header-section">
+              <h3>Recent Transfer History</h3>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={loadTransferHistory}
+              >
+                <Clock size={14} />
+                Refresh
+              </button>
+            </div>
             {transferHistory.length === 0 ? (
               <p className="no-history">No transfer history found</p>
             ) : (
               <div className="history-list">
-                {transferHistory.map((transfer) => (
-                  <div key={transfer.id} className="history-item">
+                {transferHistory.map((transfer, index) => (
+                  <div key={transfer.id} className={`history-item ${index === 0 ? 'latest-transfer' : ''}`}>
                     <div className="history-header">
-                      <h4>{transfer.transfer_date}</h4>
+                      <div className="transfer-date-info">
+                        <h4>{formatDateForDisplay(transfer.transfer_date)}</h4>
+                        {index === 0 && <span className="latest-badge">Latest</span>}
+                      </div>
                       <button
                         className="btn btn-sm btn-primary"
                         onClick={() => exportTransferReport(transfer)}
@@ -384,9 +411,9 @@ const DailyTransfer = () => {
                       <span>Quantity: {transfer.total_quantity}</span>
                       <span>
                         Time:{" "}
-                        {new Date(transfer.created_at).toLocaleTimeString(
-                          "en-IN"
-                        )}
+                        {transfer.created_at
+                          ? formatTimeString(new Date(transfer.created_at))
+                          : "N/A"}
                       </span>
                     </div>
                     <div className="history-items">
@@ -394,7 +421,8 @@ const DailyTransfer = () => {
                         .slice(0, 3)
                         .map((item, index) => (
                           <small key={index}>
-                            {item.name} ({item.quantity})
+                            {item.name}
+                            {item.variant && ` (${item.variant})`} × {item.quantity}
                           </small>
                         ))}
                       {transfer.items_transferred.length > 3 && (
@@ -403,6 +431,17 @@ const DailyTransfer = () => {
                         </small>
                       )}
                     </div>
+                    {transfer.items_transferred.length > 0 && (
+                      <div className="transfer-timing">
+                        <small>
+                          <Clock size={12} />
+                          Transfer completed at:{" "}
+                          {transfer.items_transferred[0].transfer_time
+                            ? formatTimeString(new Date(transfer.items_transferred[0].transfer_time))
+                            : "N/A"}
+                        </small>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -414,15 +453,5 @@ const DailyTransfer = () => {
   );
 };
 
-// Helper to get local date and time in YYYY-MM-DD HH:mm:ss
-function getLocalDateTimeString(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
 
 export default DailyTransfer;

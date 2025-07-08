@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Sales operations
   createSale: (saleData) => ipcRenderer.invoke("create-sale", saleData),
   getSales: (dateRange) => ipcRenderer.invoke("get-sales", dateRange),
+  getSalesWithDetails: (dateRange) => ipcRenderer.invoke("get-sales-with-details", dateRange),
 
   // Printing and PDF operations
   printBill: (billData) => ipcRenderer.invoke("print-bill", billData),
@@ -60,6 +61,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("export-stock-report", reportData, reportType),
   exportTransferReport: (transferData) =>
     ipcRenderer.invoke("export-transfer-report", transferData),
+  exportSalesReport: (salesData, selectedDate) =>
+    ipcRenderer.invoke("export-sales-report", salesData, selectedDate),
+  exportFinancialReport: (reportData, selectedDate) =>
+    ipcRenderer.invoke("export-financial-report", reportData, selectedDate),
 
   // Email operations
   getEmailSettings: () => ipcRenderer.invoke("get-email-settings"),

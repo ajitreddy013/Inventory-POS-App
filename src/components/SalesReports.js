@@ -3,7 +3,8 @@ import { BarChart3, Mail, Send, DollarSign } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
-  createDateRange
+  getStartOfDay,
+  getEndOfDay
 } from "../utils/dateUtils";
 
 const SalesReports = () => {
@@ -12,39 +13,44 @@ const SalesReports = () => {
   const [counterBalances, setCounterBalances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [emailLoading, setEmailLoading] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    start: getLocalDateString(),
-    end: getLocalDateString(),
-  });
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
 
   useEffect(() => {
     loadData();
-  }, [dateRange]);
+  }, [selectedDate]);
 
   const loadData = async () => {
     try {
       setLoading(true);
+      
+      console.log("Reports loading for date:", selectedDate);
+      console.log("Date range:", {
+        start: getStartOfDay(selectedDate),
+        end: getEndOfDay(selectedDate)
+      });
 
-      // Create proper date range with start/end times
-      const range = createDateRange(dateRange.start, dateRange.end);
-
-      // Load sales data
-      const salesData = await window.electronAPI.getSales(range);
-      setSales(salesData);
+      // Create proper date range with start/end times for the selected date
+      // Load sales data with details (cost price, sale price, profit)
+      const salesData = await window.electronAPI.getSalesWithDetails({
+        start: getStartOfDay(selectedDate),
+        end: getEndOfDay(selectedDate),
+      });
+      console.log("Sales data found:", salesData.length, salesData);
+      setSales(salesData || []);
 
       // Load spendings data
       const spendingsData = await window.electronAPI.getSpendings({
-        start: dateRange.start,
-        end: dateRange.end,
+        start: getStartOfDay(selectedDate),
+        end: getEndOfDay(selectedDate),
       });
-      setSpendings(spendingsData);
+      setSpendings(spendingsData || []);
 
       // Load counter balance data
       const counterBalanceData = await window.electronAPI.getCounterBalances({
-        start: dateRange.start,
-        end: dateRange.end,
+        start: getStartOfDay(selectedDate),
+        end: getEndOfDay(selectedDate),
       });
-      setCounterBalances(counterBalanceData);
+      setCounterBalances(counterBalanceData || []);
     } catch (error) {
       console.error("Failed to load reports data:", error);
     } finally {
@@ -69,6 +75,42 @@ const SalesReports = () => {
       alert("Failed to send email report");
     } finally {
       setEmailLoading(false);
+    }
+  };
+
+  const exportSalesReportPDF = async () => {
+    try {
+      const result = await window.electronAPI.exportSalesReport(sales, selectedDate);
+      if (result.success) {
+        alert(`PDF saved at ${result.filePath}`);
+      } else {
+        alert('Failed to save PDF: ' + result.error);
+      }
+    } catch (error) {
+      alert('Failed to export PDF');
+    }
+  };
+
+  const exportFinancialReportPDF = async () => {
+    try {
+      const reportData = {
+        sales,
+        spendings,
+        counterBalances,
+        totalRevenue,
+        totalSpendings,
+        netIncome,
+        totalOpeningBalance,
+        totalBalance
+      };
+      const result = await window.electronAPI.exportFinancialReport(reportData, selectedDate);
+      if (result.success) {
+        alert(`PDF saved at ${result.filePath}`);
+      } else {
+        alert('Failed to save PDF: ' + result.error);
+      }
+    } catch (error) {
+      alert('Failed to export PDF');
     }
   };
 
@@ -108,34 +150,42 @@ const SalesReports = () => {
         </button>
       </div>
 
-      {/* Date Range */}
+      {/* Date Selection */}
       <div className="form-row" style={{ padding: "20px 30px" }}>
         <div className="form-group">
           <label>
-            Start Date:
+            Select Date:
             <input
               type="date"
-              value={dateRange.start}
-              onChange={(e) =>
-                setDateRange({ ...dateRange, start: e.target.value })
-              }
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
               className="form-input"
             />
           </label>
         </div>
-        <div className="form-group">
-          <label>
-            End Date:
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) =>
-                setDateRange({ ...dateRange, end: e.target.value })
-              }
-              className="form-input"
-            />
-          </label>
-        </div>
+        <button
+          onClick={loadData}
+          className="btn btn-primary"
+          style={{ marginLeft: "15px", alignSelf: "flex-end" }}
+        >
+          Generate Report
+        </button>
+        <button
+          onClick={exportSalesReportPDF}
+          className="btn btn-secondary"
+          style={{ marginLeft: "10px", alignSelf: "flex-end" }}
+          disabled={sales.length === 0}
+        >
+          Export Sales PDF
+        </button>
+        <button
+          onClick={exportFinancialReportPDF}
+          className="btn btn-secondary"
+          style={{ marginLeft: "10px", alignSelf: "flex-end" }}
+          disabled={sales.length === 0 && spendings.length === 0}
+        >
+          Export Financial PDF
+        </button>
       </div>
 
       {/* Financial Summary */}
@@ -211,7 +261,9 @@ const SalesReports = () => {
               <th>Table/Parcel</th>
               <th>Customer</th>
               <th>Items</th>
-              <th>Total Amount</th>
+              <th>Cost Price</th>
+              <th>Sale Price</th>
+              <th>Profit</th>
               <th>Date</th>
             </tr>
           </thead>
@@ -219,7 +271,7 @@ const SalesReports = () => {
             <tbody>
               <tr>
                 <td
-                  colSpan="7"
+                  colSpan="9"
                   style={{ textAlign: "center", padding: "40px" }}
                 >
                   Loading...
@@ -230,14 +282,14 @@ const SalesReports = () => {
             <tbody>
               <tr>
                 <td
-                  colSpan="7"
+                  colSpan="9"
                   style={{
                     textAlign: "center",
                     padding: "40px",
                     color: "#7f8c8d",
                   }}
                 >
-                  No sales found for the selected date range
+                  No sales found for the selected date
                 </td>
               </tr>
             </tbody>
@@ -256,7 +308,11 @@ const SalesReports = () => {
                   </td>
                   <td>{sale.customer_name || "Walk-in Customer"}</td>
                   <td>{sale.item_count}</td>
-                  <td>₹{sale.total_amount.toFixed(2)}</td>
+                  <td>₹{(sale.total_cost_price || 0).toFixed(2)}</td>
+                  <td>₹{(sale.total_sale_price || sale.total_amount).toFixed(2)}</td>
+                  <td className={`profit ${(sale.profit || 0) >= 0 ? 'positive' : 'negative'}`}>
+                    ₹{(sale.profit || 0).toFixed(2)}
+                  </td>
                   <td>{formatDate(sale.sale_date)}</td>
                 </tr>
               ))}

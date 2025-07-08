@@ -726,9 +726,17 @@ class Database {
 
       query += " GROUP BY s.id ORDER BY s.sale_date DESC";
 
+      console.log('getSalesWithDetails query:', query);
+      console.log('getSalesWithDetails params:', params);
+
       this.db.all(query, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
+        if (err) {
+          console.error('Database query error:', err);
+          reject(err);
+        } else {
+          console.log('Database query result:', rows.length, 'rows');
+          resolve(rows);
+        }
       });
     });
   }
@@ -971,7 +979,8 @@ class Database {
         params.push(dateRange.start, dateRange.end);
       }
 
-      query += " ORDER BY transfer_date DESC";
+      // Order by created_at timestamp first (most recent first), then by transfer_date
+      query += " ORDER BY created_at DESC, transfer_date DESC";
 
       this.db.all(query, params, (err, rows) => {
         if (err) {
