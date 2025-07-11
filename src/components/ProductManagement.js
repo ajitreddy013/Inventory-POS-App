@@ -323,6 +323,9 @@ const ProductManagement = () => {
               return sum + (stock * (product.cost || 0));
             }, 0).toFixed(2)}
           </div>
+          <small style={{ color: '#7f8c8d', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
+            (At Cost Price - Investment Value)
+          </small>
         </div>
         <div className="summary-card">
           <h3>Categories</h3>

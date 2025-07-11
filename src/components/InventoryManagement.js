@@ -206,10 +206,22 @@ const InventoryManagement = () => {
           <div className="value">{getLowStockItems().length}</div>
         </div>
         <div className="summary-card">
-          <h3>Total Inventory Value</h3>
+          <h3>Inventory Investment Value</h3>
           <div className="value">
-            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * item.price), 0).toFixed(2)}
+            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * (item.cost || 0)), 0).toFixed(2)}
           </div>
+          <small style={{ color: '#7f8c8d', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
+            (At Cost Price - Money Invested)
+          </small>
+        </div>
+        <div className="summary-card">
+          <h3>Potential Revenue Value</h3>
+          <div className="value">
+            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * (item.price || 0)), 0).toFixed(2)}
+          </div>
+          <small style={{ color: '#7f8c8d', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
+            (At Selling Price - If All Sold)
+          </small>
         </div>
       </div>
 
@@ -223,31 +235,34 @@ const InventoryManagement = () => {
         </div>
       )}
 
-      {/* Search and Export Section */}
-      <div className="inventory-controls">
-        <div className="search-section">
-          <div className="search-input-container">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search by product name or SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
+      {/* Search Section */}
+      <div className="search-section">
+        <div className="search-input-container">
+          <Search size={20} />
+          <input
+            type="text"
+            placeholder="Search by product name or SKU..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
         </div>
-        
-        <div className="export-section">
-          <h4><FileText size={16} /> Export Stock Reports</h4>
-          <div className="export-buttons">
+      </div>
+      
+      {/* Export Section */}
+      <div className="export-section" style={{ padding: '15px 30px', background: 'white', borderBottom: '1px solid #e9ecef' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+            <FileText size={16} /> Export Stock Reports
+          </h4>
+          <div className="export-buttons" style={{ display: 'flex', gap: '8px' }}>
             <button 
               onClick={() => exportStockReport('godown')} 
               className="btn btn-secondary btn-sm"
               disabled={loading}
             >
               <Download size={14} />
-              Godown Stock
+              Godown
             </button>
             <button 
               onClick={() => exportStockReport('counter')} 
@@ -255,7 +270,7 @@ const InventoryManagement = () => {
               disabled={loading}
             >
               <Download size={14} />
-              Counter Stock
+              Counter
             </button>
             <button 
               onClick={() => exportStockReport('total')} 
@@ -263,7 +278,7 @@ const InventoryManagement = () => {
               disabled={loading}
             >
               <Download size={14} />
-              Total Stock
+              Total
             </button>
           </div>
         </div>
@@ -316,7 +331,7 @@ const InventoryManagement = () => {
                           <strong>Price:</strong> ₹{price.toFixed(2)}
                         </div>
                         <div className={`profit-mini ${profit >= 0 ? 'positive' : 'negative'}`}>
-                          <strong>Profit:</strong> ₹{profit.toFixed(2)} ({profitPercentage.toFixed(1)}%)
+                          <strong>Profit:</strong> ₹{profit.toFixed(2)}
                         </div>
                       </div>
                     </td>

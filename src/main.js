@@ -578,7 +578,7 @@ ipcMain.handle("export-sales-report", async (event, salesData, selectedDate) => 
     });
 
     if (!result.canceled) {
-      await reportService.generateSalesReport(salesData, selectedDate, result.filePath);
+      await pdfService.generateSalesReport(salesData, selectedDate, result.filePath);
       return { success: true, filePath: result.filePath };
     }
     return { success: false, error: "Save cancelled" };

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
 import {
   Package,
   ShoppingCart,
@@ -35,6 +35,7 @@ function AppContent() {
   const [selectedTable, setSelectedTable] = useState(null);
   const location = useLocation();
 
+
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
@@ -49,6 +50,19 @@ function AppContent() {
 
   const handleBackToTables = () => {
     setSelectedTable(null);
+  };
+
+  const handleNavItemClick = (event, path, name) => {
+    console.log(`Navigation clicked: ${name} -> ${path}`);
+    console.log(`Current location: ${location.pathname}`);
+    
+    // Reset table selection when navigating away from tables
+    if (path !== '/tables') {
+      setSelectedTable(null);
+    }
+    
+    // Let the Link component handle the navigation naturally
+    // Don't prevent default or use navigate() to avoid conflicts
   };
 
   const menuItems = [
@@ -81,7 +95,12 @@ function AppContent() {
             const IconComponent = item.icon;
             const isActive = location.pathname === item.path;
             return (
-              <Link key={item.path} to={item.path} className={`nav-item ${isActive ? "active" : ""}`}>
+              <Link 
+                key={item.path} 
+                to={item.path} 
+                className={`nav-item ${isActive ? "active" : ""}`}
+                onClick={(event) => handleNavItemClick(event, item.path, item.name)}
+              >
                 <IconComponent size={20} />
                 {sidebarOpen && <span>{item.name}</span>}
               </Link>
@@ -93,6 +112,8 @@ function AppContent() {
           <div className="sidebar-footer">
             <div className="user-info">
               <span>Welcome, {currentUser}</span>
+              <br />
+              <small>Current: {location.pathname}</small>
             </div>
           </div>
         )}

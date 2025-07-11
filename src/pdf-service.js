@@ -529,6 +529,269 @@ class PDFService {
       throw error;
     }
   }
+
+  async generateSalesReport(salesData, selectedDate, filePath) {
+    try {
+      this.doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+      
+      // Header
+      this.doc.setFontSize(18);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("Sales Report", 148, 20, { align: "center" });
+
+      this.doc.setFontSize(12);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.text(`Report Date: ${selectedDate}`, 148, 30, { align: "center" });
+      this.doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 148, 40, { align: "center" });
+
+      // Table header
+      let yPosition = 60;
+      this.doc.setFontSize(10);
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.setFillColor(50, 50, 50);
+      this.doc.rect(15, yPosition - 5, 267, 8, "F");
+
+      this.doc.text("Sale Number", 18, yPosition);
+      this.doc.text("Type", 55, yPosition);
+      this.doc.text("Customer", 80, yPosition);
+      this.doc.text("Items", 120, yPosition);
+      this.doc.text("Cost Price", 140, yPosition);
+      this.doc.text("Sale Price", 170, yPosition);
+      this.doc.text("Profit", 200, yPosition);
+      this.doc.text("Date", 230, yPosition);
+
+      // Table items
+      this.doc.setTextColor(0, 0, 0);
+      yPosition += 10;
+
+      let totalRevenue = 0;
+      let totalCost = 0;
+      let totalProfit = 0;
+
+      salesData.forEach((sale, index) => {
+        if (yPosition > 180) {
+          this.doc.addPage();
+          yPosition = 30;
+        }
+
+        if (index % 2 === 0) {
+          this.doc.setFillColor(245, 245, 245);
+          this.doc.rect(15, yPosition - 5, 267, 8, "F");
+        }
+
+        const saleAmount = sale.total_amount || 0;
+        const costPrice = sale.total_cost_price || 0;
+        const profit = sale.profit || (saleAmount - costPrice);
+
+        this.doc.setFont("helvetica", "normal");
+        this.doc.text(sale.sale_number, 18, yPosition);
+        this.doc.text(sale.sale_type === "table" ? "Table" : "Parcel", 55, yPosition);
+        this.doc.text(sale.customer_name || "Walk-in", 80, yPosition);
+        this.doc.text(String(sale.item_count || 0), 120, yPosition, { align: "center" });
+        this.doc.text(`₹${costPrice.toFixed(2)}`, 140, yPosition, { align: "center" });
+        this.doc.text(`₹${saleAmount.toFixed(2)}`, 170, yPosition, { align: "center" });
+        this.doc.text(`₹${profit.toFixed(2)}`, 200, yPosition, { align: "center" });
+        this.doc.text(new Date(sale.sale_date).toLocaleDateString(), 230, yPosition);
+
+        totalRevenue += saleAmount;
+        totalCost += costPrice;
+        totalProfit += profit;
+
+        yPosition += 8;
+      });
+
+      // Total section
+      yPosition += 10;
+      this.doc.setFontSize(12);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFillColor(220, 220, 220);
+      this.doc.rect(15, yPosition - 5, 267, 25, "F");
+      
+      this.doc.text(`Total Revenue: ₹${totalRevenue.toFixed(2)}`, 20, yPosition + 2);
+      this.doc.text(`Total Cost: ₹${totalCost.toFixed(2)}`, 20, yPosition + 9);
+      this.doc.text(`Total Profit: ₹${totalProfit.toFixed(2)}`, 20, yPosition + 16);
+      this.doc.text(`Total Transactions: ${salesData.length}`, 150, yPosition + 9, { align: "center" });
+
+      const pdfBuffer = this.doc.output("arraybuffer");
+      fs.writeFileSync(filePath, Buffer.from(pdfBuffer));
+      
+      return { success: true, filePath };
+    } catch (error) {
+      console.error("Sales report generation error:", error);
+      throw error;
+    }
+  }
+
+  async generateFinancialReport(reportData, selectedDate, filePath) {
+    try {
+      this.doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+      
+      // Header
+      this.doc.setFontSize(18);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("Financial Report", 148, 20, { align: "center" });
+
+      this.doc.setFontSize(12);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.text(`Report Date: ${selectedDate}`, 148, 30, { align: "center" });
+      this.doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 148, 40, { align: "center" });
+
+      // Financial Summary
+      let yPosition = 60;
+      this.doc.setFontSize(14);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("Financial Summary", 15, yPosition);
+      
+      yPosition += 15;
+      this.doc.setFontSize(12);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.text(`Total Revenue: ₹${reportData.totalRevenue.toFixed(2)}`, 20, yPosition);
+      yPosition += 8;
+      this.doc.text(`Total Spendings: ₹${reportData.totalSpendings.toFixed(2)}`, 20, yPosition);
+      yPosition += 8;
+      this.doc.text(`Opening Balance: ₹${reportData.totalOpeningBalance.toFixed(2)}`, 20, yPosition);
+      yPosition += 8;
+      this.doc.text(`Net Income: ₹${reportData.netIncome.toFixed(2)}`, 20, yPosition);
+      yPosition += 8;
+      this.doc.text(`Total Balance: ₹${reportData.totalBalance.toFixed(2)}`, 20, yPosition);
+
+      // Sales Details
+      yPosition += 20;
+      this.doc.setFontSize(14);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("Sales Details", 15, yPosition);
+
+      if (reportData.sales && reportData.sales.length > 0) {
+        yPosition += 10;
+        this.doc.setFontSize(10);
+        this.doc.setTextColor(255, 255, 255);
+        this.doc.setFillColor(50, 50, 50);
+        this.doc.rect(15, yPosition - 5, 267, 8, "F");
+        
+        this.doc.text("Sale Number", 18, yPosition);
+        this.doc.text("Type", 70, yPosition);
+        this.doc.text("Customer", 110, yPosition);
+        this.doc.text("Amount", 180, yPosition);
+        this.doc.text("Date", 230, yPosition);
+        
+        this.doc.setTextColor(0, 0, 0);
+        yPosition += 10;
+        reportData.sales.forEach((sale, index) => {
+          if (yPosition > 170) {
+            this.doc.addPage();
+            yPosition = 30;
+          }
+          
+          if (index % 2 === 0) {
+            this.doc.setFillColor(245, 245, 245);
+            this.doc.rect(15, yPosition - 5, 267, 8, "F");
+          }
+          
+          this.doc.setFontSize(9);
+          this.doc.text(sale.sale_number, 18, yPosition);
+          this.doc.text(sale.sale_type === "table" ? "Table" : "Parcel", 70, yPosition);
+          this.doc.text(sale.customer_name || "Walk-in", 110, yPosition);
+          this.doc.text(`₹${sale.total_amount.toFixed(2)}`, 180, yPosition, { align: "center" });
+          this.doc.text(new Date(sale.sale_date).toLocaleDateString(), 230, yPosition);
+          yPosition += 8;
+        });
+      }
+      
+      // Spendings Details
+      if (reportData.spendings && reportData.spendings.length > 0) {
+        yPosition += 10;
+        this.doc.setFontSize(14);
+        this.doc.setFont("helvetica", "bold");
+        this.doc.text("Spendings Details", 15, yPosition);
+        
+        yPosition += 10;
+        this.doc.setFontSize(10);
+        this.doc.setTextColor(255, 255, 255);
+        this.doc.setFillColor(50, 50, 50);
+        this.doc.rect(15, yPosition - 5, 267, 8, "F");
+        
+        this.doc.text("Description", 18, yPosition);
+        this.doc.text("Category", 100, yPosition);
+        this.doc.text("Amount", 160, yPosition);
+        this.doc.text("Date", 230, yPosition);
+        
+        this.doc.setTextColor(0, 0, 0);
+        yPosition += 10;
+        reportData.spendings.forEach((spending, index) => {
+          if (yPosition > 170) {
+            this.doc.addPage();
+            yPosition = 30;
+          }
+          
+          if (index % 2 === 0) {
+            this.doc.setFillColor(245, 245, 245);
+            this.doc.rect(15, yPosition - 5, 267, 8, "F");
+          }
+          
+          this.doc.setFontSize(9);
+          this.doc.text(spending.description.substring(0, 30), 18, yPosition);
+          this.doc.text(spending.category, 100, yPosition);
+          this.doc.text(`₹${spending.amount.toFixed(2)}`, 160, yPosition, { align: "center" });
+          this.doc.text(new Date(spending.spending_date).toLocaleDateString(), 230, yPosition);
+          yPosition += 8;
+        });
+      }
+      
+      // Counter Balance Details
+      if (reportData.counterBalances && reportData.counterBalances.length > 0) {
+        yPosition += 10;
+        this.doc.setFontSize(14);
+        this.doc.setFont("helvetica", "bold");
+        this.doc.text("Opening Balance Details", 15, yPosition);
+        
+        yPosition += 10;
+        this.doc.setFontSize(10);
+        this.doc.setTextColor(255, 255, 255);
+        this.doc.setFillColor(50, 50, 50);
+        this.doc.rect(15, yPosition - 5, 267, 8, "F");
+        
+        this.doc.text("Date", 18, yPosition);
+        this.doc.text("Opening Balance", 100, yPosition);
+        this.doc.text("Notes", 180, yPosition);
+        
+        this.doc.setTextColor(0, 0, 0);
+        yPosition += 10;
+        reportData.counterBalances.forEach((balance, index) => {
+          if (yPosition > 170) {
+            this.doc.addPage();
+            yPosition = 30;
+          }
+          
+          if (index % 2 === 0) {
+            this.doc.setFillColor(245, 245, 245);
+            this.doc.rect(15, yPosition - 5, 267, 8, "F");
+          }
+          
+          this.doc.setFontSize(9);
+          this.doc.text(new Date(balance.balance_date).toLocaleDateString(), 18, yPosition);
+          this.doc.text(`₹${balance.opening_balance.toFixed(2)}`, 100, yPosition, { align: "center" });
+          this.doc.text(balance.notes || "-", 180, yPosition);
+          yPosition += 8;
+        });
+      }
+
+      const pdfBuffer = this.doc.output("arraybuffer");
+      fs.writeFileSync(filePath, Buffer.from(pdfBuffer));
+      
+      return { success: true, filePath };
+    } catch (error) {
+      console.error("Financial report generation error:", error);
+      throw error;
+    }
+  }
 }
 
 module.exports = PDFService;

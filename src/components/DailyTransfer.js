@@ -110,19 +110,18 @@ const DailyTransfer = () => {
     }
   };
 
-  const updateTransferQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      setTransfers(transfers.filter((t) => t.id !== productId));
-      return;
-    }
-
+  const updateTransferQuantity = (productId, quantity, isInputChange = false) => {
     const product = products.find((p) => p.id === productId);
     const maxQuantity = product.godown_stock;
+
+    // Never auto-remove items - only allow removal via explicit Remove button
+    // Allow any quantity >= 0, but cap at max stock
+    const finalQuantity = Math.max(0, Math.min(quantity, maxQuantity));
 
     setTransfers(
       transfers.map((t) =>
         t.id === productId
-          ? { ...t, quantity: Math.min(quantity, maxQuantity) }
+          ? { ...t, quantity: finalQuantity }
           : t
       )
     );
@@ -135,6 +134,13 @@ const DailyTransfer = () => {
   const executeTransfer = async () => {
     if (transfers.length === 0) {
       alert("No items selected for transfer");
+      return;
+    }
+
+    // Check for items with 0 quantity
+    const zeroQuantityItems = transfers.filter(t => t.quantity <= 0);
+    if (zeroQuantityItems.length > 0) {
+      alert("Some items have 0 quantity. Please adjust quantities or remove these items before transferring.");
       return;
     }
 
@@ -277,7 +283,7 @@ const DailyTransfer = () => {
                       onClick={() =>
                         updateTransferQuantity(
                           transfer.id,
-                          transfer.quantity - 1
+                          Math.max(0, transfer.quantity - 1)
                         )
                       }
                       className="qty-btn"
@@ -286,15 +292,37 @@ const DailyTransfer = () => {
                     </button>
                     <input
                       type="number"
-                      value={transfer.quantity}
-                      onChange={(e) =>
-                        updateTransferQuantity(
-                          transfer.id,
-                          parseInt(e.target.value) || 0
-                        )
-                      }
+                      value={transfer.quantity || ''}
+                      onChange={(e) => {
+                        const inputValue = e.target.value;
+                        // Handle empty input
+                        if (inputValue === '') {
+                          updateTransferQuantity(transfer.id, 0, true);
+                          return;
+                        }
+                        // Handle numeric input
+                        const numericValue = parseInt(inputValue, 10);
+                        if (!isNaN(numericValue) && numericValue >= 0) {
+                          updateTransferQuantity(transfer.id, numericValue, true);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Allow: backspace, delete, tab, escape, enter, home, end, left, right, delete, insert
+                        if ([46, 8, 9, 27, 13, 190, 110, 35, 36, 37, 39, 45].indexOf(e.keyCode) !== -1 ||
+                            // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                            (e.keyCode === 65 && e.ctrlKey === true) ||
+                            (e.keyCode === 67 && e.ctrlKey === true) ||
+                            (e.keyCode === 86 && e.ctrlKey === true) ||
+                            (e.keyCode === 88 && e.ctrlKey === true)) {
+                          return;
+                        }
+                        // Ensure that it is a number and stop the keypress
+                        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                          e.preventDefault();
+                        }
+                      }}
                       className="qty-input"
-                      min="1"
+                      min="0"
                       max={transfer.godown_stock}
                     />
                     <button
