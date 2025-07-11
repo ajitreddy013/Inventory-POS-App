@@ -9,6 +9,40 @@ A comprehensive, production-ready business management solution built specificall
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 
+## 📸 Screenshots
+
+### Dashboard
+![Dashboard](screenshots/dashboard.png)
+*Main dashboard showing business overview, key metrics, and quick access to all modules*
+
+### POS System
+![POS System](screenshots/pos-system.png)
+*Point of sale interface with product selection, cart management, and billing*
+
+### Inventory Management
+![Inventory Management](screenshots/inventory-management.png)
+*Stock management with godown and counter stock tracking*
+
+### Product Management
+![Product Management](screenshots/product-management.png)
+*Product catalog management with variants and pricing*
+
+### Daily Transfer
+![Daily Transfer](screenshots/daily-transfer.png)
+*Stock transfer interface from godown to counter*
+
+### Sales Reports
+![Sales Reports](screenshots/sales-reports.png)
+*Comprehensive sales analytics and reporting*
+
+### Table Management
+![Table Management](screenshots/table-management.png)
+*Restaurant table layout and order management*
+
+### Settings
+![Settings](screenshots/settings.png)
+*Application configuration and system settings*
+
 ## ✨ Key Highlights
 
 - 🖥️ **Cross-Platform Desktop Application** - Windows, macOS, Linux support
