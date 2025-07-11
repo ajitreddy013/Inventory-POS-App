@@ -58,3 +58,13 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Temporary files and directories
+temp/
+*.tmp
+
+# Database and configuration files
+*.db
+*.sqlite
+*.sqlite3
+email-settings.json

@@ -401,6 +401,35 @@ const DailyTransfer = () => {
               <Calendar size={16} />
               {showHistory ? "Hide" : "Show"} History
             </button>
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                if (transferHistory.length === 0) {
+                  alert('No transfer history to export');
+                  return;
+                }
+                try {
+                  const exportData = {
+                    transfer_date: `Complete History (${transferHistory.length} transfers)`,
+                    total_items: transferHistory.reduce((acc, transfer) => acc + transfer.total_items, 0),
+                    total_quantity: transferHistory.reduce((acc, transfer) => acc + transfer.total_quantity, 0),
+                    items_transferred: transferHistory.flatMap((transfer) => transfer.items_transferred),
+                  };
+                  const result = await window.electronAPI.exportTransferReport(exportData);
+                  if (result.success) {
+                    alert(`Complete transfer history exported successfully to ${result.filePath}`);
+                  } else {
+                    alert('Failed to export transfer history: ' + result.error);
+                  }
+                } catch (error) {
+                  console.error('Export error:', error);
+                  alert('Failed to export transfer history');
+                }
+              }}
+            >
+              <FileText size={16} />
+              Export Full Transfer History
+            </button>
           </div>
         </div>
 

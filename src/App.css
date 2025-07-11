@@ -704,71 +704,158 @@ tr:hover {
 /* Summary cards */
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-  padding: 20px 30px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 16px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .summary-card {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+  padding: 18px;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
   text-align: center;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  overflow-wrap: break-word;
-  hyphens: auto;
-}
-
-.card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 50px;
-  height: 50px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  flex-shrink: 0;
-}
-
-.card-content {
-  flex: 1;
-  text-align: left;
-  min-width: 0;
   overflow: hidden;
+  word-wrap: break-word;
+  border: 1px solid #e3f2fd;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 120px;
+  position: relative;
+}
+
+.summary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #667eea;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+}
+
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  opacity: 0.8;
 }
 
 .summary-card h3 {
-  font-size: 14px;
-  color: #6c757d;
-  margin-bottom: 10px;
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0 0 12px 0;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  font-weight: 600;
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
+  line-height: 1.3;
 }
 
 .summary-card .value {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   font-weight: 700;
-  color: #2c3e50;
-  margin-top: 5px;
+  color: #1f2937;
+  margin: 0;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  line-height: 1.2;
+  line-height: 1.1;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
 .summary-card.warning {
-  border-left: 4px solid #ffc107;
+  border-color: #fbbf24;
+}
+
+.summary-card.warning::before {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
 }
 
 .summary-card.warning .value {
-  color: #e67e22;
+  color: #d97706;
+}
+
+.summary-card.warning .value,
+.summary-card .value.positive {
+  color: #059669;
+}
+
+.summary-card .value.negative {
+  color: #dc2626;
+}
+
+/* Responsive styles for summary cards */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .summary-cards {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    padding: 14px 20px;
+  }
+  
+  .summary-card {
+    padding: 16px;
+    min-height: 110px;
+  }
+  
+  .summary-card h3 {
+    font-size: 10px;
+  }
+  
+  .summary-card .value {
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  
+  .summary-card {
+    padding: 14px;
+    min-height: 100px;
+  }
+  
+  .summary-card h3 {
+    font-size: 10px;
+    margin-bottom: 8px;
+  }
+  
+  .summary-card .value {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  
+  .summary-card {
+    padding: 12px;
+    min-height: 90px;
+  }
+  
+  .summary-card h3 {
+    font-size: 9px;
+    margin-bottom: 6px;
+  }
+  
+  .summary-card .value {
+    font-size: 1.1rem;
+  }
 }
 
 /* POS System specific styles */
@@ -2085,7 +2172,7 @@ tr:hover {
   }
   
   .summary-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   
   .sidebar.open {
@@ -2205,6 +2292,30 @@ tr:hover {
   
   .form-input {
     font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+  
+  /* Summary cards for very small screens */
+  .summary-cards {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px 15px;
+  }
+  
+  .summary-card {
+    padding: 15px;
+    min-height: 160px;
+    gap: 10px;
+  }
+  
+  .summary-card h3 {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  
+  .printer-config-card .config-status,
+  .printer-config-card .config-type {
+    padding: 6px 10px;
+    margin-bottom: 8px;
   }
 }
 
@@ -3809,6 +3920,189 @@ td:nth-child(7) { /* Profit column */
   }
 }
 
+/* Printer Configuration Card Styles */
+.printer-config-card {
+  border: 2px solid #17a2b8;
+  background: linear-gradient(135deg, #f8fdff 0%, #ffffff 100%);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.printer-config-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(23, 162, 184, 0.15);
+  border-color: #138496;
+}
+
+.printer-config-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+}
+
+.printer-config-title {
+  color: #0c5460;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  justify-content: center;
+}
+
+.printer-config-content {
+  text-align: left;
+  width: 100%;
+  padding: 0;
+}
+
+.config-status,
+.config-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 15px;
+  background: rgba(23, 162, 184, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(23, 162, 184, 0.15);
+  flex-wrap: wrap;
+}
+
+.status-label,
+.type-label {
+  font-weight: 600;
+  color: #0c5460;
+  font-size: 14px;
+}
+
+.status-value {
+  font-weight: 700;
+  font-size: 14px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-value.connected {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-value.disconnected {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.device-name {
+  font-size: 12px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.type-value {
+  font-weight: 600;
+  color: #17a2b8;
+  background: rgba(23, 162, 184, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.printer-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.config-edit-btn,
+.config-save-btn,
+.config-cancel-btn,
+.test-connection-btn,
+.reconnect-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+  cursor: pointer;
+}
+
+.config-edit-btn:hover:not(:disabled),
+.config-save-btn:hover:not(:disabled),
+.config-cancel-btn:hover:not(:disabled),
+.test-connection-btn:hover:not(:disabled),
+.reconnect-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.test-connection-btn {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  border: none;
+  color: white;
+}
+
+.reconnect-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: none;
+  color: white;
+}
+
+.reconnect-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+/* Form elements in printer config */
+.printer-config-card label {
+  display: block;
+  margin: 15px 0 5px 0;
+  font-weight: 600;
+  color: #0c5460;
+  font-size: 14px;
+}
+
+.printer-config-card input,
+.printer-config-card select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.printer-config-card input:focus,
+.printer-config-card select:focus {
+  outline: none;
+  border-color: #17a2b8;
+  box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.1);
+}
+
 /* Responsive design for pending bills */
 @media (max-width: 768px) {
   .pending-bills-content {
@@ -3857,5 +4151,61 @@ td:nth-child(7) { /* Profit column */
   .search-input-container svg {
     width: 18px;
     height: 18px;
+  }
+  
+  /* Summary cards responsive */
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    padding: 15px 20px;
+  }
+  
+  .summary-card {
+    padding: 20px;
+    min-height: 180px;
+    gap: 12px;
+  }
+  
+  .summary-card h3 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  
+  /* Printer config mobile responsive */
+  .printer-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .config-edit-btn,
+  .config-save-btn,
+  .config-cancel-btn,
+  .test-connection-btn,
+  .reconnect-btn {
+    min-width: auto;
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  
+  .config-status,
+  .config-type {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 12px;
+  }
+  
+  .status-label,
+  .type-label {
+    font-size: 12px;
+  }
+  
+  .status-value {
+    font-size: 12px;
+  }
+  
+  .type-value {
+    font-size: 11px;
   }
 }

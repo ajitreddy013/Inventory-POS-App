@@ -1,11 +1,13 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const isDev = require("electron-is-dev");
 const cron = require("node-cron");
 const Database = require("./database");
 const PrinterService = require("./printer-service");
 const PDFService = require("./pdf-service");
 const ReportService = require("./services/reportService");
+const DailyReportService = require("./services/dailyReportService");
 const EmailService = require("./email-service");
 const { initializeSampleData } = require("./init-sample-data");
 const { 
@@ -21,6 +23,7 @@ let database;
 let printerService;
 let pdfService;
 let reportService;
+let dailyReportService;
 let emailService;
 
 function createWindow() {
@@ -77,6 +80,7 @@ app.whenReady().then(async () => {
   printerService = new PrinterService();
   pdfService = new PDFService();
   reportService = new ReportService();
+  dailyReportService = new DailyReportService();
   emailService = new EmailService();
 
   // Setup daily email report cron job (runs at 11:59 PM every day)
@@ -99,26 +103,139 @@ async function sendDailyEmailReport() {
   try {
     const todayDate = getLocalDateString();
     
-    const salesData = await database.getSales({
+    // Get dashboard data - inventory info
+    const inventory = await database.getProducts();
+    const lowStockItems = inventory.filter(
+      (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
+    );
+    
+    // Get sales data with details
+    const salesData = await database.getSalesWithDetails({
       start: getStartOfDay(todayDate),
       end: getEndOfDay(todayDate),
     });
 
+    // Get spendings data
+    const spendingsData = await database.getSpendings({
+      start: getStartOfDay(todayDate),
+      end: getEndOfDay(todayDate),
+    });
+
+    // Get counter balance data
+    const counterBalances = await database.getCounterBalances({
+      start: getStartOfDay(todayDate),
+      end: getEndOfDay(todayDate),
+    });
+
+    // Calculate totals
+    const totalRevenue = salesData.reduce((sum, sale) => sum + sale.total_amount, 0);
+    const totalSpendings = spendingsData.reduce((sum, spending) => sum + spending.amount, 0);
+    const totalOpeningBalance = counterBalances.reduce((sum, balance) => sum + balance.opening_balance, 0);
+    const netIncome = totalRevenue - totalSpendings;
+    const totalBalance = netIncome + totalOpeningBalance;
+
     const reportData = {
-      totalAmount: salesData.reduce((sum, sale) => sum + sale.total_amount, 0),
+      // Dashboard values
+      totalProducts: inventory.length,
+      lowStockItems: lowStockItems.length,
+      todaySales: salesData.length,
+      // Financial values
+      totalAmount: totalRevenue,
+      totalRevenue: totalRevenue,
+      totalSpendings: totalSpendings,
+      netIncome: netIncome,
+      totalOpeningBalance: totalOpeningBalance,
+      totalBalance: totalBalance,
       totalTransactions: salesData.length,
       tableSales: salesData.filter((sale) => sale.sale_type === "table").length,
-      parcelSales: salesData.filter((sale) => sale.sale_type === "parcel")
-        .length,
+      parcelSales: salesData.filter((sale) => sale.sale_type === "parcel").length,
       topItems: await getTopSellingItems(salesData),
     };
 
-    const result = await emailService.sendDailyReport(reportData);
+    // Generate PDF reports
+    const attachmentPaths = [];
+    const timestamp = new Date().getTime();
+    
+    // Ensure temp directory exists
+    const tempDir = path.join(__dirname, '../temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    try {
+      // Generate comprehensive daily report PDF
+      const dailyPdfPath = path.join(__dirname, `../temp/daily-report-${todayDate}-${timestamp}.pdf`);
+      const dailyReportResult = await dailyReportService.generateDailyReport(reportData, todayDate, dailyPdfPath);
+      
+      if (dailyReportResult.success) {
+        attachmentPaths.push({
+          path: dailyPdfPath,
+          filename: `daily-report-${todayDate}.pdf`
+        });
+      }
+    } catch (error) {
+      console.error("Error generating daily report PDF:", error);
+    }
+    
+    try {
+      // Generate sales report PDF
+      const salesPdfPath = path.join(__dirname, `../temp/sales-report-${todayDate}-${timestamp}.pdf`);
+      
+      const salesResult = await reportService.generateSalesReport(salesData, todayDate, salesPdfPath);
+      if (salesResult.success) {
+        attachmentPaths.push({
+          path: salesPdfPath,
+          filename: `sales-report-${todayDate}.pdf`
+        });
+      }
+    } catch (error) {
+      console.error("Error generating sales PDF:", error);
+    }
+
+    try {
+      // Generate financial report PDF
+      const financialPdfPath = path.join(__dirname, `../temp/financial-report-${todayDate}-${timestamp}.pdf`);
+      
+      const financialReportData = {
+        sales: salesData,
+        spendings: spendingsData,
+        counterBalances: counterBalances,
+        totalRevenue: totalRevenue,
+        totalSpendings: totalSpendings,
+        netIncome: netIncome,
+        totalOpeningBalance: totalOpeningBalance,
+        totalBalance: totalBalance
+      };
+      
+      const financialResult = await reportService.generateFinancialReport(financialReportData, todayDate, financialPdfPath);
+      if (financialResult.success) {
+        attachmentPaths.push({
+          path: financialPdfPath,
+          filename: `financial-report-${todayDate}.pdf`
+        });
+      }
+    } catch (error) {
+      console.error("Error generating financial PDF:", error);
+    }
+
+    // Send email with PDF attachments
+    const result = await emailService.sendDailyReport(reportData, attachmentPaths);
     if (result.success) {
-      console.log("Daily email report sent successfully");
+      console.log("Daily email report sent successfully with PDF attachments");
     } else {
       console.error("Failed to send daily email report:", result.error);
     }
+
+    // Clean up temporary PDF files
+    attachmentPaths.forEach(attachment => {
+      try {
+        if (fs.existsSync(attachment.path)) {
+          fs.unlinkSync(attachment.path);
+        }
+      } catch (error) {
+        console.error("Error cleaning up temporary PDF:", error);
+      }
+    });
   } catch (error) {
     console.error("Error in daily email report:", error);
   }
@@ -311,6 +428,39 @@ ipcMain.handle("get-printer-status", async () => {
   return await printerService.getStatus();
 });
 
+ipcMain.handle("configure-printer", async (event, config) => {
+  try {
+    printerService.setPrinterType(config.type);
+    if (config.type === 'network') {
+      printerService.setNetworkConfig(config.networkHost, config.networkPort);
+    }
+    if (config.type === 'serial') {
+      printerService.setSerialConfig(config.serialPath, config.serialBaudRate);
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("test-printer-connection", async () => {
+  try {
+    const status = await printerService.getStatus();
+    return { success: status.connected, error: status.connected ? null : 'Printer not connected' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("reconnect-printer", async () => {
+  try {
+    const status = await printerService.reconnect();
+    return { success: status.connected, error: status.connected ? null : 'Printer not connected' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Table management IPC handlers
 ipcMain.handle("get-tables", async () => {
   return await database.getTables();
@@ -341,15 +491,6 @@ ipcMain.handle("clear-table-order", async (event, tableId) => {
   return await database.clearTableOrder(tableId);
 });
 
-// KOT printing
-ipcMain.handle("print-kot", async (event, kotData) => {
-  try {
-    await printerService.printKOT(kotData);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
 
 // Email-related IPC handlers
 ipcMain.handle("get-email-settings", async () => {
@@ -387,6 +528,147 @@ ipcMain.handle("send-daily-email-now", async () => {
     await sendDailyEmailReport();
     return { success: true };
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Send email report with PDF attachments for selected date
+ipcMain.handle("send-email-report-with-pdfs", async (event, selectedDate) => {
+  try {
+    const targetDate = selectedDate || getLocalDateString();
+    
+    // Get dashboard data - inventory info
+    const inventory = await database.getProducts();
+    const lowStockItems = inventory.filter(
+      (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
+    );
+    
+    // Get sales data with details
+    const salesData = await database.getSalesWithDetails({
+      start: getStartOfDay(targetDate),
+      end: getEndOfDay(targetDate),
+    });
+
+    // Get spendings data
+    const spendingsData = await database.getSpendings({
+      start: getStartOfDay(targetDate),
+      end: getEndOfDay(targetDate),
+    });
+
+    // Get counter balance data
+    const counterBalances = await database.getCounterBalances({
+      start: getStartOfDay(targetDate),
+      end: getEndOfDay(targetDate),
+    });
+
+    // Calculate totals
+    const totalRevenue = salesData.reduce((sum, sale) => sum + sale.total_amount, 0);
+    const totalSpendings = spendingsData.reduce((sum, spending) => sum + spending.amount, 0);
+    const totalOpeningBalance = counterBalances.reduce((sum, balance) => sum + balance.opening_balance, 0);
+    const netIncome = totalRevenue - totalSpendings;
+    const totalBalance = netIncome + totalOpeningBalance;
+
+    const reportData = {
+      // Dashboard values
+      totalProducts: inventory.length,
+      lowStockItems: lowStockItems.length,
+      todaySales: salesData.length,
+      // Financial values
+      totalAmount: totalRevenue,
+      totalRevenue: totalRevenue,
+      totalSpendings: totalSpendings,
+      netIncome: netIncome,
+      totalOpeningBalance: totalOpeningBalance,
+      totalBalance: totalBalance,
+      totalTransactions: salesData.length,
+      tableSales: salesData.filter((sale) => sale.sale_type === "table").length,
+      parcelSales: salesData.filter((sale) => sale.sale_type === "parcel").length,
+      topItems: await getTopSellingItems(salesData),
+    };
+
+    // Generate PDF reports
+    const attachmentPaths = [];
+    const timestamp = new Date().getTime();
+    
+    // Ensure temp directory exists
+    const tempDir = path.join(__dirname, '../temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    try {
+      // Generate comprehensive daily report PDF
+      const dailyPdfPath = path.join(__dirname, `../temp/daily-report-${targetDate}-${timestamp}.pdf`);
+      const dailyReportResult = await dailyReportService.generateDailyReport(reportData, targetDate, dailyPdfPath);
+      
+      if (dailyReportResult.success) {
+        attachmentPaths.push({
+          path: dailyPdfPath,
+          filename: `daily-report-${targetDate}.pdf`
+        });
+      }
+    } catch (error) {
+      console.error("Error generating daily report PDF:", error);
+    }
+    
+    try {
+      // Generate sales report PDF
+      const salesPdfPath = path.join(__dirname, `../temp/sales-report-${targetDate}-${timestamp}.pdf`);
+      
+      const salesResult = await reportService.generateSalesReport(salesData, targetDate, salesPdfPath);
+      if (salesResult.success) {
+        attachmentPaths.push({
+          path: salesPdfPath,
+          filename: `sales-report-${targetDate}.pdf`
+        });
+      }
+    } catch (error) {
+      console.error("Error generating sales PDF:", error);
+    }
+
+    try {
+      // Generate financial report PDF
+      const financialPdfPath = path.join(__dirname, `../temp/financial-report-${targetDate}-${timestamp}.pdf`);
+      
+      const financialReportData = {
+        sales: salesData,
+        spendings: spendingsData,
+        counterBalances: counterBalances,
+        totalRevenue: totalRevenue,
+        totalSpendings: totalSpendings,
+        netIncome: netIncome,
+        totalOpeningBalance: totalOpeningBalance,
+        totalBalance: totalBalance
+      };
+      
+      const financialResult = await reportService.generateFinancialReport(financialReportData, targetDate, financialPdfPath);
+      if (financialResult.success) {
+        attachmentPaths.push({
+          path: financialPdfPath,
+          filename: `financial-report-${targetDate}.pdf`
+        });
+      }
+    } catch (error) {
+      console.error("Error generating financial PDF:", error);
+    }
+
+    // Send email with PDF attachments
+    const result = await emailService.sendDailyReport(reportData, attachmentPaths);
+    
+    // Clean up temporary PDF files
+    attachmentPaths.forEach(attachment => {
+      try {
+        if (fs.existsSync(attachment.path)) {
+          fs.unlinkSync(attachment.path);
+        }
+      } catch (error) {
+        console.error("Error cleaning up temporary PDF:", error);
+      }
+    });
+    
+    return result;
+  } catch (error) {
+    console.error("Error in send-email-report-with-pdfs:", error);
     return { success: false, error: error.message };
   }
 });
@@ -635,6 +917,25 @@ ipcMain.handle("export-pending-bills-report", async (event, pendingBillsData) =>
   }
 });
 
+// Export comprehensive daily report PDF
+ipcMain.handle("export-daily-report", async (event, reportData, selectedDate) => {
+  try {
+    const timestamp = new Date().getTime();
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `daily-report-${selectedDate}-${timestamp}.pdf`,
+      filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+    });
+
+    if (!result.canceled) {
+      await dailyReportService.generateDailyReport(reportData, selectedDate, result.filePath);
+      return { success: true, filePath: result.filePath };
+    }
+    return { success: false, error: "Save cancelled" };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Set up menu
 const template = [
   {
@@ -693,6 +994,188 @@ ipcMain.handle("reset-application", async () => {
     return { success: true, message: 'Application reset completed successfully' };
   } catch (error) {
     console.error('Error in reset-application:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle Close Sell and generate reports
+ipcMain.handle('close-sell-and-generate-reports', async () => {
+  try {
+    const AdmZip = require('adm-zip');
+    const timestamp = new Date().getTime();
+    const targetDate = getLocalDateString();
+    const tempDir = path.join(__dirname, '../temp');
+    const outputDir = path.join(__dirname, '../output');
+    const zipPath = path.join(outputDir, `close-sell-reports-${targetDate}-${timestamp}.zip`);
+
+    // Ensure directories exist
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    const pdfPaths = [];
+    const zip = new AdmZip();
+
+    try {
+      // Get all necessary data for reports
+      const inventory = await database.getProducts();
+      const lowStockItems = inventory.filter(
+        (item) => item.godown_stock + item.counter_stock <= item.min_stock_level
+      );
+
+      // Get sales data with details
+      const salesData = await database.getSalesWithDetails({
+        start: getStartOfDay(targetDate),
+        end: getEndOfDay(targetDate),
+      });
+
+      // Get spendings data
+      const spendingsData = await database.getSpendings({
+        start: getStartOfDay(targetDate),
+        end: getEndOfDay(targetDate),
+      });
+
+      // Get counter balance data
+      const counterBalances = await database.getCounterBalances({
+        start: getStartOfDay(targetDate),
+        end: getEndOfDay(targetDate),
+      });
+
+      // Get pending bills
+      const pendingBills = await database.getPendingBills();
+
+      // Calculate totals
+      const totalRevenue = salesData.reduce((sum, sale) => sum + sale.total_amount, 0);
+      const totalSpendings = spendingsData.reduce((sum, spending) => sum + spending.amount, 0);
+      const totalOpeningBalance = counterBalances.reduce((sum, balance) => sum + balance.opening_balance, 0);
+      const netIncome = totalRevenue - totalSpendings;
+      const totalBalance = netIncome + totalOpeningBalance;
+
+      const reportData = {
+        totalProducts: inventory.length,
+        lowStockItems: lowStockItems.length,
+        todaySales: salesData.length,
+        totalAmount: totalRevenue,
+        totalRevenue: totalRevenue,
+        totalSpendings: totalSpendings,
+        netIncome: netIncome,
+        totalOpeningBalance: totalOpeningBalance,
+        totalBalance: totalBalance,
+        totalTransactions: salesData.length,
+        tableSales: salesData.filter((sale) => sale.sale_type === "table").length,
+        parcelSales: salesData.filter((sale) => sale.sale_type === "parcel").length,
+        topItems: await getTopSellingItems(salesData),
+      };
+
+      const financialReportData = {
+        sales: salesData,
+        spendings: spendingsData,
+        counterBalances: counterBalances,
+        totalRevenue: totalRevenue,
+        totalSpendings: totalSpendings,
+        netIncome: netIncome,
+        totalOpeningBalance: totalOpeningBalance,
+        totalBalance: totalBalance
+      };
+
+      // Generate comprehensive daily report PDF
+      const dailyPdfPath = path.join(tempDir, `daily-report-${targetDate}-${timestamp}.pdf`);
+      const dailyReportResult = await dailyReportService.generateDailyReport(reportData, targetDate, dailyPdfPath);
+      if (dailyReportResult.success) {
+        zip.addLocalFile(dailyPdfPath, '', 'daily-report.pdf');
+        pdfPaths.push(dailyPdfPath);
+      }
+
+      // Generate sales report PDF
+      const salesPdfPath = path.join(tempDir, `sales-report-${targetDate}-${timestamp}.pdf`);
+      const salesResult = await reportService.generateSalesReport(salesData, targetDate, salesPdfPath);
+      if (salesResult.success) {
+        zip.addLocalFile(salesPdfPath, '', 'sales-report.pdf');
+        pdfPaths.push(salesPdfPath);
+      }
+
+      // Generate financial report PDF
+      const financialPdfPath = path.join(tempDir, `financial-report-${targetDate}-${timestamp}.pdf`);
+      const financialResult = await reportService.generateFinancialReport(financialReportData, targetDate, financialPdfPath);
+      if (financialResult.success) {
+        zip.addLocalFile(financialPdfPath, '', 'financial-report.pdf');
+        pdfPaths.push(financialPdfPath);
+      }
+
+      // Generate inventory stock report PDF
+      const inventoryPdfPath = path.join(tempDir, `inventory-report-${targetDate}-${timestamp}.pdf`);
+      try {
+        await pdfService.generateStockReport(inventory, 'all', inventoryPdfPath);
+        zip.addLocalFile(inventoryPdfPath, '', 'inventory-report.pdf');
+        pdfPaths.push(inventoryPdfPath);
+      } catch (error) {
+        console.error('Error generating inventory report:', error);
+      }
+
+      // Generate pending bills report PDF if there are any
+      if (pendingBills.length > 0) {
+        const pendingBillsPdfPath = path.join(tempDir, `pending-bills-report-${targetDate}-${timestamp}.pdf`);
+        try {
+          await pdfService.generatePendingBillsReport(pendingBills, pendingBillsPdfPath);
+          zip.addLocalFile(pendingBillsPdfPath, '', 'pending-bills-report.pdf');
+          pdfPaths.push(pendingBillsPdfPath);
+        } catch (error) {
+          console.error('Error generating pending bills report:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error generating PDF reports:', error);
+    }
+
+    // Write the ZIP file
+    zip.writeZip(zipPath);
+
+    // Send email with ZIP attachment
+    let emailSent = false;
+    try {
+      const emailSettings = emailService.getSettings();
+      if (emailSettings.enabled) {
+        const emailResult = await emailService.sendDailyReport(
+          {
+            totalAmount: 0,
+            totalTransactions: 0,
+            tableSales: 0,
+            parcelSales: 0,
+            topItems: [],
+          },
+          [{
+            path: zipPath,
+            filename: `close-sell-reports-${targetDate}.zip`
+          }]
+        );
+        emailSent = emailResult.success;
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
+
+    // Clean up temporary files
+    pdfPaths.forEach(pdfPath => {
+      try {
+        if (fs.existsSync(pdfPath)) {
+          fs.unlinkSync(pdfPath);
+        }
+      } catch (error) {
+        console.error('Error cleaning up PDF:', error);
+      }
+    });
+
+    return {
+      success: true,
+      zipPath: zipPath,
+      emailSent: emailSent,
+      message: `Close Sell completed! Generated ${pdfPaths.length} reports.`
+    };
+  } catch (error) {
+    console.error('Error in Close Sell operation:', error);
     return { success: false, error: error.message };
   }
 });

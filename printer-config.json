@@ -1,0 +1,44 @@
+{
+  "thermal_printer": {
+    "enabled": true,
+    "type": "usb",
+    "settings": {
+      "usb": {
+        "auto_detect": true,
+        "vendor_id": null,
+        "product_id": null
+      },
+      "network": {
+        "host": "192.168.1.100",
+        "port": 9100,
+        "timeout": 5000
+      },
+      "serial": {
+        "path": "/dev/ttyUSB0",
+        "baudRate": 9600,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none"
+      }
+    },
+    "paper_settings": {
+      "width": 80,
+      "characters_per_line": 32,
+      "line_spacing": 1
+    },
+    "formatting": {
+      "shop_name_bold": true,
+      "item_name_max_length": 18,
+      "cut_paper_after_print": true,
+      "beep_after_print": false
+    },
+    "supported_printers": [
+      "Epson TM-T82II",
+      "Epson TM-T88V",
+      "Epson TM-T20",
+      "Generic ESC/POS",
+      "Star TSP100",
+      "Citizen CT-S310"
+    ]
+  }
+}

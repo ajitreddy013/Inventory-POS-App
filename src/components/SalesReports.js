@@ -65,9 +65,9 @@ const SalesReports = () => {
   const sendEmailReport = async () => {
     try {
       setEmailLoading(true);
-      const result = await window.electronAPI.sendDailyEmailNow();
+      const result = await window.electronAPI.sendEmailReportWithPdfs(selectedDate);
       if (result.success) {
-        alert("Email report sent successfully!");
+        alert("Email report with PDF attachments sent successfully!");
       } else {
         alert(`Failed to send email report: ${result.error}`);
       }
@@ -146,7 +146,7 @@ const SalesReports = () => {
           style={{ display: "flex", alignItems: "center", gap: "8px" }}
         >
           <Mail size={16} />
-          {emailLoading ? "Sending..." : "Email Report to Owner"}
+          {emailLoading ? "Sending..." : "Email Report with PDFs"}
         </button>
       </div>
 

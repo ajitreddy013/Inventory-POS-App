@@ -30,7 +30,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   printBill: (billData) => ipcRenderer.invoke("print-bill", billData),
   exportPDF: (billData) => ipcRenderer.invoke("export-pdf", billData),
   getPrinterStatus: () => ipcRenderer.invoke("get-printer-status"),
-  printKOT: (kotData) => ipcRenderer.invoke("print-kot", kotData),
+  configurePrinter: (config) => ipcRenderer.invoke("configure-printer", config),
+  testPrinterConnection: () => ipcRenderer.invoke("test-printer-connection"),
+  reconnectPrinter: () => ipcRenderer.invoke("reconnect-printer"),
 
   // Table management operations
   getTables: () => ipcRenderer.invoke("get-tables"),
@@ -71,6 +73,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("export-financial-report", reportData, selectedDate),
   exportPendingBillsReport: (pendingBillsData) =>
     ipcRenderer.invoke("export-pending-bills-report", pendingBillsData),
+  exportDailyReport: (reportData, selectedDate) =>
+    ipcRenderer.invoke("export-daily-report", reportData, selectedDate),
 
   // Email operations
   getEmailSettings: () => ipcRenderer.invoke("get-email-settings"),
@@ -79,6 +83,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   testEmailConnection: () => ipcRenderer.invoke("test-email-connection"),
   sendTestEmail: () => ipcRenderer.invoke("send-test-email"),
   sendDailyEmailNow: () => ipcRenderer.invoke("send-daily-email-now"),
+  sendEmailReportWithPdfs: (selectedDate) => ipcRenderer.invoke("send-email-report-with-pdfs", selectedDate),
 
   // Spendings operations
   addSpending: (spending) => ipcRenderer.invoke("add-spending", spending),
@@ -110,4 +115,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Application reset
   resetApplication: () => ipcRenderer.invoke("reset-application"),
+  
+  // Close Sell operation
+  closeSellAndGenerateReports: () => ipcRenderer.invoke("close-sell-and-generate-reports"),
 });

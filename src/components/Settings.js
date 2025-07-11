@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Wifi, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Wifi, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle } from 'lucide-react';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
+  const [printerConfig, setPrinterConfig] = useState({
+    type: 'usb',
+    networkHost: '192.168.1.100',
+    networkPort: 9100,
+    serialPath: '/dev/ttyUSB0',
+    serialBaudRate: 9600
+  });
   const [barSettings, setBarSettings] = useState({
     bar_name: '',
     contact_number: '',
@@ -21,11 +28,14 @@ const Settings = () => {
   });
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
+  const [isEditingPrinterConfig, setIsEditingPrinterConfig] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+  const [printerLoading, setPrinterLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
+  const [closeSellLoading, setCloseSellLoading] = useState(false);
 
   useEffect(() => {
     checkPrinterStatus();
@@ -39,6 +49,59 @@ const Settings = () => {
       setPrinterStatus(status);
     } catch (error) {
       console.error('Failed to get printer status:', error);
+    }
+  };
+
+  const configurePrinter = async () => {
+    try {
+      setPrinterLoading(true);
+      const result = await window.electronAPI.configurePrinter(printerConfig);
+      if (result.success) {
+        setIsEditingPrinterConfig(false);
+        alert('Printer configuration saved successfully!');
+        await checkPrinterStatus();
+      } else {
+        alert(`Failed to configure printer: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to configure printer:', error);
+      alert('Failed to configure printer');
+    } finally {
+      setPrinterLoading(false);
+    }
+  };
+
+  const testPrinterConnection = async () => {
+    try {
+      setPrinterLoading(true);
+      const result = await window.electronAPI.testPrinterConnection();
+      if (result.success) {
+        alert('Printer connection test successful!');
+        await checkPrinterStatus();
+      } else {
+        alert(`Printer connection test failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Printer connection test failed');
+    } finally {
+      setPrinterLoading(false);
+    }
+  };
+
+  const reconnectPrinter = async () => {
+    try {
+      setPrinterLoading(true);
+      const result = await window.electronAPI.reconnectPrinter();
+      if (result.success) {
+        alert('Printer reconnected successfully!');
+        await checkPrinterStatus();
+      } else {
+        alert(`Failed to reconnect printer: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Failed to reconnect printer');
+    } finally {
+      setPrinterLoading(false);
     }
   };
 
@@ -165,6 +228,13 @@ const Settings = () => {
     }
   };
 
+  const handlePrinterConfigChange = (field, value) => {
+    setPrinterConfig(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
   const handleResetApplication = async () => {
     if (!showResetConfirm) {
       setShowResetConfirm(true);
@@ -204,6 +274,24 @@ const Settings = () => {
   const cancelReset = () => {
     setShowResetConfirm(false);
     setResetConfirmText('');
+  };
+
+  const handleCloseSell = async () => {
+    try {
+      setCloseSellLoading(true);
+      const result = await window.electronAPI.closeSellAndGenerateReports();
+      
+      if (result.success) {
+        alert(`Close Sell completed successfully!\n\nPDF reports have been generated and saved to: ${result.zipPath}\n\nEmail sent to owner: ${result.emailSent ? 'Yes' : 'No'}`);
+      } else {
+        alert(`Failed to complete Close Sell: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error in Close Sell:', error);
+      alert('Failed to complete Close Sell. Please try again.');
+    } finally {
+      setCloseSellLoading(false);
+    }
   };
 
   return (
@@ -540,6 +628,74 @@ const Settings = () => {
           </div>
         </div>
 
+        {/* Close Sell Section */}
+        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #27ae60' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '20px',
+            borderBottom: '1px solid #27ae60',
+            backgroundColor: '#f0f8f0'
+          }}>
+            <h2 style={{ margin: 0, color: '#27ae60' }}>
+              <Archive size={20} style={{ marginRight: '10px' }} />
+              Close Sell
+            </h2>
+          </div>
+          
+          <div style={{ padding: '20px' }}>
+            <div style={{ 
+              background: '#e8f5e8', 
+              border: '1px solid #27ae60', 
+              borderRadius: '6px', 
+              padding: '15px', 
+              marginBottom: '20px' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <Archive size={16} style={{ marginRight: '8px', color: '#27ae60' }} />
+                <strong style={{ color: '#27ae60' }}>Close Sell Operation</strong>
+              </div>
+              <p style={{ margin: '0', color: '#27ae60', fontSize: '0.9rem' }}>
+                This operation will generate all PDF reports throughout the app and compress them into a ZIP file for easy access.
+              </p>
+              <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#27ae60', fontSize: '0.9rem' }}>
+                <li>Generate daily comprehensive report</li>
+                <li>Generate sales report</li>
+                <li>Generate financial report</li>
+                <li>Generate inventory report</li>
+                <li>Generate pending bills report</li>
+                <li>Compress all PDFs into a ZIP file</li>
+                <li>Save ZIP file to your local system</li>
+                <li>Automatically send ZIP file to owner via email</li>
+              </ul>
+            </div>
+            
+            <button 
+              onClick={handleCloseSell}
+              disabled={closeSellLoading}
+              className="btn"
+              style={{
+                backgroundColor: '#27ae60',
+                color: 'white',
+                border: 'none',
+                padding: '12px 20px',
+                borderRadius: '6px',
+                cursor: closeSellLoading ? 'not-allowed' : 'pointer',
+                opacity: closeSellLoading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}
+            >
+              <Archive size={16} />
+              {closeSellLoading ? 'Processing Close Sell...' : 'Close Sell'}
+            </button>
+          </div>
+        </div>
+
         {/* Reset Application Section */}
         <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #e74c3c' }}>
           <div style={{ 
@@ -687,37 +843,143 @@ const Settings = () => {
             <h3><Printer size={20} style={{ marginRight: '10px' }} />Printer Status</h3>
             <div className="value" style={{ 
               fontSize: '1rem', 
-              color: printerStatus.connected ? '#27ae60' : '#e74c3c' 
+              color: printerStatus.connected ? '#27ae60' : '#e74c3c',
+              textAlign: 'center',
+              margin: '10px 0'
             }}>
               {printerStatus.connected ? 'Connected' : 'Disconnected'}
             </div>
-            <p style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#7f8c8d' }}>
+            <p style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#7f8c8d', textAlign: 'center' }}>
               Device: {printerStatus.device}
             </p>
             <button 
               onClick={checkPrinterStatus}
               className="btn btn-primary"
-              style={{ marginTop: '15px' }}
+              style={{ marginTop: '15px', alignSelf: 'center' }}
             >
               Check Status
             </button>
           </div>
 
-          <div className="summary-card">
-            <h3>Application Info</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem' }}>
-              <p><strong>Version:</strong> 1.0.0</p>
-              <p><strong>Database:</strong> SQLite</p>
-              <p><strong>Platform:</strong> Electron</p>
+          <div className="summary-card printer-config-card">
+            <h3 className="printer-config-title"><Printer size={20} />Printer Configuration</h3>
+            <div className="printer-config-content">
+              <div className="config-status">
+                <span className="status-label">Status:</span>
+                <span className={`status-value ${printerStatus.connected ? 'connected' : 'disconnected'}`}>
+                  {printerStatus.connected ? 'Connected' : 'Disconnected'}
+                </span>
+                <span className="device-name">({printerStatus.device})</span>
+              </div>
+              <div className="config-type">
+                <span className="type-label">Type:</span>
+                <span className="type-value">{printerConfig.type.toUpperCase()}</span>
+              </div>
+              {isEditingPrinterConfig ? (
+                <>
+                  <label>
+                    Printer Type:
+                    <select value={printerConfig.type} onChange={(e) => handlePrinterConfigChange('type', e.target.value)}>
+                      <option value="usb">USB</option>
+                      <option value="network">Network</option>
+                      <option value="serial">Serial</option>
+                    </select>
+                  </label>
+                  {printerConfig.type === 'network' && (
+                  <>
+                    <label>
+                      Network Host:
+                      <input
+                        type="text"
+                        value={printerConfig.networkHost}
+                        onChange={(e) => handlePrinterConfigChange('networkHost', e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Network Port:
+                      <input
+                        type="number"
+                        value={printerConfig.networkPort}
+                        onChange={(e) => handlePrinterConfigChange('networkPort', e.target.value)}
+                      />
+                    </label>
+                  </>
+                  )}
+                  {printerConfig.type === 'serial' && (
+                  <>
+                    <label>
+                      Serial Path:
+                      <input
+                        type="text"
+                        value={printerConfig.serialPath}
+                        onChange={(e) => handlePrinterConfigChange('serialPath', e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Serial Baud Rate:
+                      <input
+                        type="number"
+                        value={printerConfig.serialBaudRate}
+                        onChange={(e) => handlePrinterConfigChange('serialBaudRate', e.target.value)}
+                      />
+                    </label>
+                  </>
+                  )}
+                  <div className="printer-actions">
+                    <button className="btn btn-success config-save-btn" onClick={configurePrinter}>
+                      Save Configuration
+                    </button>
+                    <button className="btn btn-secondary config-cancel-btn" onClick={() => setIsEditingPrinterConfig(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button className="btn btn-primary config-edit-btn" onClick={() => setIsEditingPrinterConfig(true)}>
+                  Edit Configuration
+                </button>
+              )}
+              <div className="printer-actions">
+                <button className="btn btn-info test-connection-btn" onClick={testPrinterConnection} disabled={printerLoading}>
+                  {printerLoading ? 'Testing...' : 'Test Connection'}
+                </button>
+                <button className="btn btn-warning reconnect-btn" onClick={reconnectPrinter} disabled={printerLoading}>
+                  {printerLoading ? 'Reconnecting...' : 'Reconnect'}
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="summary-card">
-            <h3>Support</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem' }}>
-              <p>For technical support:</p>
-              <p>Email: ajitreddy013@gmail.com</p>
-              <p>Phone: +91 7517323121</p>
+            <h3><Info size={20} style={{ marginRight: '10px' }} />Application Info</h3>
+            <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
+              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Version:</strong> 
+                <span>1.0.0</span>
+              </p>
+              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Database:</strong> 
+                <span>SQLite</span>
+              </p>
+              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Platform:</strong> 
+                <span>Electron</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="summary-card">
+            <h3><HelpCircle size={20} style={{ marginRight: '10px' }} />Support</h3>
+            <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
+              <p style={{ margin: '8px 0', fontWeight: '600', color: '#2c3e50' }}>For technical support:</p>
+              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Email:</strong> 
+                <span>ajitreddy013@gmail.com</span>
+              </p>
+              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
+                <strong>Phone:</strong> 
+                <span>+91 7517323121</span>
+              </p>
             </div>
           </div>
         </div>

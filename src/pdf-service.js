@@ -39,11 +39,17 @@ class PDFService {
       const thankYouMessage =
         barSettings?.thank_you_message || "Thank you for visiting!";
 
-      // Create new PDF document - use smaller format for receipts
+      // Calculate dynamic height based on items count
+      const baseHeight = 120; // Base height for header, footer, and summary
+      const itemHeight = 5; // Height per item
+      const extraHeight = 30; // Extra space for customer details, notes, etc.
+      const dynamicHeight = Math.max(150, baseHeight + (items.length * itemHeight) + extraHeight);
+      
+      // Create new PDF document - use dynamic height for receipts
       this.doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: [80, 200], // Receipt size
+        format: [80, dynamicHeight], // Dynamic receipt size
       });
 
       // Set font
@@ -432,10 +438,13 @@ class PDFService {
         format: "a4",
       });
 
-      // Header
+      // Header - Check if this is a complete history report
       this.doc.setFontSize(18);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Daily Transfer Report", 105, 20, { align: "center" });
+      const reportTitle = transferData.transfer_date.includes('Complete History') 
+        ? "Complete Transfer History Report" 
+        : "Daily Transfer Report";
+      this.doc.text(reportTitle, 105, 20, { align: "center" });
 
       this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "normal");
@@ -459,11 +468,24 @@ class PDFService {
       let yPosition = 55;
       this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "bold");
-      this.doc.text("Transfer Summary", 20, yPosition);
+      const summaryTitle = transferData.transfer_date.includes('Complete History') 
+        ? "Complete Transfer History Summary" 
+        : "Transfer Summary";
+      this.doc.text(summaryTitle, 20, yPosition);
 
       yPosition += 10;
       this.doc.setFontSize(11);
       this.doc.setFont("helvetica", "normal");
+      
+      if (transferData.transfer_date.includes('Complete History')) {
+        this.doc.text(
+          `Total Transfer Sessions: ${transferData.transfer_date.match(/\d+/)[0]}`,
+          20,
+          yPosition
+        );
+        yPosition += 7;
+      }
+      
       this.doc.text(
         `Total Items Transferred: ${transferData.total_items}`,
         20,
