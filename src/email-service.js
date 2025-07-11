@@ -1,32 +1,95 @@
-const nodemailer = require('nodemailer');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+/**
+ * EMAIL SERVICE - Automated Email Reporting System
+ * 
+ * This service handles automated email reporting for the Inventory POS application.
+ * It provides:
+ * - Daily business reports via email
+ * - PDF report attachments
+ * - Secure password encryption
+ * - SMTP configuration management
+ * - Email template generation
+ * - Connection testing and validation
+ * 
+ * Features:
+ * - Automated daily reports at scheduled times
+ * - Professional HTML email templates
+ * - PDF attachment support
+ * - Secure password storage with encryption
+ * - SMTP server configuration
+ * - Email validation and error handling
+ * 
+ * Security:
+ * - Passwords are encrypted using AES-256-CBC
+ * - Configuration stored in local JSON file
+ * - Input validation and sanitization
+ * - Secure connection support (TLS/SSL)
+ * 
+ * @author Ajit Reddy
+ * @version 1.0.0
+ * @since 2024
+ */
 
-// Simple encryption for stored passwords
+const nodemailer = require('nodemailer');  // Email sending library
+const fs = require('fs');                  // File system operations
+const path = require('path');              // Path manipulation
+const crypto = require('crypto');          // Cryptographic functions
+
+// ENCRYPTION CONFIGURATION
+// Simple encryption for stored passwords to prevent plain text storage
 const ENCRYPTION_KEY = crypto.scryptSync('inventory-pos-secret', 'salt', 32);
-const IV_LENGTH = 16;
+const IV_LENGTH = 16;  // Initialization vector length for AES encryption
 
+/**
+ * ENCRYPT PASSWORD
+ * 
+ * Encrypts a password using AES-256-CBC encryption for secure storage.
+ * The encrypted result includes the initialization vector (IV) for proper decryption.
+ * 
+ * @param {string} text - Plain text password to encrypt
+ * @returns {string} Encrypted password in format "iv:encryptedText"
+ */
 function encrypt(text) {
   if (!text) return text;
-  const iv = crypto.randomBytes(IV_LENGTH);
+  const iv = crypto.randomBytes(IV_LENGTH);  // Generate random IV
   const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+  return iv.toString('hex') + ':' + encrypted;  // Return IV:encrypted format
 }
 
+/**
+ * DECRYPT PASSWORD
+ * 
+ * Decrypts a password that was encrypted using the encrypt() function.
+ * Expects the input to be in "iv:encryptedText" format.
+ * 
+ * @param {string} text - Encrypted password in "iv:encryptedText" format
+ * @returns {string} Decrypted plain text password
+ */
 function decrypt(text) {
-  if (!text || !text.includes(':')) return text;
+  if (!text || !text.includes(':')) return text;  // Return if not encrypted
   const textParts = text.split(':');
-  const iv = Buffer.from(textParts.shift(), 'hex');
-  const encryptedText = textParts.join(':');
+  const iv = Buffer.from(textParts.shift(), 'hex');  // Extract IV
+  const encryptedText = textParts.join(':');         // Get encrypted part
   const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
   return decrypted;
 }
 
+/**
+ * EMAIL SERVICE CLASS
+ * 
+ * Main class that handles all email operations for the application.
+ * Manages SMTP configuration, email templates, and automated reporting.
+ * 
+ * Features:
+ * - Secure password storage with encryption
+ * - Professional HTML email templates
+ * - PDF attachment support
+ * - SMTP connection management
+ * - Email validation and error handling
+ */
 class EmailService {
   constructor() {
     this.transporter = null;

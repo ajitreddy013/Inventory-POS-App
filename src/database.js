@@ -1,40 +1,130 @@
+/**
+ * DATABASE SERVICE - SQLite Database Management
+ * 
+ * This class handles all database operations for the Inventory POS Application.
+ * It manages:
+ * - Database initialization and connection
+ * - Table creation and schema management
+ * - CRUD operations for all business entities
+ * - Data integrity and relationships
+ * - Transaction management
+ * 
+ * Database Structure:
+ * - products: Product catalog with variants and pricing
+ * - inventory: Stock levels (godown and counter)
+ * - sales: Sales transactions
+ * - sale_items: Individual items in each sale
+ * - stock_movements: Complete audit trail of stock changes
+ * - tables: Restaurant/bar table management
+ * - table_orders: Temporary order storage
+ * - daily_transfers: Daily stock transfer records
+ * - bar_settings: Business configuration
+ * - spendings: Business expense tracking
+ * - counter_balance: Daily cash balance management
+ * - pending_bills: Bills saved for later completion
+ * 
+ * Features:
+ * - Automatic foreign key constraints
+ * - Transaction support for data integrity
+ * - Comprehensive error handling
+ * - Audit trail for all stock movements
+ * - Date-based reporting and filtering
+ * 
+ * @author Ajit Reddy
+ * @version 1.0.0
+ * @since 2024
+ */
+
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const os = require("os");
 
+/**
+ * DATABASE CLASS
+ * 
+ * Main database service class that handles all SQLite operations.
+ * Uses a single database file stored in the user's data directory.
+ */
 class Database {
+  /**
+   * CONSTRUCTOR
+   * 
+   * Initializes the database path and prepares for connection.
+   * Handles both Electron and Node.js environments for testing.
+   */
   constructor() {
-    // Handle both Electron and Node.js contexts
+    // Determine the appropriate data directory based on environment
     let userDataPath;
     try {
+      // In Electron environment, use the official userData path
       const { app } = require("electron");
       userDataPath = app.getPath("userData");
     } catch (error) {
-      // Fallback for testing outside Electron
+      // Fallback for testing outside Electron environment
+      // Create a dedicated directory in user's home folder
       userDataPath = path.join(os.homedir(), "ajit-pos-data");
       const fs = require("fs");
       if (!fs.existsSync(userDataPath)) {
         fs.mkdirSync(userDataPath, { recursive: true });
       }
     }
+    
+    // Set the database file path
     this.dbPath = path.join(userDataPath, "inventory.db");
-    this.db = null;
+    this.db = null; // Database connection will be established in initialize()
   }
 
+  /**
+   * INITIALIZE DATABASE
+   * 
+   * Establishes connection to SQLite database and creates all required tables.
+   * This method must be called before any database operations.
+   * 
+   * @returns {Promise} Resolves when database is ready for use
+   */
   initialize() {
     return new Promise((resolve, reject) => {
+      // Create database connection
       this.db = new sqlite3.Database(this.dbPath, (err) => {
         if (err) {
+          console.error('Failed to connect to database:', err);
           reject(err);
         } else {
+          console.log('Connected to SQLite database at:', this.dbPath);
+          // Create all required tables
           this.createTables()
-            .then(() => resolve())
+            .then(() => {
+              console.log('Database tables created/verified successfully');
+              resolve();
+            })
             .catch(reject);
         }
       });
     });
   }
 
+  /**
+   * CREATE TABLES
+   * 
+   * Creates all required tables for the application if they don't exist.
+   * This method is idempotent - it's safe to run multiple times.
+   * 
+   * Tables created:
+   * - products: Product catalog
+   * - inventory: Stock levels
+   * - sales: Sales transactions
+   * - sale_items: Items in each sale
+   * - stock_movements: Stock movement audit trail
+   * - tables: Restaurant/bar tables
+   * - table_orders: Temporary order storage
+   * - daily_transfers: Daily transfer records
+   * - bar_settings: Business configuration
+   * - spendings: Business expenses
+   * - counter_balance: Daily cash balance
+   * - pending_bills: Bills saved for later
+   * 
+   * @returns {Promise} Resolves when all tables are created
+   */
   createTables() {
     return new Promise((resolve, reject) => {
       const queries = [
@@ -1668,6 +1758,18 @@ class Database {
         );
       });
     });
+  }
+
+  /**
+   * GET DATABASE PATH
+   * 
+   * Returns the absolute path to the SQLite database file.
+   * Useful for backup operations.
+   * 
+   * @returns {string} The absolute path to the database file
+   */
+  getDatabasePath() {
+    return this.dbPath;
   }
 }
 

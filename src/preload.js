@@ -1,18 +1,60 @@
+/**
+ * ELECTRON PRELOAD SCRIPT - Secure IPC Bridge
+ * 
+ * This file creates a secure bridge between the Electron main process and the renderer process.
+ * It exposes a limited set of APIs to the renderer while maintaining security by:
+ * - Using contextBridge to safely expose APIs
+ * - Not exposing Node.js APIs directly
+ * - Providing a controlled interface for all backend operations
+ * 
+ * Security Features:
+ * - No direct Node.js access from renderer
+ * - Validated API calls through IPC
+ * - Controlled data flow between processes
+ * 
+ * API Categories:
+ * - Product Operations: CRUD operations for products
+ * - Inventory Operations: Stock management and transfers
+ * - Sales Operations: Transaction processing
+ * - Printing & PDF: Bill generation and printing
+ * - Table Management: Restaurant table operations
+ * - Reporting: Business report generation
+ * - Email Operations: Automated email reports
+ * - Financial Operations: Spendings and balance management
+ * - System Operations: Application management
+ * 
+ * @author Ajit Reddy
+ * @version 1.0.0
+ * @since 2024
+ */
+
 const { contextBridge, ipcRenderer } = require("electron");
 
+/**
+ * ELECTRON API BRIDGE
+ * 
+ * This creates a secure bridge that exposes backend functionality to the React frontend.
+ * All operations are performed through IPC (Inter-Process Communication) for security.
+ */
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Product operations
-  getProducts: () => ipcRenderer.invoke("get-products"),
-  addProduct: (product) => ipcRenderer.invoke("add-product", product),
-  updateProduct: (id, product) =>
+  /**
+   * PRODUCT OPERATIONS
+   * Complete CRUD operations for product catalog management
+   */
+  getProducts: () => ipcRenderer.invoke("get-products"),                    // Retrieve all products
+  addProduct: (product) => ipcRenderer.invoke("add-product", product),      // Add new product
+  updateProduct: (id, product) =>                                          // Update existing product
     ipcRenderer.invoke("update-product", id, product),
-  deleteProduct: (id) => ipcRenderer.invoke("delete-product", id),
+  deleteProduct: (id) => ipcRenderer.invoke("delete-product", id),         // Delete product
 
-  // Inventory operations
-  getInventory: () => ipcRenderer.invoke("get-inventory"),
-  updateStock: (productId, godownStock, counterStock) =>
+  /**
+   * INVENTORY OPERATIONS
+   * Stock management and transfer operations between godown and counter
+   */
+  getInventory: () => ipcRenderer.invoke("get-inventory"),                 // Get current stock levels
+  updateStock: (productId, godownStock, counterStock) =>                   // Update stock levels
     ipcRenderer.invoke("update-stock", productId, godownStock, counterStock),
-  transferStock: (productId, quantity, fromLocation, toLocation) =>
+  transferStock: (productId, quantity, fromLocation, toLocation) =>        // Transfer stock between locations
     ipcRenderer.invoke(
       "transfer-stock",
       productId,
@@ -21,18 +63,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
       toLocation
     ),
 
-  // Sales operations
-  createSale: (saleData) => ipcRenderer.invoke("create-sale", saleData),
-  getSales: (dateRange) => ipcRenderer.invoke("get-sales", dateRange),
-  getSalesWithDetails: (dateRange) => ipcRenderer.invoke("get-sales-with-details", dateRange),
+  /**
+   * SALES OPERATIONS
+   * Transaction processing and sales data management
+   */
+  createSale: (saleData) => ipcRenderer.invoke("create-sale", saleData),   // Process new sale
+  getSales: (dateRange) => ipcRenderer.invoke("get-sales", dateRange),     // Get sales data
+  getSalesWithDetails: (dateRange) => ipcRenderer.invoke("get-sales-with-details", dateRange), // Get detailed sales
 
-  // Printing and PDF operations
-  printBill: (billData) => ipcRenderer.invoke("print-bill", billData),
-  exportPDF: (billData) => ipcRenderer.invoke("export-pdf", billData),
-  getPrinterStatus: () => ipcRenderer.invoke("get-printer-status"),
-  configurePrinter: (config) => ipcRenderer.invoke("configure-printer", config),
-  testPrinterConnection: () => ipcRenderer.invoke("test-printer-connection"),
-  reconnectPrinter: () => ipcRenderer.invoke("reconnect-printer"),
+  /**
+   * PRINTING AND PDF OPERATIONS
+   * Bill generation, printing, and PDF export functionality
+   */
+  printBill: (billData) => ipcRenderer.invoke("print-bill", billData),     // Print bill on thermal printer
+  exportPDF: (billData) => ipcRenderer.invoke("export-pdf", billData),     // Export bill as PDF
+  getPrinterStatus: () => ipcRenderer.invoke("get-printer-status"),        // Check printer status
+  configurePrinter: (config) => ipcRenderer.invoke("configure-printer", config), // Configure printer
+  testPrinterConnection: () => ipcRenderer.invoke("test-printer-connection"), // Test printer connection
+  reconnectPrinter: () => ipcRenderer.invoke("reconnect-printer"),         // Reconnect to printer
 
   // Table management operations
   getTables: () => ipcRenderer.invoke("get-tables"),

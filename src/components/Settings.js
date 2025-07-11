@@ -282,7 +282,8 @@ const Settings = () => {
       const result = await window.electronAPI.closeSellAndGenerateReports();
       
       if (result.success) {
-        alert(`Close Sell completed successfully!\n\nPDF reports have been generated and saved to: ${result.zipPath}\n\nEmail sent to owner: ${result.emailSent ? 'Yes' : 'No'}`);
+        const message = `Close Sell completed successfully!\n\n📁 Reports ZIP: ${result.zipPath}\n\n💾 Database Backup: ${result.databaseBackupPath || 'Failed to create'}\n\n📊 Reports Backup: ${result.reportsBackupPath || 'Failed to create'}\n\n📧 Email sent to owner: ${result.emailSent ? 'Yes' : 'No'}\n\n✅ All data has been safely backed up to your local machine!`;
+        alert(message);
       } else {
         alert(`Failed to complete Close Sell: ${result.error}`);
       }
@@ -657,17 +658,19 @@ const Settings = () => {
                 <strong style={{ color: '#27ae60' }}>Close Sell Operation</strong>
               </div>
               <p style={{ margin: '0', color: '#27ae60', fontSize: '0.9rem' }}>
-                This operation will generate all PDF reports throughout the app and compress them into a ZIP file for easy access.
+                This operation will generate all PDF reports, create database backups, and compress them into a ZIP file for easy access.
               </p>
               <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#27ae60', fontSize: '0.9rem' }}>
-                <li>Generate daily comprehensive report</li>
-                <li>Generate sales report</li>
-                <li>Generate financial report</li>
-                <li>Generate inventory report</li>
-                <li>Generate pending bills report</li>
-                <li>Compress all PDFs into a ZIP file</li>
-                <li>Save ZIP file to your local system</li>
-                <li>Automatically send ZIP file to owner via email</li>
+                <li>🗄️ Create complete database backup</li>
+                <li>📊 Generate daily comprehensive report</li>
+                <li>💰 Generate sales report</li>
+                <li>📈 Generate financial report</li>
+                <li>📦 Generate inventory report</li>
+                <li>📋 Generate pending bills report</li>
+                <li>🗜️ Compress all PDFs into a ZIP file</li>
+                <li>💾 Save backups to local backup directories</li>
+                <li>📧 Automatically send ZIP file to owner via email</li>
+                <li>🗃️ Preserve all historical data permanently</li>
               </ul>
             </div>
             

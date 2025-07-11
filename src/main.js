@@ -1,31 +1,81 @@
+/**
+ * MAIN PROCESS - Electron Application Entry Point
+ * 
+ * This is the main process file for the Inventory POS Application built with Electron.
+ * It handles:
+ * - Window creation and management
+ * - Database initialization and operations
+ * - IPC (Inter-Process Communication) between main and renderer processes
+ * - Background services (printing, PDF generation, email reports)
+ * - Scheduled tasks (daily email reports)
+ * - Hardware integration (thermal printers)
+ * 
+ * Dependencies:
+ * - electron: Desktop application framework
+ * - sqlite3: Database operations
+ * - node-cron: Scheduled task management
+ * - Various custom services for business logic
+ * 
+ * @author Ajit Reddy
+ * @version 1.0.0
+ * @since 2024
+ */
+
+// Core Electron modules
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const isDev = require("electron-is-dev");
+
+// Task scheduling for automated reports
 const cron = require("node-cron");
-const Database = require("./database");
-const PrinterService = require("./printer-service");
-const PDFService = require("./pdf-service");
-const ReportService = require("./services/reportService");
-const DailyReportService = require("./services/dailyReportService");
-const EmailService = require("./email-service");
-const { initializeSampleData } = require("./init-sample-data");
+
+// Custom services and utilities
+const Database = require("./database");                    // SQLite database operations
+const PrinterService = require("./printer-service");       // Thermal printer integration
+const PDFService = require("./pdf-service");               // PDF generation for bills/reports
+const ReportService = require("./services/reportService"); // Business report generation
+const DailyReportService = require("./services/dailyReportService"); // Daily summary reports
+const EmailService = require("./email-service");           // Email automation
+const { initializeSampleData } = require("./init-sample-data"); // Sample data for testing
+
+// Date utility functions for consistent date handling
 const { 
-  getLocalDateString, 
-  getLocalDateTimeString, 
-  getStartOfDay, 
-  getEndOfDay,
-  formatDateTimeToString
+  getLocalDateString,     // Get date in YYYY-MM-DD format
+  getLocalDateTimeString, // Get datetime in local format
+  getStartOfDay,          // Get start of day timestamp
+  getEndOfDay,            // Get end of day timestamp
+  formatDateTimeToString  // Format datetime to string
 } = require("./utils/dateUtils");
 
-let mainWindow;
-let database;
-let printerService;
-let pdfService;
-let reportService;
-let dailyReportService;
-let emailService;
+/**
+ * GLOBAL VARIABLES - Service Instances
+ * These variables hold instances of various services used throughout the application.
+ * They are initialized when the app starts and reused across different operations.
+ */
+let mainWindow;           // Main Electron window instance
+let database;             // Database service instance for SQLite operations
+let printerService;       // Thermal printer service instance
+let pdfService;           // PDF generation service instance
+let reportService;        // Business report generation service
+let dailyReportService;   // Daily summary report service
+let emailService;         // Email automation service
 
+/**
+ * CREATE MAIN WINDOW
+ * 
+ * Creates the main Electron window with security settings and loads the React application.
+ * The window is configured with:
+ * - Secure web preferences (no node integration, context isolation enabled)
+ * - Proper preload script for secure IPC communication
+ * - Icon and basic window properties
+ * 
+ * Security Features:
+ * - nodeIntegration: false (prevents direct Node.js access from renderer)
+ * - contextIsolation: true (isolates contexts for security)
+ * - enableRemoteModule: false (disables remote module for security)
+ * - sandbox: false (required for preload script access)
+ */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -42,60 +92,97 @@ function createWindow() {
     icon: path.join(__dirname, "../assets/icon.png"),
   });
 
+  // Determine the URL to load based on development/production environment
   const startUrl = isDev
-    ? "http://localhost:3000"
-    : `file://${path.join(__dirname, "../build/index.html")}`;
+    ? "http://localhost:3000"                                    // Development server
+    : `file://${path.join(__dirname, "../build/index.html")}`; // Production build
 
-  // Force production mode for now
+  // IMPORTANT: Currently forced to use production build for stability
+  // This ensures consistent behavior regardless of environment
   const forcedUrl = `file://${path.join(__dirname, "../build/index.html")}`;
   console.log('Loading URL:', forcedUrl);
   mainWindow.loadURL(forcedUrl);
 
+  // Open developer tools in development mode for debugging
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
 
+  // Clean up when window is closed
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
 
+/**
+ * APPLICATION INITIALIZATION
+ * 
+ * This is the main initialization sequence that runs when Electron is ready.
+ * It performs the following steps:
+ * 1. Database initialization and setup
+ * 2. Sample data loading (for first-time users)
+ * 3. Service initialization (printing, PDF, email, etc.)
+ * 4. Background task scheduling
+ * 5. Window creation
+ * 
+ * The initialization is asynchronous to handle database operations properly.
+ */
 app.whenReady().then(async () => {
-  // Initialize database
-  database = new Database();
-  await database.initialize();
-
-  // Initialize sample data (only if no products exist)
   try {
-    const products = await database.getProducts();
-    if (products.length === 0) {
-      console.log("No existing products found, initializing sample data...");
-      await initializeSampleData(database);
+    // STEP 1: Database Initialization
+    console.log('Initializing database...');
+    database = new Database();
+    await database.initialize();
+    console.log('Database initialized successfully');
+
+    // STEP 2: Sample Data Loading (First-time setup)
+    // This ensures the application has demo data for immediate use
+    try {
+      const products = await database.getProducts();
+      if (products.length === 0) {
+        console.log("No existing products found, initializing sample data...");
+        await initializeSampleData(database);
+        console.log("Sample data initialized successfully");
+      } else {
+        console.log(`Found ${products.length} existing products, skipping sample data`);
+      }
+    } catch (error) {
+      console.log("Sample data initialization skipped:", error.message);
     }
+
+    // STEP 3: Service Initialization
+    // Initialize all business services required for the application
+    console.log('Initializing services...');
+    printerService = new PrinterService();           // Thermal printer integration
+    pdfService = new PDFService();                   // PDF generation for bills/reports
+    reportService = new ReportService();             // Business report generation
+    dailyReportService = new DailyReportService();   // Daily summary reports
+    emailService = new EmailService();               // Email automation
+    console.log('All services initialized successfully');
+
+    // STEP 4: Background Task Scheduling
+    // Schedule daily email report to run at 11:59 PM every day
+    // This ensures business owners receive daily summaries automatically
+    cron.schedule("59 23 * * *", async () => {
+      console.log("Running scheduled daily email report job...");
+      await sendDailyEmailReport();
+    });
+    console.log('Daily email report scheduled for 11:59 PM');
+
+    // STEP 5: Window Creation
+    createWindow();
+
+    // Handle app activation (macOS behavior)
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+    
   } catch (error) {
-    console.log("Sample data initialization skipped:", error.message);
+    console.error('Failed to initialize application:', error);
+    app.quit();
   }
-
-  // Initialize services
-  printerService = new PrinterService();
-  pdfService = new PDFService();
-  reportService = new ReportService();
-  dailyReportService = new DailyReportService();
-  emailService = new EmailService();
-
-  // Setup daily email report cron job (runs at 11:59 PM every day)
-  cron.schedule("59 23 * * *", async () => {
-    console.log("Running daily email report job...");
-    await sendDailyEmailReport();
-  });
-
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
 });
 
 // Function to send daily email report
@@ -1008,16 +1095,41 @@ ipcMain.handle('close-sell-and-generate-reports', async () => {
     const outputDir = path.join(__dirname, '../output');
     const zipPath = path.join(outputDir, `close-sell-reports-${targetDate}-${timestamp}.zip`);
 
+    // Backup directories
+    const backupDir = path.join(__dirname, '../backups');
+    const dbBackupDir = path.join(backupDir, 'database');
+    const reportsBackupDir = path.join(backupDir, 'reports');
+
     // Ensure directories exist
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+    [tempDir, outputDir, backupDir, dbBackupDir, reportsBackupDir].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    });
+
+    // 1. BACKUP DATABASE FIRST
+    let databaseBackupPath = null;
+    try {
+      const dbPath = database.getDatabasePath();
+      databaseBackupPath = path.join(dbBackupDir, `inventory-backup-${targetDate}-${timestamp}.db`);
+      
+      if (fs.existsSync(dbPath)) {
+        fs.copyFileSync(dbPath, databaseBackupPath);
+        console.log('Database backup created:', databaseBackupPath);
+      } else {
+        console.warn('Database file not found at:', dbPath);
+      }
+    } catch (error) {
+      console.error('Error creating database backup:', error);
     }
 
     const pdfPaths = [];
     const zip = new AdmZip();
+
+    // Add database backup to ZIP if it exists
+    if (databaseBackupPath && fs.existsSync(databaseBackupPath)) {
+      zip.addLocalFile(databaseBackupPath, 'database/', 'database-backup.db');
+    }
 
     try {
       // Get all necessary data for reports
@@ -1133,6 +1245,16 @@ ipcMain.handle('close-sell-and-generate-reports', async () => {
     // Write the ZIP file
     zip.writeZip(zipPath);
 
+    // 2. SAVE REPORTS BACKUP
+    let reportsBackupPath = null;
+    try {
+      reportsBackupPath = path.join(reportsBackupDir, `reports-${targetDate}-${timestamp}.zip`);
+      fs.copyFileSync(zipPath, reportsBackupPath);
+      console.log('Reports backup created:', reportsBackupPath);
+    } catch (error) {
+      console.error('Error creating reports backup:', error);
+    }
+
     // Send email with ZIP attachment
     let emailSent = false;
     try {
@@ -1168,11 +1290,17 @@ ipcMain.handle('close-sell-and-generate-reports', async () => {
       }
     });
 
+    // 3. PRESERVE ALL HISTORICAL DATA - NO AUTOMATIC CLEANUP
+    // All backups are preserved permanently for historical reference
+    console.log('All backups preserved permanently - no cleanup performed');
+
     return {
       success: true,
       zipPath: zipPath,
+      databaseBackupPath: databaseBackupPath,
+      reportsBackupPath: reportsBackupPath,
       emailSent: emailSent,
-      message: `Close Sell completed! Generated ${pdfPaths.length} reports.`
+      message: `Close Sell completed! Generated ${pdfPaths.length} reports and created backups.\n\n📁 Reports: ${zipPath}\n💾 Database Backup: ${databaseBackupPath}\n📊 Reports Backup: ${reportsBackupPath}`
     };
   } catch (error) {
     console.error('Error in Close Sell operation:', error);
