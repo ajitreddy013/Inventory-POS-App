@@ -113,7 +113,7 @@ function AppContent() {
             <div className="user-info">
               <span>Welcome, {currentUser}</span>
               <br />
-              <small>Current: {location.pathname}</small>
+              <span className="current-tab">Current: {location.pathname}</span>
             </div>
           </div>
         )}
