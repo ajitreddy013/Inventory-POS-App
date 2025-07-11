@@ -72,9 +72,9 @@ class ReportService {
         doc.text(sale.sale_type === "table" ? "Table" : "Parcel", 55, yPosition);
         doc.text(sale.customer_name || "Walk-in", 80, yPosition);
         doc.text(String(sale.item_count || 0), 120, yPosition, { align: "center" });
-        doc.text(`₹${costPrice.toFixed(2)}`, 140, yPosition, { align: "center" });
-        doc.text(`₹${saleAmount.toFixed(2)}`, 170, yPosition, { align: "center" });
-        doc.text(`₹${profit.toFixed(2)}`, 200, yPosition, { align: "center" });
+        doc.text(`${costPrice.toFixed(2)}`, 140, yPosition, { align: "center" });
+        doc.text(`${saleAmount.toFixed(2)}`, 170, yPosition, { align: "center" });
+        doc.text(`${profit.toFixed(2)}`, 200, yPosition, { align: "center" });
         doc.text(new Date(sale.sale_date).toLocaleDateString(), 230, yPosition);
 
         totalRevenue += saleAmount;
@@ -91,9 +91,9 @@ class ReportService {
       doc.setFillColor(220, 220, 220);
       doc.rect(15, yPosition - 5, 267, 25, "F");
       
-      doc.text(`Total Revenue: ₹${totalRevenue.toFixed(2)}`, 20, yPosition + 2);
-      doc.text(`Total Cost: ₹${totalCost.toFixed(2)}`, 20, yPosition + 9);
-      doc.text(`Total Profit: ₹${totalProfit.toFixed(2)}`, 20, yPosition + 16);
+      doc.text(`Total Revenue: ${totalRevenue.toFixed(2)}`, 20, yPosition + 2);
+      doc.text(`Total Cost: ${totalCost.toFixed(2)}`, 20, yPosition + 9);
+      doc.text(`Total Profit: ${totalProfit.toFixed(2)}`, 20, yPosition + 16);
       doc.text(`Total Transactions: ${salesData.length}`, 150, yPosition + 9, { align: "center" });
 
       const pdfBuffer = doc.output("arraybuffer");
@@ -133,15 +133,15 @@ class ReportService {
       yPosition += 15;
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
-      doc.text(`Total Revenue: ₹${reportData.totalRevenue.toFixed(2)}`, 20, yPosition);
+      doc.text(`Total Revenue: ${reportData.totalRevenue.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      doc.text(`Total Spendings: ₹${reportData.totalSpendings.toFixed(2)}`, 20, yPosition);
+      doc.text(`Total Spendings: ${reportData.totalSpendings.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      doc.text(`Opening Balance: ₹${reportData.totalOpeningBalance.toFixed(2)}`, 20, yPosition);
+      doc.text(`Opening Balance: ${reportData.totalOpeningBalance.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      doc.text(`Net Income: ₹${reportData.netIncome.toFixed(2)}`, 20, yPosition);
+      doc.text(`Net Income: ${reportData.netIncome.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      doc.text(`Total Balance: ₹${reportData.totalBalance.toFixed(2)}`, 20, yPosition);
+      doc.text(`Total Balance: ${reportData.totalBalance.toFixed(2)}`, 20, yPosition);
 
       // Sales Details
       yPosition += 20;
@@ -155,7 +155,7 @@ class ReportService {
           sale.sale_number,
           sale.sale_type === "table" ? "Table" : "Parcel",
           sale.customer_name || "Walk-in",
-          `₹${sale.total_amount.toFixed(2)}`,
+          `${sale.total_amount.toFixed(2)}`,
           new Date(sale.sale_date).toLocaleDateString()
         ]));
 
@@ -188,7 +188,7 @@ class ReportService {
         const spendingsRows = reportData.spendings.map(spending => ([
           spending.description,
           spending.category,
-          `₹${spending.amount.toFixed(2)}`,
+          `${spending.amount.toFixed(2)}`,
           spending.payment_method.replace("_", " ").toUpperCase(),
           new Date(spending.spending_date).toLocaleDateString()
         ]));
@@ -221,7 +221,7 @@ class ReportService {
         const balanceHeaders = ["Date", "Opening Balance", "Notes"];
         const balanceRows = reportData.counterBalances.map(balance => ([
           new Date(balance.balance_date).toLocaleDateString(),
-          `₹${balance.opening_balance.toFixed(2)}`,
+          `${balance.opening_balance.toFixed(2)}`,
           balance.notes || "-"
         ]));
 

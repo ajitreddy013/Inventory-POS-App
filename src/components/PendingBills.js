@@ -3,6 +3,7 @@ import {
   getPendingBills,
   clearPendingBill,
   deletePendingBill,
+  generateBill,
 } from "../services/billService";
 import {
   Clock,
@@ -17,6 +18,8 @@ import {
   FileText,
   AlertCircle,
   Search,
+  Printer,
+  FileDown,
 } from "lucide-react";
 
 const PendingBills = () => {
@@ -27,6 +30,8 @@ const PendingBills = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [generatingBillId, setGeneratingBillId] = useState(null);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
 
   useEffect(() => {
     fetchPendingBills();
@@ -128,6 +133,80 @@ const PendingBills = () => {
     }
   };
 
+  const handleGenerateBill = async (bill) => {
+    setProcessing(true);
+    setGeneratingBillId(bill.id);
+    try {
+      // Get bar settings for the PDF
+      const barSettings = await window.electronAPI.getBarSettings();
+      
+      // Format the bill data for PDF generation
+      const billData = {
+        saleNumber: bill.bill_number,
+        saleType: bill.sale_type || 'parcel',
+        tableNumber: bill.table_number || null,
+        customerName: bill.customer_name || 'Walk-in Customer',
+        customerPhone: bill.customer_phone || '',
+        items: bill.items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+        })),
+        subtotal: bill.subtotal,
+        taxAmount: bill.tax_amount || 0,
+        discountAmount: bill.discount_amount || 0,
+        totalAmount: bill.total_amount,
+        paymentMethod: bill.payment_method || 'Cash',
+        saleDate: bill.created_at,
+        barSettings: barSettings,
+      };
+      
+      const response = await generateBill(billData);
+      if (response.success) {
+        alert(`Bill generated successfully! Saved to: ${response.filePath}`);
+      } else {
+        alert(`Failed to generate bill: ${response.error}`);
+      }
+    } catch (error) {
+      console.error("Failed to generate bill", error);
+      alert("Bill generation failed");
+    } finally {
+      setProcessing(false);
+      setGeneratingBillId(null);
+    }
+  };
+
+  const handleGenerateAllBills = async () => {
+    if (filteredBills.length === 0) {
+      alert("No bills to generate report for!");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to generate a report for ${filteredBills.length} pending bill(s)?`)) {
+      return;
+    }
+
+    setProcessing(true);
+    setBulkGenerating(true);
+
+    try {
+      const response = await window.electronAPI.exportPendingBillsReport(filteredBills);
+      if (response.success) {
+        alert(`Pending bills report generated successfully! Saved to: ${response.filePath}`);
+      } else {
+        alert(`Failed to generate report: ${response.error}`);
+      }
+    } catch (error) {
+      console.error("Failed to generate pending bills report", error);
+      alert("Failed to generate pending bills report");
+    } finally {
+      setProcessing(false);
+      setBulkGenerating(false);
+      setGeneratingBillId(null);
+    }
+  };
+
   const handleViewDetails = (bill) => {
     setSelectedBill(bill);
     setShowDetails(true);
@@ -148,9 +227,19 @@ const PendingBills = () => {
         <h1>
           <Clock size={24} /> Pending Bills
         </h1>
-        <button onClick={fetchPendingBills} className="btn btn-secondary">
-          Refresh
-        </button>
+        <div className="header-actions">
+          <button 
+            onClick={handleGenerateAllBills}
+            disabled={processing || filteredBills.length === 0}
+            className="btn btn-info"
+            title="Generate pending bills report"
+          >
+            {processing ? 'Generating Report...' : <><FileDown size={16} /> Generate Bills Report</>}
+          </button>
+          <button onClick={fetchPendingBills} className="btn btn-secondary">
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Search Section */}
@@ -277,6 +366,14 @@ const PendingBills = () => {
                           <Eye size={16} />
                         </button>
                         <button
+                          onClick={() => handleGenerateBill(bill)}
+                          disabled={processing}
+                          className="btn btn-sm btn-info"
+                          title="Generate Bill PDF"
+                        >
+                          {generatingBillId === bill.id ? '...' : <FileDown size={16} />}
+                        </button>
+                        <button
                           onClick={() => handleClearBill(bill.id)}
                           disabled={processing}
                           className="btn btn-sm btn-success"
@@ -400,6 +497,13 @@ const PendingBills = () => {
               </div>
             </div>
             <div className="modal-actions">
+              <button
+                onClick={() => handleGenerateBill(selectedBill)}
+                disabled={processing}
+                className="btn btn-info"
+              >
+                {processing ? 'Generating...' : <><FileDown size={16} /> Generate Bill</>}
+              </button>
               <button
                 onClick={() => handleClearBill(selectedBill.id)}
                 disabled={processing}

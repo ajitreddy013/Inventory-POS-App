@@ -596,6 +596,44 @@ tr:hover {
   transform: translateY(-1px);
 }
 
+.tab-btn {
+  background-color: #e9ecef;
+  color: #495057;
+  padding: 10px 20px;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.tab-btn:hover {
+  background-color: #d2d6da;
+}
+
+.tab-btn.active {
+  background-color: #007bff;
+  color: white;
+}
+
+.tab-navigation {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tab-navigation .btn {
+  border: none;
+  background: #e9ecef;
+  color: #495057;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn-small {
   padding: 6px 10px;
   font-size: 12px;
@@ -678,10 +716,11 @@ tr:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   text-align: center;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 15px;
-  overflow: hidden;
-  word-wrap: break-word;
+  gap: 10px;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .card-icon {
@@ -2826,6 +2865,8 @@ tr:hover {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 20px;
+  padding: 10px;
+  justify-content: center;
 }
 
 .action-buttons .btn {
@@ -2881,6 +2922,16 @@ tr:hover {
 }
 
 /* Spendings specific styles */
+.filters-section {
+  display: flex;
+  gap: 15px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
 .spendings .filters-section {
   background: white;
   padding: 20px;
@@ -3436,6 +3487,149 @@ td:nth-child(7) { /* Profit column */
   position: relative;
 }
 
+/* Header actions styling */
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.header-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.header-actions .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Generate Bills button styling */
+.btn-info {
+  background: linear-gradient(135deg, #17a2b8, #138496);
+  border: none;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: linear-gradient(135deg, #138496, #117a8b);
+  box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+}
+
+.btn-info:disabled {
+  background: #9ca3af;
+  opacity: 0.6;
+}
+
+/* Action buttons improvements */
+.action-buttons .btn-sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.action-buttons .btn-sm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.action-buttons .btn-sm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Modal actions improvements */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+.modal-actions .btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.modal-actions .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.modal-actions .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive adjustments for header actions */
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  
+  .header-actions .btn {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  
+  .page-header h1 {
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .action-buttons .btn-sm {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .search-input-container {
   position: relative;
   flex: 1;
@@ -3460,6 +3654,131 @@ td:nth-child(7) { /* Profit column */
   padding: 1px 3px;
   border-radius: 2px;
   font-weight: 500;
+}
+
+/* Stock Movement History Styles */
+.stock-history {
+  padding: 20px;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+}
+
+.stock-history .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.stock-history .filters-section {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stock-history .filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stock-history .filter-group label {
+  font-weight: 600;
+  color: #495057;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.movement-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.movement-type span {
+  font-weight: 500;
+}
+
+.quantity-badge {
+  background: #007bff;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.location-badge {
+  background: #28a745;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.location-badge.empty {
+  background: #6c757d;
+  color: white;
+}
+
+.date-cell {
+  font-size: 0.85rem;
+  color: #495057;
+}
+
+.product-cell strong {
+  font-weight: 600;
+  color: #212529;
+}
+
+.type-cell {
+  padding: 8px;
+}
+
+.quantity-cell {
+  text-align: center;
+}
+
+.location-cell {
+  text-align: center;
+}
+
+.arrow-cell {
+  text-align: center;
+}
+
+.notes-cell {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.movement-transfer {
+  border-left: 4px solid #007bff;
+}
+
+.movement-in {
+  border-left: 4px solid #28a745;
+}
+
+.movement-out {
+  border-left: 4px solid #dc3545;
+}
+
+.movement-adjustment {
+  border-left: 4px solid #6c757d;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px;
+  color: #6c757d;
+}
+
+.no-data p {
+  margin-top: 10px;
+  font-size: 1.1rem;
 }
 
 /* Product Management specific styles */

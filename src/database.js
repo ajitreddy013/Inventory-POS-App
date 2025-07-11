@@ -509,6 +509,26 @@ class Database {
     });
   }
 
+  // Get stock movements history
+  getStockMovements(limit = 30) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `
+        SELECT sm.*, p.name AS product_name
+        FROM stock_movements sm
+        JOIN products p ON sm.product_id = p.id
+        ORDER BY sm.created_at DESC
+        LIMIT ?
+        `,
+        [limit],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+  }
+
   // Sales operations
   validateSaleData(saleData) {
     const { saleNumber, items, totalAmount, saleDate } = saleData;
@@ -1036,11 +1056,11 @@ class Database {
       this.db.run(
         query,
         [
-          settings.barName,
-          settings.contactNumber,
-          settings.gstNumber,
+          settings.bar_name || settings.barName,
+          settings.contact_number || settings.contactNumber,
+          settings.gst_number || settings.gstNumber,
           settings.address,
-          settings.thankYouMessage,
+          settings.thank_you_message || settings.thankYouMessage,
         ],
         function (err) {
           if (err) {

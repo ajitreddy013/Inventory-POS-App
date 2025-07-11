@@ -396,6 +396,16 @@ ipcMain.handle("save-daily-transfer", async (event, transferData) => {
   return await database.saveDailyTransfer(transferData);
 });
 
+// Get stock movements history IPC handler
+ipcMain.handle("get-stock-movements", async (event, limit) => {
+  try {
+    return await database.getStockMovements(limit);
+  } catch (error) {
+    console.error("Error in get-stock-movements:", error);
+    throw error;
+  }
+});
+
 ipcMain.handle("get-daily-transfers", async (event, dateRange) => {
   return await database.getDailyTransfers(dateRange);
 });
@@ -598,6 +608,25 @@ ipcMain.handle("export-financial-report", async (event, reportData, selectedDate
 
     if (!result.canceled) {
       await pdfService.generateFinancialReport(reportData, selectedDate, result.filePath);
+      return { success: true, filePath: result.filePath };
+    }
+    return { success: false, error: "Save cancelled" };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Export pending bills report PDF
+ipcMain.handle("export-pending-bills-report", async (event, pendingBillsData) => {
+  try {
+    const timestamp = new Date().getTime();
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `pending-bills-report-${timestamp}.pdf`,
+      filters: [{ name: "PDF Files", extensions: ["pdf"] }],
+    });
+
+    if (!result.canceled) {
+      await pdfService.generatePendingBillsReport(pendingBillsData, result.filePath);
       return { success: true, filePath: result.filePath };
     }
     return { success: false, error: "Save cancelled" };

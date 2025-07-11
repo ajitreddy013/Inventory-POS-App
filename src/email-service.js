@@ -10,7 +10,7 @@ const IV_LENGTH = 16;
 function encrypt(text) {
   if (!text) return text;
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   return iv.toString('hex') + ':' + encrypted;
@@ -21,7 +21,7 @@ function decrypt(text) {
   const textParts = text.split(':');
   const iv = Buffer.from(textParts.shift(), 'hex');
   const encryptedText = textParts.join(':');
-  const decipher = crypto.createDecipher('aes-256-cbc', ENCRYPTION_KEY);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
   return decrypted;
@@ -132,7 +132,7 @@ class EmailService {
       return;
     }
 
-    this.transporter = nodemailer.createTransporter({
+    this.transporter = nodemailer.createTransport({
       host: this.settings.host,
       port: this.settings.port,
       secure: this.settings.secure,
@@ -175,7 +175,7 @@ class EmailService {
         <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
           <tr style="background-color: #f2f2f2;">
             <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Total Sales</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">₹${reportData.totalAmount.toFixed(2)}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${reportData.totalAmount.toFixed(2)}</td>
           </tr>
           <tr>
             <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Total Transactions</td>
@@ -208,7 +208,7 @@ class EmailService {
           <tr ${index % 2 === 0 ? 'style="background-color: #f9f9f9;"' : ''}>
             <td style="border: 1px solid #ddd; padding: 8px;">${item.name}</td>
             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.quantity}</td>
-            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">₹${item.revenue.toFixed(2)}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.revenue.toFixed(2)}</td>
           </tr>
         `;
       });

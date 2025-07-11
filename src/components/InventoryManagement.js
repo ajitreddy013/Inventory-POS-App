@@ -8,9 +8,11 @@ import {
   Save,
   X,
   FileText,
-  Download
+  Download,
+  History
 } from 'lucide-react';
 import StockEditModal from './StockEditModal';
+import StockHistory from './StockHistory';
 
 const InventoryManagement = () => {
   const [inventory, setInventory] = useState([]);
@@ -19,6 +21,7 @@ const InventoryManagement = () => {
   const [transferModal, setTransferModal] = useState({ open: false, product: null });
   const [loading, setLoading] = useState(false);
   const [barSettings, setBarSettings] = useState(null);
+  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' or 'history'
 
   useEffect(() => {
     loadInventory();
@@ -193,10 +196,29 @@ const InventoryManagement = () => {
     <div className="inventory-management">
       <div className="page-header">
         <h1><Package size={24} /> Inventory Management</h1>
+        <div className="tab-navigation">
+          <button 
+            className={`btn tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
+            onClick={() => setActiveTab('inventory')}
+          >
+            <Package size={16} />
+            Current Inventory
+          </button>
+          <button 
+            className={`btn tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            <History size={16} />
+            Movement History
+          </button>
+        </div>
       </div>
 
-      {/* Summary Cards - Moved to top for quick access */}
-      <div className="summary-cards">
+      {/* Render content based on active tab */}
+      {activeTab === 'inventory' ? (
+        <>
+          {/* Summary Cards - Moved to top for quick access */}
+          <div className="summary-cards">
         <div className="summary-card">
           <h3>Total Products</h3>
           <div className="value">{inventory.length}</div>
@@ -388,6 +410,10 @@ const InventoryManagement = () => {
           onClose={() => setTransferModal({ open: false, product: null })}
           onTransfer={transferStock}
         />
+      )}
+        </>
+      ) : (
+        <StockHistory />
       )}
 
     </div>

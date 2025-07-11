@@ -219,37 +219,39 @@ const DailyTransfer = () => {
             </div>
           </div>
 
-          <div className="products-list">
+<div className="products-list">
             <h3>Available in Godown</h3>
             {filteredProducts.length === 0 ? (
               <p className="no-products">No products with godown stock found</p>
             ) : (
-              filteredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="product-item"
-                  onClick={() => addToTransfers(product)}
-                >
-                  <div className="product-info">
-                    <h4>{product.name}</h4>
-                    {product.variant && (
-                      <span className="variant">{product.variant}</span>
-                    )}
-                    <p className="sku">{product.sku}</p>
+              <div className="products-grid-container">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="product-item grid-layout"
+                    onClick={() => addToTransfers(product)}
+                  >
+                    <div className="product-info">
+                      <h4>{product.name}</h4>
+                      {product.variant && (
+                        <span className="variant">{product.variant}</span>
+                      )}
+                      <p className="sku">{product.sku}</p>
+                    </div>
+                    <div className="stock-info">
+                      <span className="godown-stock">
+                        Godown: {product.godown_stock}
+                      </span>
+                      <span className="counter-stock">
+                        Counter: {product.counter_stock}
+                      </span>
+                    </div>
+                    <button className="add-btn">
+                      <Plus size={16} />
+                    </button>
                   </div>
-                  <div className="stock-info">
-                    <span className="godown-stock">
-                      Godown: {product.godown_stock}
-                    </span>
-                    <span className="counter-stock">
-                      Counter: {product.counter_stock}
-                    </span>
-                  </div>
-                  <button className="add-btn">
-                    <Plus size={16} />
-                  </button>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         </div>

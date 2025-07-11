@@ -17,3 +17,7 @@ export const deletePendingBill = async (id) => {
 export const clearPendingBill = async (id) => {
   return await window.electronAPI.clearPendingBill(id);
 };
+
+export const generateBill = async (billData) => {
+  return await window.electronAPI.exportPDF(billData);
+};

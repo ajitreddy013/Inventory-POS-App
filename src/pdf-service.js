@@ -139,6 +139,11 @@ class PDFService {
       this.doc.setFont("helvetica", "normal");
       yPosition += 8;
 
+      if (!Array.isArray(items)) {
+        console.error('Items is not an array:', items);
+        throw new Error('Items must be an array');
+      }
+
       items.forEach((item, index) => {
         if (yPosition > 160) {
           // Add new page if needed
@@ -330,6 +335,11 @@ class PDFService {
 
       let totalValue = 0;
 
+      if (!reportData.inventory || !Array.isArray(reportData.inventory)) {
+        console.error('Inventory is not an array:', reportData.inventory);
+        throw new Error('Inventory must be an array');
+      }
+
       reportData.inventory.forEach((item, index) => {
         if (yPosition > 190) {
           this.doc.addPage();
@@ -483,6 +493,11 @@ class PDFService {
       this.doc.setTextColor(0, 0, 0);
       yPosition += 10;
 
+      if (!transferData.items_transferred || !Array.isArray(transferData.items_transferred)) {
+        console.error('Items transferred is not an array:', transferData.items_transferred);
+        throw new Error('Items transferred must be an array');
+      }
+
       transferData.items_transferred.forEach((item, index) => {
         if (yPosition > 250) {
           this.doc.addPage();
@@ -572,6 +587,11 @@ class PDFService {
       let totalCost = 0;
       let totalProfit = 0;
 
+      if (!salesData || !Array.isArray(salesData)) {
+        console.error('Sales data is not an array:', salesData);
+        throw new Error('Sales data must be an array.');
+      }
+
       salesData.forEach((sale, index) => {
         if (yPosition > 180) {
           this.doc.addPage();
@@ -592,9 +612,9 @@ class PDFService {
         this.doc.text(sale.sale_type === "table" ? "Table" : "Parcel", 55, yPosition);
         this.doc.text(sale.customer_name || "Walk-in", 80, yPosition);
         this.doc.text(String(sale.item_count || 0), 120, yPosition, { align: "center" });
-        this.doc.text(`₹${costPrice.toFixed(2)}`, 140, yPosition, { align: "center" });
-        this.doc.text(`₹${saleAmount.toFixed(2)}`, 170, yPosition, { align: "center" });
-        this.doc.text(`₹${profit.toFixed(2)}`, 200, yPosition, { align: "center" });
+        this.doc.text(`${costPrice.toFixed(2)}`, 140, yPosition, { align: "center" });
+        this.doc.text(`${saleAmount.toFixed(2)}`, 170, yPosition, { align: "center" });
+        this.doc.text(`${profit.toFixed(2)}`, 200, yPosition, { align: "center" });
         this.doc.text(new Date(sale.sale_date).toLocaleDateString(), 230, yPosition);
 
         totalRevenue += saleAmount;
@@ -611,9 +631,9 @@ class PDFService {
       this.doc.setFillColor(220, 220, 220);
       this.doc.rect(15, yPosition - 5, 267, 25, "F");
       
-      this.doc.text(`Total Revenue: ₹${totalRevenue.toFixed(2)}`, 20, yPosition + 2);
-      this.doc.text(`Total Cost: ₹${totalCost.toFixed(2)}`, 20, yPosition + 9);
-      this.doc.text(`Total Profit: ₹${totalProfit.toFixed(2)}`, 20, yPosition + 16);
+      this.doc.text(`Total Revenue: ${totalRevenue.toFixed(2)}`, 20, yPosition + 2);
+      this.doc.text(`Total Cost: ${totalCost.toFixed(2)}`, 20, yPosition + 9);
+      this.doc.text(`Total Profit: ${totalProfit.toFixed(2)}`, 20, yPosition + 16);
       this.doc.text(`Total Transactions: ${salesData.length}`, 150, yPosition + 9, { align: "center" });
 
       const pdfBuffer = this.doc.output("arraybuffer");
@@ -653,15 +673,15 @@ class PDFService {
       yPosition += 15;
       this.doc.setFontSize(12);
       this.doc.setFont("helvetica", "normal");
-      this.doc.text(`Total Revenue: ₹${reportData.totalRevenue.toFixed(2)}`, 20, yPosition);
+      this.doc.text(`Total Revenue: ${reportData.totalRevenue.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      this.doc.text(`Total Spendings: ₹${reportData.totalSpendings.toFixed(2)}`, 20, yPosition);
+      this.doc.text(`Total Spendings: ${reportData.totalSpendings.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      this.doc.text(`Opening Balance: ₹${reportData.totalOpeningBalance.toFixed(2)}`, 20, yPosition);
+      this.doc.text(`Opening Balance: ${reportData.totalOpeningBalance.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      this.doc.text(`Net Income: ₹${reportData.netIncome.toFixed(2)}`, 20, yPosition);
+      this.doc.text(`Net Income: ${reportData.netIncome.toFixed(2)}`, 20, yPosition);
       yPosition += 8;
-      this.doc.text(`Total Balance: ₹${reportData.totalBalance.toFixed(2)}`, 20, yPosition);
+      this.doc.text(`Total Balance: ${reportData.totalBalance.toFixed(2)}`, 20, yPosition);
 
       // Sales Details
       yPosition += 20;
@@ -684,6 +704,7 @@ class PDFService {
         
         this.doc.setTextColor(0, 0, 0);
         yPosition += 10;
+        
         reportData.sales.forEach((sale, index) => {
           if (yPosition > 170) {
             this.doc.addPage();
@@ -699,7 +720,7 @@ class PDFService {
           this.doc.text(sale.sale_number, 18, yPosition);
           this.doc.text(sale.sale_type === "table" ? "Table" : "Parcel", 70, yPosition);
           this.doc.text(sale.customer_name || "Walk-in", 110, yPosition);
-          this.doc.text(`₹${sale.total_amount.toFixed(2)}`, 180, yPosition, { align: "center" });
+        this.doc.text(`${sale.total_amount.toFixed(2)}`, 180, yPosition, { align: "center" });
           this.doc.text(new Date(sale.sale_date).toLocaleDateString(), 230, yPosition);
           yPosition += 8;
         });
@@ -725,6 +746,7 @@ class PDFService {
         
         this.doc.setTextColor(0, 0, 0);
         yPosition += 10;
+        
         reportData.spendings.forEach((spending, index) => {
           if (yPosition > 170) {
             this.doc.addPage();
@@ -739,7 +761,7 @@ class PDFService {
           this.doc.setFontSize(9);
           this.doc.text(spending.description.substring(0, 30), 18, yPosition);
           this.doc.text(spending.category, 100, yPosition);
-          this.doc.text(`₹${spending.amount.toFixed(2)}`, 160, yPosition, { align: "center" });
+        this.doc.text(`${spending.amount.toFixed(2)}`, 160, yPosition, { align: "center" });
           this.doc.text(new Date(spending.spending_date).toLocaleDateString(), 230, yPosition);
           yPosition += 8;
         });
@@ -764,6 +786,7 @@ class PDFService {
         
         this.doc.setTextColor(0, 0, 0);
         yPosition += 10;
+        
         reportData.counterBalances.forEach((balance, index) => {
           if (yPosition > 170) {
             this.doc.addPage();
@@ -777,7 +800,7 @@ class PDFService {
           
           this.doc.setFontSize(9);
           this.doc.text(new Date(balance.balance_date).toLocaleDateString(), 18, yPosition);
-          this.doc.text(`₹${balance.opening_balance.toFixed(2)}`, 100, yPosition, { align: "center" });
+        this.doc.text(`${balance.opening_balance.toFixed(2)}`, 100, yPosition, { align: "center" });
           this.doc.text(balance.notes || "-", 180, yPosition);
           yPosition += 8;
         });
@@ -789,6 +812,88 @@ class PDFService {
       return { success: true, filePath };
     } catch (error) {
       console.error("Financial report generation error:", error);
+      throw error;
+    }
+  }
+
+  async generatePendingBillsReport(pendingBillsData, filePath) {
+    try {
+      this.doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      // Header
+      this.doc.setFontSize(18);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("Pending Bills Report", 148, 20, { align: "center" });
+
+      // Format generation date using system local time
+      const todayDate = getLocalDateString();
+      const formattedGenDate = formatDateForDisplay(todayDate);
+      const currentTime = getCurrentTimeString();
+
+      this.doc.setFontSize(12);
+      this.doc.setFont("helvetica", "normal");
+      this.doc.text(`Generated on: ${formattedGenDate} ${currentTime}`, 148, 30, { align: "center" });
+      this.doc.text(`Total Bills: ${pendingBillsData.length}`, 148, 40, { align: "center" });
+      this.doc.text(`Total Amount: ${pendingBillsData.reduce((sum, bill) => sum + bill.total_amount, 0).toFixed(2)}`, 148, 50, { align: "center" });
+
+      // Table header
+      let yPosition = 70;
+      this.doc.setFontSize(10);
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.setFillColor(50, 50, 50);
+      this.doc.rect(15, yPosition - 5, 267, 8, "F");
+
+      this.doc.text("Bill Number", 18, yPosition);
+      this.doc.text("Customer", 70, yPosition);
+      this.doc.text("Phone", 130, yPosition);
+      this.doc.text("Type", 170, yPosition);
+      this.doc.text("Amount", 200, yPosition);
+      this.doc.text("Date", 230, yPosition);
+
+      // Table items
+      this.doc.setTextColor(0, 0, 0);
+      yPosition += 10;
+
+      pendingBillsData.forEach((bill, index) => {
+        if (yPosition > 180) {
+          this.doc.addPage();
+          yPosition = 30;
+        }
+
+        if (index % 2 === 0) {
+          this.doc.setFillColor(245, 245, 245);
+          this.doc.rect(15, yPosition - 5, 267, 8, "F");
+        }
+
+        this.doc.setFont("helvetica", "normal");
+        this.doc.text(bill.bill_number, 18, yPosition);
+        this.doc.text(bill.customer_name || "Walk-in", 70, yPosition);
+        this.doc.text(bill.customer_phone || "-", 130, yPosition);
+        this.doc.text(bill.sale_type || "parcel", 170, yPosition);
+        this.doc.text(`${bill.total_amount.toFixed(2)}`, 200, yPosition, { align: "center" });
+        this.doc.text(new Date(bill.created_at).toLocaleDateString(), 230, yPosition);
+
+        yPosition += 8;
+      });
+
+      // Footer
+      yPosition = Math.max(yPosition + 20, 260);
+      this.doc.setFontSize(10);
+      this.doc.setFont("helvetica", "italic");
+      this.doc.text("This is a system generated report", 148, yPosition, {
+        align: "center",
+      });
+
+      const pdfBuffer = this.doc.output("arraybuffer");
+      fs.writeFileSync(filePath, Buffer.from(pdfBuffer));
+
+      return { success: true, filePath };
+    } catch (error) {
+      console.error("Pending bills report generation error:", error);
       throw error;
     }
   }

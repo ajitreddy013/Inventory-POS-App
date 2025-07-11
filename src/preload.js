@@ -50,6 +50,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("save-daily-transfer", transferData),
   getDailyTransfers: (dateRange) =>
     ipcRenderer.invoke("get-daily-transfers", dateRange),
+  
+  // Stock movements history
+  getStockMovements: (limit) =>
+    ipcRenderer.invoke("get-stock-movements", limit),
 
   // Bar settings operations
   getBarSettings: () => ipcRenderer.invoke("get-bar-settings"),
@@ -65,6 +69,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("export-sales-report", salesData, selectedDate),
   exportFinancialReport: (reportData, selectedDate) =>
     ipcRenderer.invoke("export-financial-report", reportData, selectedDate),
+  exportPendingBillsReport: (pendingBillsData) =>
+    ipcRenderer.invoke("export-pending-bills-report", pendingBillsData),
 
   // Email operations
   getEmailSettings: () => ipcRenderer.invoke("get-email-settings"),
