@@ -1255,25 +1255,63 @@ ipcMain.handle('close-sell-and-generate-reports', async () => {
       console.error('Error creating reports backup:', error);
     }
 
-    // Send email with ZIP attachment
+    // Send email with individual PDF attachments (NO ZIP FILES)
     let emailSent = false;
     try {
       const emailSettings = emailService.getSettings();
-      if (emailSettings.enabled) {
-        const emailResult = await emailService.sendDailyReport(
-          {
-            totalAmount: 0,
-            totalTransactions: 0,
-            tableSales: 0,
-            parcelSales: 0,
-            topItems: [],
-          },
-          [{
-            path: zipPath,
-            filename: `close-sell-reports-${targetDate}.zip`
-          }]
-        );
+      if (emailSettings.enabled && pdfPaths.length > 0) {
+        // Prepare individual PDF attachments
+        const pdfAttachments = [];
+        
+        // Add daily report
+        if (fs.existsSync(path.join(tempDir, `daily-report-${targetDate}-${timestamp}.pdf`))) {
+          pdfAttachments.push({
+            path: path.join(tempDir, `daily-report-${targetDate}-${timestamp}.pdf`),
+            filename: 'DailyReport.pdf'
+          });
+        }
+        
+        // Add sales report
+        if (fs.existsSync(path.join(tempDir, `sales-report-${targetDate}-${timestamp}.pdf`))) {
+          pdfAttachments.push({
+            path: path.join(tempDir, `sales-report-${targetDate}-${timestamp}.pdf`),
+            filename: 'SalesReport.pdf'
+          });
+        }
+        
+        // Add financial report
+        if (fs.existsSync(path.join(tempDir, `financial-report-${targetDate}-${timestamp}.pdf`))) {
+          pdfAttachments.push({
+            path: path.join(tempDir, `financial-report-${targetDate}-${timestamp}.pdf`),
+            filename: 'FinancialReport.pdf'
+          });
+        }
+        
+        // Add inventory report
+        if (fs.existsSync(path.join(tempDir, `inventory-report-${targetDate}-${timestamp}.pdf`))) {
+          pdfAttachments.push({
+            path: path.join(tempDir, `inventory-report-${targetDate}-${timestamp}.pdf`),
+            filename: 'InventoryReport.pdf'
+          });
+        }
+        
+        // Add pending bills report if exists
+        if (fs.existsSync(path.join(tempDir, `pending-bills-report-${targetDate}-${timestamp}.pdf`))) {
+          pdfAttachments.push({
+            path: path.join(tempDir, `pending-bills-report-${targetDate}-${timestamp}.pdf`),
+            filename: 'PendingBillsReport.pdf'
+          });
+        }
+        
+        // Send email with comprehensive report data and PDF attachments
+        const emailResult = await emailService.sendDailyReport(reportData, pdfAttachments);
         emailSent = emailResult.success;
+        
+        if (emailSent) {
+          console.log(`Email sent successfully with ${pdfAttachments.length} PDF attachments`);
+        } else {
+          console.error('Failed to send email with PDF reports');
+        }
       }
     } catch (error) {
       console.error('Error sending email:', error);

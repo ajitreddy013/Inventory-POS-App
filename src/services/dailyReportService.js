@@ -203,8 +203,8 @@ class DailyReportService {
       yPosition += 15;
 
       // Dashboard metrics table
-      this.drawDashboardTable(doc, reportData, yPosition);
-      yPosition += 100; // Approximate height for dashboard table
+      yPosition = this.drawDashboardTable(doc, reportData, yPosition);
+      yPosition += 20; // Add some spacing
 
       // Financial Summary Section
       doc.setFontSize(16);
@@ -386,6 +386,57 @@ doc.setFontSize(10);
     } catch (error) {
       console.error("Failed to generate daily report: ", error);
       throw error;
+    }
+  }
+
+  drawDashboardTable(doc, reportData, yPosition) {
+    try {
+      // Dashboard metrics data
+      const dashboardData = [
+        ["Dashboard Metric", "Value", "Status"],
+        ["Total Products", (reportData.totalProducts || 0).toString(), "Active"],
+        ["Low Stock Items", (reportData.lowStockItems || 0).toString(), reportData.lowStockItems > 0 ? "⚠️ Alert" : "✅ Good"],
+        ["Today's Sales Count", (reportData.todaySales || 0).toString(), "Transactions"],
+        ["Total Transactions", (reportData.totalTransactions || 0).toString(), "Processed"],
+        ["Table Sales", (reportData.tableSales || 0).toString(), "Dine-in"],
+        ["Parcel Sales", (reportData.parcelSales || 0).toString(), "Takeaway"],
+        ["Revenue per Transaction", reportData.totalTransactions > 0 ? `₹${(reportData.totalRevenue / reportData.totalTransactions).toFixed(2)}` : "₹0.00", "Average"],
+        ["Profit Margin", reportData.totalRevenue > 0 ? `${((reportData.netIncome / reportData.totalRevenue) * 100).toFixed(1)}%` : "0%", reportData.netIncome > 0 ? "Positive" : "Negative"]
+      ];
+
+      // Use autoTable for better formatting
+      doc.autoTable({
+        head: [dashboardData[0]],
+        body: dashboardData.slice(1),
+        startY: yPosition,
+        theme: "grid",
+        headStyles: { 
+          fillColor: [52, 152, 219], 
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        styles: { 
+          fontSize: 10,
+          cellPadding: 5
+        },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 40, halign: "center" },
+          2: { cellWidth: 40, halign: "center" }
+        }
+      });
+
+      return doc.lastAutoTable.finalY;
+    } catch (error) {
+      console.error('Error drawing dashboard table:', error);
+      // Fallback to simple text if table fails
+      doc.setFontSize(10);
+      doc.text(`Total Products: ${reportData.totalProducts || 0}`, 15, yPosition);
+      doc.text(`Low Stock Items: ${reportData.lowStockItems || 0}`, 15, yPosition + 10);
+      doc.text(`Today's Sales: ${reportData.todaySales || 0}`, 15, yPosition + 20);
+      doc.text(`Total Revenue: ₹${(reportData.totalRevenue || 0).toFixed(2)}`, 15, yPosition + 30);
+      return yPosition + 50;
     }
   }
 }
