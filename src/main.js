@@ -485,6 +485,19 @@ ipcMain.handle("get-sales-with-details", async (event, dateRange) => {
   }
 });
 
+ipcMain.handle("get-sale-with-items", async (event, saleId) => {
+  console.log('getSaleWithItems called with saleId:', saleId);
+  try {
+    const validId = validateId(saleId);
+    const result = await database.getSaleWithItems(validId);
+    console.log('getSaleWithItems result:', result ? 'sale found' : 'no sale found');
+    return result;
+  } catch (error) {
+    console.error('Error in getSaleWithItems:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle("print-bill", async (event, billData) => {
   try {
     await printerService.printBill(billData);
