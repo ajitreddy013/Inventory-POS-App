@@ -252,6 +252,26 @@ const Settings = () => {
       const result = await window.electronAPI.resetApplication();
       
       if (result.success) {
+        // Reset email settings to default values
+        setEmailSettings({
+          host: '',
+          port: 587,
+          secure: false,
+          auth: { user: '', pass: '' },
+          from: '',
+          to: '',
+          enabled: false
+        });
+        
+        // Reset bar settings to default values
+        setBarSettings({
+          bar_name: '',
+          contact_number: '',
+          gst_number: '',
+          address: '',
+          thank_you_message: ''
+        });
+        
         alert('Application reset completed successfully!\n\nAll data has been cleared and sample data has been restored.\n\nPlease restart the application for best results.');
         setShowResetConfirm(false);
         setResetConfirmText('');

@@ -136,8 +136,10 @@ function AppContent() {
    * @param {string} path - Navigation path
    * @param {string} name - Navigation item name
    */
-  const handleNavItemClick = (event, path, name) => {
-    console.log(`Navigation clicked: ${name} -> ${path}`);
+  const handleNavItemClick = (event, path) => {
+    // eslint-disable-next-line no-console
+    console.log(`Navigation clicked: ${path}`);
+    // eslint-disable-next-line no-console
     console.log(`Current location: ${location.pathname}`);
     
     // Reset table selection when navigating away from tables
@@ -203,7 +205,7 @@ function AppContent() {
                 key={item.path} 
                 to={item.path} 
                 className={`nav-item ${isActive ? "active" : ""}`}
-                onClick={(event) => handleNavItemClick(event, item.path, item.name)}
+                onClick={(event) => handleNavItemClick(event, item.path)}
               >
                 <IconComponent size={20} />
                 {sidebarOpen && <span>{item.name}</span>}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { Package, Plus, Edit, Trash2, Search } from 'lucide-react';
 
 const ProductManagement = () => {
@@ -6,7 +7,6 @@ const ProductManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -17,6 +17,7 @@ const ProductManagement = () => {
       const productList = await window.electronAPI.getProducts();
       setProducts(productList);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load products:', error);
     }
   };
@@ -69,6 +70,7 @@ const ProductManagement = () => {
       try {
         await onSave(formData);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to save product:', error);
         setErrors({ submit: 'Failed to save product. Please try again.' });
       } finally {
@@ -266,9 +268,14 @@ const ProductManagement = () => {
     );
   };
 
+  ProductModal.propTypes = {
+    product: PropTypes.object,
+    onClose: PropTypes.func.isRequired,
+    onSave: PropTypes.func.isRequired,
+  };
+
   const handleSaveProduct = async (productData) => {
     try {
-      setLoading(true);
       if (editingProduct) {
         await window.electronAPI.updateProduct(editingProduct.id, productData);
       } else {
@@ -278,10 +285,9 @@ const ProductManagement = () => {
       setShowModal(false);
       setEditingProduct(null);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save product:', error);
       alert('Failed to save product');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -291,6 +297,7 @@ const ProductManagement = () => {
         await window.electronAPI.deleteProduct(productId);
         await loadProducts();
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to delete product:', error);
         alert('Failed to delete product');
       }

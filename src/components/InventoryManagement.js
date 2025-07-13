@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { 
   Package, 
   AlertTriangle, 
   ArrowUpDown, 
   Search,
   Edit,
-  Save,
   X,
   FileText,
   Download,
@@ -33,6 +33,7 @@ const InventoryManagement = () => {
       const settings = await window.electronAPI.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load bar settings:', error);
     }
   };
@@ -42,6 +43,7 @@ const InventoryManagement = () => {
       const inventoryData = await window.electronAPI.getInventory();
       setInventory(inventoryData);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load inventory:', error);
     }
   };
@@ -58,6 +60,7 @@ const InventoryManagement = () => {
       await loadInventory();
       setEditingStock({ isOpen: false, product: null });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update stock:', error);
       alert('Failed to update stock');
     } finally {
@@ -72,6 +75,7 @@ const InventoryManagement = () => {
       await loadInventory();
       setTransferModal({ open: false, product: null });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to transfer stock:', error);
       alert('Failed to transfer stock');
     } finally {
@@ -161,6 +165,17 @@ const InventoryManagement = () => {
     );
   };
 
+  TransferModal.propTypes = {
+    product: PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      name: PropTypes.string.isRequired,
+      godown_stock: PropTypes.number.isRequired,
+      counter_stock: PropTypes.number.isRequired,
+    }).isRequired,
+    onClose: PropTypes.func.isRequired,
+    onTransfer: PropTypes.func.isRequired,
+  };
+
   const getLowStockItems = () => {
     return inventory.filter(item => 
       (item.godown_stock + item.counter_stock) <= item.min_stock_level
@@ -185,6 +200,7 @@ const InventoryManagement = () => {
         alert('Failed to export report: ' + result.error);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Export error:', error);
       alert('Failed to export stock report');
     } finally {
@@ -327,7 +343,6 @@ const InventoryManagement = () => {
               const cost = item.cost || 0;
               const price = item.price || 0;
               const profit = price - cost;
-              const profitPercentage = cost > 0 ? ((profit / cost) * 100) : 0;
               
               return (
                 <React.Fragment key={item.id}>

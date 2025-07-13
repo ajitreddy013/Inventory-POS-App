@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   createSale: (saleData) => ipcRenderer.invoke("create-sale", saleData),   // Process new sale
   getSales: (dateRange) => ipcRenderer.invoke("get-sales", dateRange),     // Get sales data
   getSalesWithDetails: (dateRange) => ipcRenderer.invoke("get-sales-with-details", dateRange), // Get detailed sales
+  getSaleWithItems: (saleId) => ipcRenderer.invoke("get-sale-with-items", saleId), // Get individual sale with items
 
   /**
    * PRINTING AND PDF OPERATIONS

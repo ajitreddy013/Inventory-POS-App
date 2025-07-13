@@ -44,6 +44,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const loadBarSettings = async () => {
     try {
       const settings = await window.electronAPI.getBarSettings();
+      console.log('TablePOS - Loaded bar settings:', settings);
       setBarSettings(settings);
     } catch (error) {
       console.error("Failed to load bar settings:", error);

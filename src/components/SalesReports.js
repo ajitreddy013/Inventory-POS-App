@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BarChart3, Mail, Send, DollarSign } from "lucide-react";
+import { BarChart3, Mail, Send, DollarSign, FileText, X, Download, Eye } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
@@ -14,6 +14,9 @@ const SalesReports = () => {
   const [loading, setLoading] = useState(true);
   const [emailLoading, setEmailLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [showBillModal, setShowBillModal] = useState(false);
+  const [billGenerating, setBillGenerating] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -132,6 +135,72 @@ const SalesReports = () => {
 
   // Calculate total balance (net income + opening balance)
   const totalBalance = netIncome + totalOpeningBalance;
+
+  // Handle viewing individual bill
+  const handleViewBill = async (sale) => {
+    try {
+      // Get detailed sale data with items
+      const saleWithItems = await window.electronAPI.getSaleWithItems(sale.id);
+      
+      if (!saleWithItems) {
+        alert('Sale data not found');
+        return;
+      }
+      
+      // Get bar settings for formatting the bill
+      const barSettings = await window.electronAPI.getBarSettings();
+      
+      // Format the sale data for bill generation and preview
+      const billData = {
+        saleNumber: saleWithItems.sale_number,
+        saleType: saleWithItems.sale_type || 'parcel',
+        tableNumber: saleWithItems.table_number || null,
+        customerName: saleWithItems.customer_name || 'Walk-in Customer',
+        customerPhone: saleWithItems.customer_phone || '',
+        items: saleWithItems.items || [],
+        subtotal: saleWithItems.total_amount - (saleWithItems.tax_amount || 0) + (saleWithItems.discount_amount || 0),
+        taxAmount: saleWithItems.tax_amount || 0,
+        discountAmount: saleWithItems.discount_amount || 0,
+        totalAmount: saleWithItems.total_amount,
+        paymentMethod: saleWithItems.payment_method || 'Cash',
+        saleDate: saleWithItems.sale_date,
+        barSettings: barSettings,
+      };
+      
+      console.log('Bill data loaded:', billData);
+      setSelectedBill(billData);
+      setShowBillModal(true);
+    } catch (error) {
+      console.error('Failed to load bill data:', error);
+      alert('Failed to load bill data');
+    }
+  };
+
+  // Handle saving bill as PDF
+  const handleSaveBillPDF = async () => {
+    if (!selectedBill) return;
+    
+    setBillGenerating(true);
+    try {
+      const result = await window.electronAPI.exportPDF(selectedBill);
+      if (result.success) {
+        alert(`Bill PDF saved to: ${result.filePath}`);
+      } else {
+        alert(`Failed to save PDF: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      alert('Failed to generate PDF');
+    } finally {
+      setBillGenerating(false);
+    }
+  };
+
+  // Close bill modal
+  const closeBillModal = () => {
+    setSelectedBill(null);
+    setShowBillModal(false);
+  };
 
   return (
     <div className="sales-reports">
@@ -265,13 +334,14 @@ const SalesReports = () => {
               <th>Sale Price</th>
               <th>Profit</th>
               <th>Date</th>
+              <th>Bill</th>
             </tr>
           </thead>
           {loading ? (
             <tbody>
               <tr>
                 <td
-                  colSpan="9"
+                  colSpan="10"
                   style={{ textAlign: "center", padding: "40px" }}
                 >
                   Loading...
@@ -282,7 +352,7 @@ const SalesReports = () => {
             <tbody>
               <tr>
                 <td
-                  colSpan="9"
+                  colSpan="10"
                   style={{
                     textAlign: "center",
                     padding: "40px",
@@ -314,6 +384,11 @@ const SalesReports = () => {
                     ₹{(sale.profit || 0).toFixed(2)}
                   </td>
                   <td>{formatDate(sale.sale_date)}</td>
+                  <td>
+<button onClick={() => handleViewBill(sale)} className="btn btn-secondary" aria-label="View Bill">
+  <Eye size={16} />
+</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -384,6 +459,141 @@ const SalesReports = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      
+      {/* Bill Preview Modal */}
+      {showBillModal && selectedBill && (
+        <div className="modal-overlay" onClick={closeBillModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <FileText size={20} />
+                Bill Preview - {selectedBill.saleNumber}
+              </h3>
+              <button onClick={closeBillModal} className="close-btn">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-content">
+              <div className="bill-preview">
+                {/* Simplified Bill Header */}
+                <div className="bill-header">
+                  <h2>Bill Details</h2>
+                </div>
+                
+                <hr />
+                
+                {/* Bill Details */}
+                <div className="bill-details">
+                  <div className="bill-info-row">
+                    <div>
+                      <strong>Bill No:</strong> {selectedBill.saleNumber}
+                    </div>
+                    <div>
+                      <strong>Date:</strong> {formatDate(selectedBill.saleDate)}
+                    </div>
+                  </div>
+                  
+                  <div className="bill-info-row">
+                    <div>
+                      <strong>Type:</strong> {selectedBill.saleType === 'table' ? 'Table' : 'Parcel'}
+                      {selectedBill.tableNumber && ` - Table ${selectedBill.tableNumber}`}
+                    </div>
+                    <div>
+                      <strong>Payment:</strong> {selectedBill.paymentMethod?.toUpperCase()}
+                    </div>
+                  </div>
+                  
+                  {selectedBill.customerName && selectedBill.customerName !== 'Walk-in Customer' && (
+                    <div className="bill-info-row">
+                      <div>
+                        <strong>Customer:</strong> {selectedBill.customerName}
+                      </div>
+                      {selectedBill.customerPhone && (
+                        <div>
+                          <strong>Phone:</strong> {selectedBill.customerPhone}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <hr />
+                
+                {/* Items Table */}
+                <div className="bill-items">
+                  <table className="bill-items-table">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Rate</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedBill.items?.map((item, index) => (
+                        <tr key={index}>
+                          <td>{item.name}</td>
+                          <td>{item.quantity}</td>
+                          <td>₹{item.unitPrice?.toFixed(2)}</td>
+                          <td>₹{item.totalPrice?.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <hr />
+                
+                {/* Bill Summary */}
+                <div className="bill-summary">
+                  <div className="summary-row">
+                    <span>Subtotal:</span>
+                    <span>₹{selectedBill.subtotal?.toFixed(2)}</span>
+                  </div>
+                  
+                  {selectedBill.discountAmount > 0 && (
+                    <div className="summary-row">
+                      <span>Discount:</span>
+                      <span>-₹{selectedBill.discountAmount?.toFixed(2)}</span>
+                    </div>
+                  )}
+                  
+                  {selectedBill.taxAmount > 0 && (
+                    <div className="summary-row">
+                      <span>Tax:</span>
+                      <span>₹{selectedBill.taxAmount?.toFixed(2)}</span>
+                    </div>
+                  )}
+                  
+                  <div className="summary-row total">
+                    <span><strong>Total:</strong></span>
+                    <span><strong>₹{selectedBill.totalAmount?.toFixed(2)}</strong></span>
+                  </div>
+                </div>
+                
+                <hr />
+                
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button onClick={closeBillModal} className="btn btn-secondary">
+                Close
+              </button>
+              <button 
+                onClick={handleSaveBillPDF} 
+                disabled={billGenerating}
+                className="btn btn-primary"
+              >
+                <Download size={16} />
+                {billGenerating ? 'Generating...' : 'Save as PDF'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

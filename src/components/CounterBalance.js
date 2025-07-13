@@ -15,7 +15,6 @@ function getLocalDateString() {
 
 const CounterBalance = () => {
   const [counterBalances, setCounterBalances] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingBalance, setEditingBalance] = useState(null);
 
@@ -31,16 +30,14 @@ const CounterBalance = () => {
 
   const loadCounterBalances = async () => {
     try {
-      setLoading(true);
       const data = await window.electronAPI.getCounterBalances({
         start: getLocalDateString(),
         end: getLocalDateString(),
       });
       setCounterBalances(data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to load counter balances:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -109,6 +106,7 @@ const CounterBalance = () => {
       resetForm();
       loadCounterBalances();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to save opening balance:", error);
     }
   };

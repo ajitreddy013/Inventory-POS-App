@@ -851,6 +851,45 @@ class Database {
     });
   }
 
+  // Get individual sale with complete item details
+  getSaleWithItems(saleId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT s.*, 
+               JSON_GROUP_ARRAY(
+                 JSON_OBJECT(
+                   'name', p.name,
+                   'quantity', si.quantity,
+                   'unitPrice', si.unit_price,
+                   'totalPrice', si.total_price
+                 )
+               ) as items
+        FROM sales s
+        LEFT JOIN sale_items si ON s.id = si.sale_id
+        LEFT JOIN products p ON si.product_id = p.id
+        WHERE s.id = ?
+        GROUP BY s.id
+      `;
+
+      this.db.get(query, [saleId], (err, row) => {
+        if (err) {
+          console.error('Database query error:', err);
+          reject(err);
+        } else {
+          if (row && row.items) {
+            try {
+              row.items = JSON.parse(row.items);
+            } catch (e) {
+              console.error('Error parsing items JSON:', e);
+              row.items = [];
+            }
+          }
+          resolve(row);
+        }
+      });
+    });
+  }
+
   // Table operations
   getTables() {
     return new Promise((resolve, reject) => {

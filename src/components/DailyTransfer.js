@@ -6,7 +6,6 @@ import {
   Plus,
   Minus,
   CheckCircle,
-  AlertCircle,
   FileText,
   Calendar,
   Clock,
@@ -34,10 +33,8 @@ const DailyTransfer = () => {
   const loadTransferHistory = async () => {
     try {
       // Load transfers from last 30 days
-      const now = new Date();
       const endDate = getLocalDateString();
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const startDate = getLocalDateString();
 
       const history = await window.electronAPI.getDailyTransfers({
         start: getLocalDateString(thirtyDaysAgo),
@@ -53,6 +50,7 @@ const DailyTransfer = () => {
       
       setTransferHistory(sortedHistory);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to load transfer history:", error);
     }
   };
@@ -68,6 +66,7 @@ const DailyTransfer = () => {
         alert("Failed to export transfer report: " + result.error);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Export error:", error);
       alert("Failed to export transfer report");
     }
@@ -79,6 +78,7 @@ const DailyTransfer = () => {
       // Only show products with godown stock
       setProducts(inventoryData.filter((item) => item.godown_stock > 0));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to load products:", error);
     }
   };
@@ -110,7 +110,7 @@ const DailyTransfer = () => {
     }
   };
 
-  const updateTransferQuantity = (productId, quantity, isInputChange = false) => {
+  const updateTransferQuantity = (productId, quantity) => {
     const product = products.find((p) => p.id === productId);
     const maxQuantity = product.godown_stock;
 
@@ -146,8 +146,6 @@ const DailyTransfer = () => {
 
     setLoading(true);
     try {
-      const transferTime = new Date();
-
       // Process each transfer
       for (const transfer of transfers) {
         await window.electronAPI.transferStock(
@@ -184,6 +182,7 @@ const DailyTransfer = () => {
       // Reload transfer history after successful transfer
       await loadTransferHistory();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to transfer stock:", error);
       alert("Failed to transfer stock. Please try again.");
     } finally {
@@ -299,13 +298,13 @@ const DailyTransfer = () => {
                         const inputValue = e.target.value;
                         // Handle empty input
                         if (inputValue === '') {
-                          updateTransferQuantity(transfer.id, 0, true);
+                          updateTransferQuantity(transfer.id, 0);
                           return;
                         }
                         // Handle numeric input
                         const numericValue = parseInt(inputValue, 10);
                         if (!isNaN(numericValue) && numericValue >= 0) {
-                          updateTransferQuantity(transfer.id, numericValue, true);
+                          updateTransferQuantity(transfer.id, numericValue);
                         }
                       }}
                       onKeyDown={(e) => {
@@ -422,6 +421,7 @@ const DailyTransfer = () => {
                     alert('Failed to export transfer history: ' + result.error);
                   }
                 } catch (error) {
+                  // eslint-disable-next-line no-console
                   console.error('Export error:', error);
                   alert('Failed to export transfer history');
                 }

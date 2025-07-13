@@ -256,16 +256,8 @@ const POSSystem = () => {
       // Save sale to database
       await window.electronAPI.createSale(saleData);
 
-      // Ask user what to do with the bill
-      const action = window.confirm(
-        "Sale completed! Click OK to print bill, Cancel to export PDF"
-      );
-
-      if (action) {
-        await printBill(saleData);
-      } else {
-        await exportPDF(saleData);
-      }
+      // Auto-print bill to default printer
+      await printBill(saleData);
 
       // Clear cart and customer info
       setCart([]);
@@ -304,6 +296,10 @@ const POSSystem = () => {
 
   const exportPDF = async (billData) => {
     try {
+      console.log('POSSystem - Exporting PDF with bill data:', {
+        barSettings: billData.barSettings,
+        thankYouMessage: billData.barSettings?.thank_you_message
+      });
       const result = await window.electronAPI.exportPDF(billData);
       if (result.success) {
         alert(`PDF saved to: ${result.filePath}`);

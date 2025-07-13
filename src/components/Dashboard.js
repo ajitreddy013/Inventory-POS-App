@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
   BarChart3,
-  TrendingUp,
-  Package,
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
@@ -37,6 +35,7 @@ const Dashboard = () => {
 
     // Listen for sale completion events
     const handleSaleCompleted = () => {
+      // eslint-disable-next-line no-console
       console.log("Sale completed event received, refreshing dashboard...");
       loadDashboardData();
     };
@@ -62,6 +61,7 @@ const Dashboard = () => {
       // Get today's sales using system local date
       const todayDate = getLocalDateString(); // YYYY-MM-DD format in local time
 
+      // eslint-disable-next-line no-console
       console.log("Dashboard loading for date:", todayDate); // Debug log
 
       const todaySales = await window.electronAPI.getSales({
@@ -69,6 +69,7 @@ const Dashboard = () => {
         end: getEndOfDay(todayDate),
       });
 
+      // eslint-disable-next-line no-console
       console.log("Today sales found:", todaySales.length); // Debug log
 
       const todayRevenue = todaySales.reduce(
@@ -115,6 +116,7 @@ const Dashboard = () => {
 
       setLastUpdated(formatDateTimeToString(new Date()));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to load dashboard data:", error);
     } finally {
       setLoading(false);

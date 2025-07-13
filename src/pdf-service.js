@@ -38,12 +38,14 @@ class PDFService {
       const gstNumber = barSettings?.gst_number || "";
       const thankYouMessage =
         barSettings?.thank_you_message || "Thank you for visiting!";
+      
 
       // Calculate dynamic height based on items count
       const baseHeight = 120; // Base height for header, footer, and summary
       const itemHeight = 5; // Height per item
-      const extraHeight = 30; // Extra space for customer details, notes, etc.
-      const dynamicHeight = Math.max(150, baseHeight + (items.length * itemHeight) + extraHeight);
+      const extraHeight = 50; // Extra space for customer details, notes, etc.
+      const footerHeight = 30; // Reserved space for footer with thank you message
+      const dynamicHeight = Math.max(180, baseHeight + (items.length * itemHeight) + extraHeight + footerHeight);
       
       // Create new PDF document - use dynamic height for receipts
       this.doc = new jsPDF({
@@ -237,8 +239,18 @@ class PDFService {
       this.doc.setLineWidth(0.3);
       this.doc.line(5, yPosition, 75, yPosition);
 
-      // Footer
-      yPosition = Math.max(yPosition + 10, 180);
+      // Footer - Always ensure footer fits within the page
+      yPosition += 10;
+      
+      // Ensure footer is positioned correctly within the page bounds
+      const footerRequiredHeight = 20;
+      const minBottomMargin = 10;
+      
+      // If the footer would go beyond the page, position it at the bottom
+      if (yPosition + footerRequiredHeight > dynamicHeight - minBottomMargin) {
+        yPosition = dynamicHeight - footerRequiredHeight - minBottomMargin;
+      }
+
       this.doc.setFontSize(10);
       this.doc.setTextColor(0, 0, 0);
       this.doc.setFont("helvetica", "bold");
