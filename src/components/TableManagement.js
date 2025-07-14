@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import { 
   Plus, 
   Edit, 
@@ -24,21 +25,16 @@ const TableManagement = ({ onSelectTable }) => {
     status: 'available' // 'available', 'occupied', 'reserved'
   });
 
-  useEffect(() => {
-    loadTables();
-    initializeDefaultTables();
-  }, []);
-
-  const loadTables = async () => {
+  const loadTables = useCallback(async () => {
     try {
       const tableList = await window.electronAPI.getTables();
       setTables(tableList);
     } catch (error) {
-      console.error('Failed to load tables:', error);
+      // Failed to load tables
     }
-  };
+  }, []);
 
-  const initializeDefaultTables = async () => {
+  const initializeDefaultTables = useCallback(async () => {
     try {
       const tableList = await window.electronAPI.getTables();
       
@@ -60,9 +56,16 @@ const TableManagement = ({ onSelectTable }) => {
       // Reload tables after initialization
       loadTables();
     } catch (error) {
-      console.error('Failed to initialize default tables:', error);
+      // Failed to initialize default tables
     }
-  };
+  }, [loadTables]);
+
+  useEffect(() => {
+    loadTables();
+    initializeDefaultTables();
+  }, [loadTables, initializeDefaultTables]);
+
+
 
   const handleResetTables = async () => {
     const userInput = prompt('To reset tables, type "reset app" exactly:');
@@ -88,7 +91,7 @@ const TableManagement = ({ onSelectTable }) => {
       loadTables();
       alert('Tables reset successfully!');
     } catch (error) {
-      console.error('Failed to reset tables:', error);
+      // Failed to reset tables
       alert('Failed to reset tables. Please try again.');
     }
   };
@@ -128,7 +131,7 @@ const TableManagement = ({ onSelectTable }) => {
       await window.electronAPI.addTable(tableToAdd);
       loadTables();
     } catch (error) {
-      console.error('Failed to add table:', error);
+      // Failed to add table
       alert('Failed to add table. Please try again.');
     }
   };
@@ -139,7 +142,7 @@ const TableManagement = ({ onSelectTable }) => {
       setEditingTable(null);
       loadTables();
     } catch (error) {
-      console.error('Failed to update table:', error);
+      // Failed to update table
       alert('Failed to update table. Please try again.');
     }
   };
@@ -150,7 +153,7 @@ const TableManagement = ({ onSelectTable }) => {
         await window.electronAPI.deleteTable(tableId);
         loadTables();
       } catch (error) {
-        console.error('Failed to delete table:', error);
+        // Failed to delete table
         alert('Failed to delete table. Please try again.');
       }
     }
@@ -465,6 +468,10 @@ const TableManagement = ({ onSelectTable }) => {
       )}
     </div>
   );
+};
+
+TableManagement.propTypes = {
+  onSelectTable: PropTypes.func.isRequired
 };
 
 export default TableManagement;

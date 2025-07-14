@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   History, 
   ArrowRight, 
@@ -18,22 +18,22 @@ const StockHistory = () => {
   const [limit, setLimit] = useState(50);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchHistory();
-  }, [limit]);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
       const result = await window.electronAPI.getStockMovements(limit);
       setHistory(result);
     } catch (error) {
-      console.error('Failed to fetch stock movements:', error);
+      // Failed to fetch stock movements
       alert('Failed to load stock history');
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   const exportToPDF = async () => {
     try {
@@ -56,7 +56,7 @@ const StockHistory = () => {
         alert('Failed to export PDF: ' + result.error);
       }
     } catch (error) {
-      console.error('Error exporting PDF:', error);
+      // Error exporting PDF
       alert('Export failed');
     }
   };

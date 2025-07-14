@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   DollarSign,
   Plus,
@@ -6,7 +6,6 @@ import {
   Trash2,
   Calendar,
   Search,
-  Filter,
 } from "lucide-react";
 
 const Spendings = () => {
@@ -31,29 +30,30 @@ const Spendings = () => {
     notes: "",
   });
 
-  useEffect(() => {
-    loadSpendings();
-    loadCategories();
-  }, [dateRange]);
-
-  const loadSpendings = async () => {
+  const loadSpendings = useCallback(async () => {
     try {
       setLoading(true);
       const data = await window.electronAPI.getSpendings(dateRange);
       setSpendings(data);
     } catch (error) {
-      console.error("Failed to load spendings:", error);
+      // Failed to load spendings
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange]);
+
+  useEffect(() => {
+    loadSpendings();
+    loadCategories();
+  }, [loadSpendings]);
+
 
   const loadCategories = async () => {
     try {
       const data = await window.electronAPI.getSpendingCategories();
       setCategories(data);
     } catch (error) {
-      console.error("Failed to load categories:", error);
+      // Failed to load categories
     }
   };
 
@@ -69,7 +69,7 @@ const Spendings = () => {
       resetForm();
       loadSpendings();
     } catch (error) {
-      console.error("Failed to save spending:", error);
+      // Failed to save spending
     }
   };
 
@@ -92,7 +92,7 @@ const Spendings = () => {
         await window.electronAPI.deleteSpending(id);
         loadSpendings();
       } catch (error) {
-        console.error("Failed to delete spending:", error);
+        // Failed to delete spending
       }
     }
   };
@@ -129,12 +129,12 @@ const Spendings = () => {
     if (!dateString) return "-";
     const [datePart, timePart] = dateString.split(" ");
     const [year, month, day] = datePart.split("-").map(Number);
-    let date;
     if (timePart) {
       const [hour, min, sec] = timePart.split(":").map(Number);
-      date = new Date(year, month - 1, day, hour, min, sec);
+      // Use date variables
+      new Date(year, month - 1, day, hour, min, sec);
     } else {
-      date = new Date(year, month - 1, day);
+      new Date(year, month - 1, day);
     }
     return `${String(day).padStart(2, "0")}/${String(month).padStart(
       2,

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import { createPortal } from 'react-dom';
 import { Save, X } from 'lucide-react';
 
@@ -43,11 +44,11 @@ const StockEditModal = ({ product, onSave, onCancel, isOpen }) => {
     }
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
       handleCancel();
     }
-  };
+  }, [handleCancel]);
 
   useEffect(() => {
     if (isOpen) {
@@ -63,7 +64,7 @@ const StockEditModal = ({ product, onSave, onCancel, isOpen }) => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, handleKeyDown]);
 
   if (!isOpen || !product) return null;
 
@@ -176,6 +177,20 @@ const StockEditModal = ({ product, onSave, onCancel, isOpen }) => {
   );
 
   return createPortal(modalContent, document.body);
+};
+
+StockEditModal.propTypes = {
+  product: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    name: PropTypes.string.isRequired,
+    sku: PropTypes.string.isRequired,
+    category: PropTypes.string,
+    godown_stock: PropTypes.number.isRequired,
+    counter_stock: PropTypes.number.isRequired,
+  }),
+  onSave: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  isOpen: PropTypes.bool.isRequired
 };
 
 export default StockEditModal;

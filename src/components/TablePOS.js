@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
 import {
   Search,
@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   Clock,
   Save,
-  CheckCircle,
 } from "lucide-react";
 import { getLocalDateTimeString } from "../utils/dateUtils";
 import { addPendingBill } from "../services/billService";
@@ -30,6 +29,22 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [autoSaving, setAutoSaving] = useState(false);
   const searchInputRef = useRef(null);
 
+  const loadTableOrder = useCallback(async () => {
+    try {
+      const tableOrder = await window.electronAPI.getTableOrder(table.id);
+      if (tableOrder) {
+        setCart(tableOrder.items || []);
+        setCustomerName(tableOrder.customer_name || "");
+        setCustomerPhone(tableOrder.customer_phone || "");
+        setDiscount(tableOrder.discount || 0);
+        setTax(tableOrder.tax || 0);
+      }
+    } catch (error) {
+      // Failed to load table order
+      setCart([]);
+    }
+  }, [table.id]);
+
   useEffect(() => {
     loadProducts();
     loadTableOrder();
@@ -37,7 +52,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, []);
+  }, [loadTableOrder]);
 
   const loadBarSettings = async () => {
     try {
@@ -59,21 +74,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
   };
 
-  const loadTableOrder = async () => {
-    try {
-      const tableOrder = await window.electronAPI.getTableOrder(table.id);
-      if (tableOrder) {
-        setCart(tableOrder.items || []);
-        setCustomerName(tableOrder.customer_name || "");
-        setCustomerPhone(tableOrder.customer_phone || "");
-        setDiscount(tableOrder.discount || 0);
-        setTax(tableOrder.tax || 0);
-      }
-    } catch (error) {
-      // Failed to load table order
-      setCart([]);
-    }
-  };
 
   const filteredProducts = products.filter(
     (product) =>
