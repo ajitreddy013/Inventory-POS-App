@@ -11,8 +11,6 @@ import {
   Trash2,
   Eye,
   X,
-  User,
-  Phone,
   Calendar,
   DollarSign,
   FileText,

@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
+import PropTypes from "prop-types";
 import {
   Search,
   Plus,
   Minus,
   Trash2,
-  Printer,
-  FileText,
   ShoppingCart,
   User,
-  Phone,
   Calculator,
   ArrowLeft,
   Clock,
@@ -44,10 +42,10 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const loadBarSettings = async () => {
     try {
       const settings = await window.electronAPI.getBarSettings();
-      console.log('TablePOS - Loaded bar settings:', settings);
       setBarSettings(settings);
     } catch (error) {
-      console.error("Failed to load bar settings:", error);
+      // Failed to load bar settings
+      setBarSettings(null);
     }
   };
 
@@ -56,7 +54,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const productList = await window.electronAPI.getProducts();
       setProducts(productList.filter((p) => p.counter_stock > 0));
     } catch (error) {
-      console.error("Failed to load products:", error);
+      // Failed to load products
+      setProducts([]);
     }
   };
 
@@ -71,7 +70,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         setTax(tableOrder.tax || 0);
       }
     } catch (error) {
-      console.error("Failed to load table order:", error);
+      // Failed to load table order
+      setCart([]);
     }
   };
 
@@ -153,7 +153,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       await window.electronAPI.updateTable(table.id, tableUpdate);
       onTableUpdate({ ...table, ...tableUpdate });
     } catch (error) {
-      console.error("Failed to auto-save order:", error);
+      // Failed to auto-save order
     } finally {
       setAutoSaving(false);
     }
@@ -287,7 +287,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       
       onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
     } catch (error) {
-      console.error("Failed to save pending bill:", error);
+      // Failed to save pending bill
       alert("Failed to save pending bill. Please try again.");
     } finally {
       setLoading(false);
@@ -322,7 +322,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       alert("Order saved successfully!");
     } catch (error) {
-      console.error("Failed to save table order:", error);
+      // Failed to save table order
       alert("Failed to save order. Please try again.");
     }
   };
@@ -393,7 +393,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent("saleCompleted"));
     } catch (error) {
-      console.error("Failed to process sale:", error);
+      // Failed to process sale
       alert("Failed to process sale. Please try again.");
     } finally {
       setLoading(false);
@@ -409,7 +409,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         alert(`Print failed: ${result.error}`);
       }
     } catch (error) {
-      console.error("Print error:", error);
+      // Print error
       alert("Failed to print bill");
     }
   };
@@ -423,7 +423,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         alert(`PDF export failed: ${result.error}`);
       }
     } catch (error) {
-      console.error("PDF export error:", error);
+      // PDF export error
       alert("Failed to export PDF");
     }
   };
@@ -704,5 +704,16 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   );
 };
 
+
+TablePOS.propTypes = {
+  table: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    name: PropTypes.string.isRequired,
+    area: PropTypes.string.isRequired,
+    status: PropTypes.string.isRequired,
+  }).isRequired,
+  onBack: PropTypes.func.isRequired,
+  onTableUpdate: PropTypes.func.isRequired,
+};
 
 export default TablePOS;

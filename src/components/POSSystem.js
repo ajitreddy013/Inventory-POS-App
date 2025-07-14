@@ -4,11 +4,8 @@ import {
   Plus,
   Minus,
   Trash2,
-  Printer,
-  FileText,
   ShoppingCart,
   User,
-  Phone,
   Calculator,
   Clock,
 } from "lucide-react";
@@ -44,7 +41,8 @@ const POSSystem = () => {
       const settings = await window.electronAPI.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
-      console.error("Failed to load bar settings:", error);
+      // Failed to load bar settings
+      setBarSettings(null);
     }
   };
 
@@ -53,7 +51,8 @@ const POSSystem = () => {
       const productList = await window.electronAPI.getProducts();
       setProducts(productList.filter((p) => p.counter_stock > 0)); // Only show products with counter stock
     } catch (error) {
-      console.error("Failed to load products:", error);
+      // Failed to load products
+      setProducts([]);
     }
   };
 
@@ -216,7 +215,7 @@ const POSSystem = () => {
       setDiscount(0);
       setTax(0);
     } catch (error) {
-      console.error("Failed to save pending bill:", error);
+      // Failed to save pending bill
       alert("Failed to save pending bill. Please try again.");
     } finally {
       setLoading(false);
@@ -273,7 +272,7 @@ const POSSystem = () => {
       // Trigger dashboard refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent("saleCompleted"));
     } catch (error) {
-      console.error("Failed to process sale:", error);
+      // Failed to process sale
       alert("Failed to process sale. Please try again.");
     } finally {
       setLoading(false);
@@ -289,17 +288,13 @@ const POSSystem = () => {
         alert(`Print failed: ${result.error}`);
       }
     } catch (error) {
-      console.error("Print error:", error);
+      // Print error
       alert("Failed to print bill");
     }
   };
 
   const exportPDF = async (billData) => {
     try {
-      console.log('POSSystem - Exporting PDF with bill data:', {
-        barSettings: billData.barSettings,
-        thankYouMessage: billData.barSettings?.thank_you_message
-      });
       const result = await window.electronAPI.exportPDF(billData);
       if (result.success) {
         alert(`PDF saved to: ${result.filePath}`);
@@ -307,7 +302,7 @@ const POSSystem = () => {
         alert(`PDF export failed: ${result.error}`);
       }
     } catch (error) {
-      console.error("PDF export error:", error);
+      // PDF export error
       alert("Failed to export PDF");
     }
   };
