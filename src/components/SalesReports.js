@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { BarChart3, Mail, Send, DollarSign, FileText, X, Download, Eye } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { BarChart3, Mail, DollarSign, FileText, X, Download, Eye } from "lucide-react";
 import { 
   getLocalDateString,
   formatDateForDisplay,
@@ -18,27 +18,16 @@ const SalesReports = () => {
   const [showBillModal, setShowBillModal] = useState(false);
   const [billGenerating, setBillGenerating] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [selectedDate]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
-      console.log("Reports loading for date:", selectedDate);
-      console.log("Date range:", {
-        start: getStartOfDay(selectedDate),
-        end: getEndOfDay(selectedDate)
-      });
-
       // Create proper date range with start/end times for the selected date
       // Load sales data with details (cost price, sale price, profit)
       const salesData = await window.electronAPI.getSalesWithDetails({
         start: getStartOfDay(selectedDate),
         end: getEndOfDay(selectedDate),
       });
-      console.log("Sales data found:", salesData.length, salesData);
       setSales(salesData || []);
 
       // Load spendings data
@@ -55,11 +44,16 @@ const SalesReports = () => {
       });
       setCounterBalances(counterBalanceData || []);
     } catch (error) {
-      console.error("Failed to load reports data:", error);
+      // Failed to load reports data
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
 
   const formatDate = (dateString) => {
     return formatDateForDisplay(dateString);
@@ -167,11 +161,10 @@ const SalesReports = () => {
         barSettings: barSettings,
       };
       
-      console.log('Bill data loaded:', billData);
       setSelectedBill(billData);
       setShowBillModal(true);
     } catch (error) {
-      console.error('Failed to load bill data:', error);
+      // Failed to load bill data
       alert('Failed to load bill data');
     }
   };
@@ -189,7 +182,7 @@ const SalesReports = () => {
         alert(`Failed to save PDF: ${result.error}`);
       }
     } catch (error) {
-      console.error('Failed to generate PDF:', error);
+      // Failed to generate PDF
       alert('Failed to generate PDF');
     } finally {
       setBillGenerating(false);

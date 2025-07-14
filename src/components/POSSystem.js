@@ -293,19 +293,20 @@ const POSSystem = () => {
     }
   };
 
-  const exportPDF = async (billData) => {
-    try {
-      const result = await window.electronAPI.exportPDF(billData);
-      if (result.success) {
-        alert(`PDF saved to: ${result.filePath}`);
-      } else {
-        alert(`PDF export failed: ${result.error}`);
-      }
-    } catch (error) {
-      // PDF export error
-      alert("Failed to export PDF");
-    }
-  };
+  // Export PDF function - not currently used but available for future use
+  // const exportPDF = async (billData) => {
+  //   try {
+  //     const result = await window.electronAPI.exportPDF(billData);
+  //     if (result.success) {
+  //       alert(`PDF saved to: ${result.filePath}`);
+  //     } else {
+  //       alert(`PDF export failed: ${result.error}`);
+  //     }
+  //   } catch (error) {
+  //     // PDF export error
+  //     alert("Failed to export PDF");
+  //   }
+  // };
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && filteredProducts.length > 0) {

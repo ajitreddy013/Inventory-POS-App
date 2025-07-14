@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Wifi, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle } from 'lucide-react';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
@@ -48,7 +48,7 @@ const Settings = () => {
       const status = await window.electronAPI.getPrinterStatus();
       setPrinterStatus(status);
     } catch (error) {
-      console.error('Failed to get printer status:', error);
+      // Failed to get printer status
     }
   };
 
@@ -64,7 +64,7 @@ const Settings = () => {
         alert(`Failed to configure printer: ${result.error}`);
       }
     } catch (error) {
-      console.error('Failed to configure printer:', error);
+      // Failed to configure printer
       alert('Failed to configure printer');
     } finally {
       setPrinterLoading(false);
@@ -110,7 +110,7 @@ const Settings = () => {
       const settings = await window.electronAPI.getBarSettings();
       setBarSettings(settings);
     } catch (error) {
-      console.error('Failed to load bar settings:', error);
+      // Failed to load bar settings
     }
   };
 
@@ -119,7 +119,7 @@ const Settings = () => {
       const settings = await window.electronAPI.getEmailSettings();
       setEmailSettings(settings);
     } catch (error) {
-      console.error('Failed to load email settings:', error);
+      // Failed to load email settings
     }
   };
 
@@ -130,7 +130,7 @@ const Settings = () => {
       setIsEditingBarInfo(false);
       alert('Bar information saved successfully!');
     } catch (error) {
-      console.error('Failed to save bar settings:', error);
+      // Failed to save bar settings
       alert('Failed to save bar information');
     } finally {
       setLoading(false);
@@ -148,7 +148,7 @@ const Settings = () => {
         alert('Failed to save email settings');
       }
     } catch (error) {
-      console.error('Failed to save email settings:', error);
+      // Failed to save email settings
       alert('Failed to save email settings');
     } finally {
       setEmailLoading(false);
@@ -282,7 +282,7 @@ const Settings = () => {
         alert(`Failed to reset application: ${result.error}`);
       }
     } catch (error) {
-      console.error('Failed to reset application:', error);
+      // Failed to reset application
       alert('Failed to reset application. Please try again.');
     } finally {
       setResetLoading(false);
@@ -308,7 +308,7 @@ const Settings = () => {
         alert(`Failed to complete Close Sell: ${result.error}`);
       }
     } catch (error) {
-      console.error('Error in Close Sell:', error);
+      // Error in Close Sell
       alert('Failed to complete Close Sell. Please try again.');
     } finally {
       setCloseSellLoading(false);

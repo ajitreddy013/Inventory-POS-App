@@ -11,12 +11,9 @@ import {
   Trash2,
   Eye,
   X,
-  Calendar,
-  DollarSign,
   FileText,
   AlertCircle,
   Search,
-  Printer,
   FileDown,
 } from "lucide-react";
 
@@ -29,7 +26,8 @@ const PendingBills = () => {
   const [processing, setProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [generatingBillId, setGeneratingBillId] = useState(null);
-  const [bulkGenerating, setBulkGenerating] = useState(false);
+  // State for bulk generation - not currently used
+  // const [bulkGenerating, setBulkGenerating] = useState(false);
 
   useEffect(() => {
     fetchPendingBills();
@@ -64,7 +62,7 @@ const PendingBills = () => {
       setPendingBills(bills);
       setFilteredBills(bills);
     } catch (error) {
-      console.error("Failed to fetch pending bills", error);
+      // Failed to fetch pending bills
       alert("Failed to load pending bills");
     } finally {
       setLoading(false);
@@ -95,7 +93,7 @@ const PendingBills = () => {
         }
       }
     } catch (error) {
-      console.error("Failed to clear pending bill", error);
+      // Failed to clear pending bill
       alert("Failed to clear pending bill");
     } finally {
       setProcessing(false);
@@ -124,7 +122,7 @@ const PendingBills = () => {
         closeDetails();
       }
     } catch (error) {
-      console.error("Failed to delete pending bill", error);
+      // Failed to delete pending bill
       alert("Failed to delete pending bill");
     } finally {
       setProcessing(false);
@@ -167,7 +165,7 @@ const PendingBills = () => {
         alert(`Failed to generate bill: ${response.error}`);
       }
     } catch (error) {
-      console.error("Failed to generate bill", error);
+      // Failed to generate bill
       alert("Bill generation failed");
     } finally {
       setProcessing(false);
@@ -186,7 +184,7 @@ const PendingBills = () => {
     }
 
     setProcessing(true);
-    setBulkGenerating(true);
+    // setBulkGenerating(true);
 
     try {
       const response = await window.electronAPI.exportPendingBillsReport(filteredBills);
@@ -196,11 +194,11 @@ const PendingBills = () => {
         alert(`Failed to generate report: ${response.error}`);
       }
     } catch (error) {
-      console.error("Failed to generate pending bills report", error);
+      // Failed to generate pending bills report
       alert("Failed to generate pending bills report");
     } finally {
       setProcessing(false);
-      setBulkGenerating(false);
+      // setBulkGenerating(false);
       setGeneratingBillId(null);
     }
   };

@@ -30,13 +30,13 @@ const StockEditModal = ({ product, onSave, onCancel, isOpen }) => {
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setIsVisible(false);
     // Wait for animation to complete before closing
     setTimeout(() => {
       onCancel();
     }, 200);
-  };
+  }, [onCancel]);
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
