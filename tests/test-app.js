@@ -1,5 +1,5 @@
-const Database = require('./src/database');
-const { initializeSampleData } = require('./src/init-sample-data');
+const Database = require('../src/database');
+const { initializeSampleData } = require('../src/init-sample-data');
 
 async function testApp() {
   console.log('Testing Ajit Bar & Restaurant POS Application...');

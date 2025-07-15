@@ -1,4 +1,4 @@
-const PrinterService = require('./src/printer-service');
+const PrinterService = require('../src/printer-service');
 
 async function testThermalPrinter() {
   console.log('Testing Thermal Printer Service...');

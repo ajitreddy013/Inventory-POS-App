@@ -1,5 +1,5 @@
-const DailyReportService = require('./src/services/dailyReportService-simple');
-const { getLocalDateString } = require('./src/utils/dateUtils');
+const DailyReportService = require('../src/services/dailyReportService-simple');
+const { getLocalDateString } = require('../src/utils/dateUtils');
 const path = require('path');
 const fs = require('fs');
 
@@ -19,7 +19,7 @@ async function testDailyReport() {
     console.log(`📅 Generating report for date: ${today}`);
     
     // Create output directory for reports
-    const outputDir = path.join(__dirname, 'reports');
+    const outputDir = path.join(__dirname, '..', 'reports');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
