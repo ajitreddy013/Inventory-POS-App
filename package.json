@@ -18,6 +18,7 @@
     "dist": "electron-builder",
     "dist-win": "npm run build && electron-builder --win --x64",
     "dist-win-portable": "npm run build && electron-builder --win portable --x64",
+    "postinstall": "electron-builder install-app-deps",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "lint": "eslint src/**/*.js",
@@ -71,7 +72,8 @@
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "verifyUpdateCodeSignature": false,
       "certificateFile": null,
-      "certificatePassword": null
+      "certificatePassword": null,
+      "icon": null
     },
     "nsis": {
       "oneClick": false,
@@ -85,6 +87,12 @@
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
     "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/sqlite3/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/escpos*/**/*",
+      "node_modules/**/*.node"
+    ],
     "extraMetadata": {
       "main": "src/main.js"
     },
@@ -110,6 +118,7 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "adm-zip": "^0.5.16",
+    "better-sqlite3": "^12.2.0",
     "electron-is-dev": "^2.0.0",
     "escpos": "^3.0.0-alpha.6",
     "escpos-network": "^3.0.0-alpha.5",
@@ -124,6 +133,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.0",
     "react-scripts": "^5.0.1",
+    "sql.js": "^1.13.0",
     "sqlite3": "^5.1.6",
     "web-vitals": "^2.1.4"
   },
