@@ -252,7 +252,7 @@ const Settings = () => {
       const result = await window.electronAPI.resetApplication();
       
       if (result.success) {
-        // Reset email settings to default values
+        // Reset email settings in UI to default values
         setEmailSettings({
           host: '',
           port: 587,
@@ -262,6 +262,14 @@ const Settings = () => {
           to: '',
           enabled: false
         });
+        
+        // Force reload email settings from file (which should now be deleted)
+        try {
+          const freshEmailSettings = await window.electronAPI.getEmailSettings();
+          setEmailSettings(freshEmailSettings);
+        } catch (error) {
+          console.log('Email settings file successfully deleted - using defaults');
+        }
         
         // Reset bar settings to default values
         setBarSettings({

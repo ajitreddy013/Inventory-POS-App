@@ -1076,11 +1076,32 @@ const template = [
     ],
   },
 ];
-
 // Reset application IPC handler
 ipcMain.handle("reset-application", async () => {
   try {
     const result = await database.resetApplication();
+    
+    // Delete email settings file to clear hardcoded credentials
+    try {
+      const emailSettingsPath = path.join(__dirname, '../email-settings.json');
+      if (fs.existsSync(emailSettingsPath)) {
+        fs.unlinkSync(emailSettingsPath);
+        console.log('Email settings file deleted successfully');
+      }
+    } catch (error) {
+      console.error('Error deleting email settings file:', error);
+    }
+    
+    // Delete bar settings file to clear any cached settings
+    try {
+      const barSettingsPath = path.join(__dirname, '../bar-settings.json');
+      if (fs.existsSync(barSettingsPath)) {
+        fs.unlinkSync(barSettingsPath);
+        console.log('Bar settings file deleted successfully');
+      }
+    } catch (error) {
+      console.error('Error deleting bar settings file:', error);
+    }
     
     // Reinitialize sample data after reset
     try {
