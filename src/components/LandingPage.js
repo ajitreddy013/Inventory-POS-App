@@ -32,7 +32,6 @@ import {
   Zap,
   Target,
   Award,
-  Smartphone,
   Monitor,
   Wifi,
   Database,
@@ -54,7 +53,7 @@ const LandingPage = () => {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [features.length]);
 
   const features = [
     {
@@ -173,7 +172,7 @@ const LandingPage = () => {
                     <div className="demo-stats">
                       <div className="stat">
                         <div className="stat-number">₹45,230</div>
-                        <div className="stat-label">Today's Sales</div>
+                        <div className="stat-label">Today&apos;s Sales</div>
                       </div>
                       <div className="stat">
                         <div className="stat-number">127</div>
