@@ -1,6 +1,6 @@
-# Ajit Wines - Inventory POS Application
+# Inventory POS System | Restaurant & Bar Management Software
 
-🏆 **A Complete Point of Sale (POS) and Inventory Management System**
+🏆 **Complete Point of Sale (POS) and Inventory Management System for Restaurants, Bars & Retail**
 
 A comprehensive, production-ready business management solution built specifically for restaurants, bars, and retail establishments. Features dual stock management, thermal printer integration, automated reporting, and complete financial tracking.
 

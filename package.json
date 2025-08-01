@@ -1,7 +1,7 @@
 {
-  "name": "inventory-pos-app",
+  "name": "counterflow-pos",
   "version": "1.0.0",
-  "description": "Inventory Management and POS Application",
+  "description": "CounterFlow POS - Advanced Inventory Management and Point of Sale Application",
   "main": "src/main.js",
   "author": {
     "name": "Ajit Reddy",
@@ -26,8 +26,8 @@
     "format": "prettier --write src/**/*.{js,jsx,css,md}"
   },
   "build": {
-    "appId": "com.inventorypos.app",
-    "productName": "Inventory POS",
+    "appId": "com.ajitreddy.counterflowpos",
+    "productName": "CounterFlow POS",
     "directories": {
       "output": "dist"
     },
@@ -70,10 +70,7 @@
         }
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}",
-      "verifyUpdateCodeSignature": false,
-      "certificateFile": null,
-      "certificatePassword": null,
-      "icon": null
+      "icon": "assets/CounterFlow POS.png"
     },
     "nsis": {
       "oneClick": false,
@@ -104,6 +101,7 @@
     "concurrently": "^7.6.0",
     "electron": "^28.3.3",
     "electron-builder": "^24.0.0",
+    "electron-packager": "^17.1.2",
     "electron-rebuild": "^3.2.9",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.5",
