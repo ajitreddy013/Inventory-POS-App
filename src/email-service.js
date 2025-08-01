@@ -367,6 +367,31 @@ class EmailService {
   getSettings() {
     return { ...this.settings, auth: { ...this.settings.auth, pass: '***' } };
   }
+
+  // Method to reload settings from disk (useful after reset)
+  reloadSettings() {
+    // Reset to defaults first
+    this.settings = {
+      host: '',
+      port: 587,
+      secure: false,
+      auth: {
+        user: '',
+        pass: ''
+      },
+      from: '',
+      to: '',
+      enabled: false
+    };
+    
+    // Load from file if it exists
+    this.loadSettings();
+    
+    // Clear transporter to force recreation with new settings
+    this.transporter = null;
+    
+    return this.getSettings();
+  }
 }
 
 module.exports = EmailService;

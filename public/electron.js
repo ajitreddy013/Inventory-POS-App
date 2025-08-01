@@ -1092,6 +1092,14 @@ ipcMain.handle("reset-application", async () => {
       console.error('Error deleting email settings file:', error);
     }
     
+    // Reload email service to clear cached settings
+    try {
+      emailService.reloadSettings();
+      console.log('Email service reloaded with default settings');
+    } catch (error) {
+      console.error('Error reloading email service:', error);
+    }
+    
     // Delete bar settings file to clear any cached settings
     try {
       const barSettingsPath = path.join(__dirname, '../bar-settings.json');
