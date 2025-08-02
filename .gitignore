@@ -68,3 +68,29 @@ temp/
 *.sqlite
 *.sqlite3
 email-settings.json
+bar-settings.json
+printer-config.json
+config.json
+settings.json
+
+# Security sensitive files
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cert
+*.csr
+*password*
+*secret*
+*credential*
+*smtp*
+auth.json
+keys.json
+secrets.json
+.secrets
+
+# Email and SMTP configuration
+*email*.json
+*mail*.json
+*smtp*.json
