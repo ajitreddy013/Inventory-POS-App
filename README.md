@@ -385,3 +385,5 @@ This software is proprietary and developed specifically for Ajit Wines.
 ---
 
 **Built with ❤️ for Ajit Wines | Powered by CounterFlow POS**
+
+*Last updated: August 3, 2025*
