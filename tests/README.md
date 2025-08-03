@@ -1,6 +1,6 @@
 # Tests Directory
 
-This directory contains test files for the Inventory POS Application.
+This directory contains test files for the CounterFlow POS Application.
 
 ## Test Files
 

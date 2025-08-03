@@ -1,12 +1,13 @@
-# Inventory POS System | Restaurant & Bar Management Software
+# CounterFlow POS | Advanced Inventory Management and Point of Sale Application
 
-🏆 **Complete Point of Sale (POS) and Inventory Management System for Restaurants, Bars & Retail**
+🏆 **The ultimate Point of Sale (POS) and Inventory Management System for Restaurants, Bars, and Retail**
 
-A comprehensive, production-ready business management solution built specifically for restaurants, bars, and retail establishments. Features dual stock management, thermal printer integration, automated reporting, and complete financial tracking.
+CounterFlow POS is a comprehensive, production-ready business management solution catered specifically for restaurants, bars, and retail establishments. It offers advanced stock management, professional hardware integration, automated reporting, and robust financial tracking.
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Rebranded](https://img.shields.io/badge/rebrand-2025-yellow)
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 
 ## 📸 Screenshots
@@ -46,12 +47,13 @@ A comprehensive, production-ready business management solution built specificall
 ## ✨ Key Highlights
 
 - 🖥️ **Cross-Platform Desktop Application** - Windows, macOS, Linux support
-- 🔐 **Secure Architecture** - Electron with secure IPC communication
+- 🔐 **Secure Architecture** - Electron with secure IPC communication and enhanced security patterns
 - 📊 **Real-time Business Analytics** - Live dashboards and automated reports
 - 🖨️ **Professional Hardware Integration** - ESC/POS thermal printer support
-- 📧 **Automated Email Reports** - Daily business summaries with PDF attachments
-- 💾 **Local Database** - SQLite for reliable, offline-first operation
-- 🎯 **Production Ready** - Comprehensive error handling and logging
+- 📧 **Enhanced Email System** - Automated daily reports with improved settings management
+- 💾 **Robust Database** - Better-SQLite3 for improved performance and reliability
+- 🎯 **Production Ready** - Comprehensive error handling, logging, and rebuild support
+- 🔄 **Modern Build System** - Enhanced Electron builder with automatic dependency rebuilding
 
 ## 🚀 Core Features
 
@@ -160,6 +162,7 @@ A comprehensive, production-ready business management solution built specificall
 - **Multiple Recipients**: Send reports to multiple stakeholders
 - **Attachment Management**: Automatic PDF generation and cleanup
 - **Connection Testing**: Verify email settings before deployment
+- **Enhanced Settings Management**: Improved email configuration with reset functionality
 - **Error Handling**: Robust error handling with retry mechanisms
 
 ## 📄 Professional Bill Format
@@ -199,11 +202,14 @@ Thank you for visiting!
 ## Technology Stack
 
 - **Frontend**: React 18 with Lucide React icons
-- **Backend**: Electron with Node.js
-- **Database**: SQLite3 for local data storage
-- **PDF Generation**: jsPDF for bill exports
+- **Backend**: Electron 28 with Node.js
+- **Database**: Better-SQLite3 for enhanced performance and reliability
+- **PDF Generation**: jsPDF with AutoTable for professional reports
 - **Styling**: Custom CSS with responsive design
-- **Build System**: React Scripts with Electron Builder
+- **Build System**: React Scripts with Electron Builder 24
+- **Development Tools**: ESLint, Prettier, TypeScript-ESLint for code quality
+- **Email**: Nodemailer with enhanced configuration management
+- **Scheduling**: Node-cron for automated tasks
 
 ## Installation & Setup
 
@@ -224,16 +230,27 @@ Thank you for visiting!
    npm install
    ```
 
-3. **Start the development server**
+3. **Rebuild native dependencies** (if needed)
+   ```bash
+   npm run electron-rebuild
+   ```
+
+4. **Start the development server**
    ```bash
    npm run dev
    ```
    This will start both the React development server and Electron app.
 
-4. **For production build**
+5. **For production build**
    ```bash
    npm run build
    npm run dist
+   ```
+
+6. **For Windows builds**
+   ```bash
+   npm run dist-win          # Windows installer
+   npm run dist-win-portable # Portable executable
    ```
 
 ### Sample Data
@@ -350,10 +367,21 @@ For technical support or feature requests, please contact the development team.
 - Email: ajitreddy013@gmail.com
 - Phone: +91 7517323121
 
+## Recent Updates
+
+### Version 1.0.0 - CounterFlow POS Rebrand (2025)
+- 🎉 **Complete rebrand** to CounterFlow POS with enhanced branding
+- 🔧 **Enhanced email settings** with improved reset functionality
+- 🛠️ **Added electron-rebuild** script for better native dependency management
+- 🔒 **Enhanced security** with comprehensive .gitignore patterns
+- 🏗️ **Improved build system** with better Windows support
+- 📦 **Updated dependencies** including Better-SQLite3 for improved performance
+- 🧹 **Code quality improvements** with ESLint fixes and better project organization
+
 ## License
 
 This software is proprietary and developed specifically for Ajit Wines.
 
 ---
 
-**Built with ❤️ for Ajit Wines**
+**Built with ❤️ for Ajit Wines | Powered by CounterFlow POS**
