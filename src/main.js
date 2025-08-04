@@ -86,6 +86,10 @@ function createWindow() {
       enableRemoteModule: false,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
+      webSecurity: true,
+      allowEval: false,
+      safeDialogs: true,
+      spellcheck: false,
       preload: path.join(__dirname, "preload.js"),
       sandbox: false, // Keep false for preload script access
     },
@@ -334,7 +338,14 @@ async function getTopSellingItems(salesData) {
 
   for (const sale of salesData) {
     try {
-      const saleItems = JSON.parse(sale.items || "[]");
+const saleItems = [];
+try {
+  if (sale.items) {
+    saleItems.push(...JSON.parse(sale.items));
+  }
+} catch (parseErr) {
+  console.error("Error parsing sale items JSON:", parseErr);
+}
       saleItems.forEach((item) => {
         if (itemMap.has(item.name)) {
           const existing = itemMap.get(item.name);

@@ -35,8 +35,13 @@ const path = require('path');              // Path manipulation
 const crypto = require('crypto');          // Cryptographic functions
 
 // ENCRYPTION CONFIGURATION
-// Simple encryption for stored passwords to prevent plain text storage
-const ENCRYPTION_KEY = crypto.scryptSync('inventory-pos-secret', 'salt', 32);
+// Secure encryption for stored passwords to prevent plain text storage
+// Generate a unique key based on machine-specific information
+const os = require('os');
+const machineId = crypto.createHash('sha256')
+  .update(os.hostname() + os.type() + os.arch() + os.platform())
+  .digest('hex');
+const ENCRYPTION_KEY = crypto.scryptSync(machineId, 'inventory-pos-secure-salt-2024', 32);
 const IV_LENGTH = 16;  // Initialization vector length for AES encryption
 
 /**

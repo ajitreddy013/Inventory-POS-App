@@ -190,7 +190,7 @@ function AppContent() {
       {/* Sidebar */}
       <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
         <div className="sidebar-header">
-          {sidebarOpen && <h2>Inventory POS</h2>}
+          {sidebarOpen && <h2>CounterFlow POS</h2>}
           <button onClick={toggleSidebar} className="toggle-btn">
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
