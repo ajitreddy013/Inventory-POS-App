@@ -370,15 +370,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         current_bill_amount: 0,
       });
 
-      const action = window.confirm(
-        "Sale completed! Click OK to print bill, Cancel to export PDF"
-      );
-
-      if (action) {
-        await printBill(saleData);
-      } else {
-        await exportPDF(saleData);
-      }
+      // Directly print the bill without asking for PDF option
+      await printBill(saleData);
 
       // Clear cart and customer info
       setCart([]);
