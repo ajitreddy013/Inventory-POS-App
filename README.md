@@ -4,6 +4,14 @@
 
 CounterFlow POS is a comprehensive, production-ready business management solution catered specifically for restaurants, bars, and retail establishments. It offers advanced stock management, professional hardware integration, automated reporting, and robust financial tracking.
 
+## 🎥 Demo Video
+
+[![CounterFlow POS Demo](https://img.youtube.com/vi/axBFug2R3Dg/maxresdefault.jpg)](https://youtu.be/axBFug2R3Dg)
+
+**Watch the complete walkthrough** of CounterFlow POS showcasing all major features including POS system, inventory management, table management, sales reports, and thermal printer integration.
+
+[🎬 **Watch on YouTube**](https://youtu.be/axBFug2R3Dg)
+
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
