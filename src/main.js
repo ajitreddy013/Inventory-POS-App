@@ -1,4 +1,12 @@
 /**
+ * PROPRIETARY SOFTWARE - ALL RIGHTS RESERVED
+ * 
+ * CounterFlow POS - Advanced Inventory Management and Point of Sale Application
+ * Copyright (c) 2025 Ajit Reddy. All rights reserved.
+ * 
+ * This software is proprietary and confidential. Unauthorized copying, distribution,
+ * modification, or use of this software is strictly prohibited and may result in legal action.
+ * 
  * MAIN PROCESS - Electron Application Entry Point
  * 
  * This is the main process file for the Inventory POS Application built with Electron.

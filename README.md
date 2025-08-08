@@ -386,9 +386,22 @@ For technical support or feature requests, please contact the development team.
 - 📦 **Updated dependencies** including Better-SQLite3 for improved performance
 - 🧹 **Code quality improvements** with ESLint fixes and better project organization
 
+## ⚠️ IMPORTANT LEGAL NOTICE
+
+**ALL RIGHTS RESERVED** - This software is **PROPRIETARY** and **CONFIDENTIAL**.
+
+🚫 **UNAUTHORIZED USE PROHIBITED**
+- Commercial use, redistribution, or copying is **STRICTLY FORBIDDEN**
+- Creating derivative works or competing systems is **PROHIBITED**
+- Reverse engineering or code extraction is **ILLEGAL**
+- This code is for **viewing and educational purposes ONLY**
+
+⚖️ **Legal Action**: Unauthorized use may result in legal proceedings.
+
 ## License
 
 This software is proprietary and developed specifically for Ajit Wines.
+See the [LICENSE](LICENSE) file for detailed terms and restrictions.
 
 ---
 
