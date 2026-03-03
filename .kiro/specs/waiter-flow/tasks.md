@@ -71,7 +71,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 2.1
 
 ### Task 2.2: Waiter PIN Management (Desktop)
-- [ ] 2.2.1 Create waiter management UI screen
+- [x] 2.2.1 Create waiter management UI screen
   - Build waiter list view with search/filter
   - Add "Add Waiter" dialog with name and PIN fields
   - Add "Edit Waiter" dialog for PIN updates
