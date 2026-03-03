@@ -170,4 +170,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   
   // Generic invoke method for Firebase and other IPC handlers
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  
+  // Event listeners for real-time updates
+  on: (channel, callback) => {
+    const subscription = (event, ...args) => callback(...args);
+    ipcRenderer.on(channel, subscription);
+    return subscription;
+  },
+  
+  removeListener: (channel, callback) => {
+    ipcRenderer.removeListener(channel, callback);
+  },
 });
