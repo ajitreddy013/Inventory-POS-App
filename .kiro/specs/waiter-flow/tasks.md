@@ -89,7 +89,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - **Property 2: Valid PIN Authentication Success**
   - **Validates: Requirements 1.2**
 
-- [ ] 2.2.4 Write unit tests for waiter management
+- [x] 2.2.4 Write unit tests for waiter management
   - Test PIN format validation
   - Test PIN uniqueness enforcement
   - Test waiter activation/deactivation
