@@ -94,3 +94,8 @@ secrets.json
 *email*.json
 *mail*.json
 *smtp*.json
+
+# Firebase
+firebase-admin-key.json
+.firebase/
+*firebase-key*.json
