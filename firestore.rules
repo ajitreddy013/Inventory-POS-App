@@ -123,20 +123,17 @@ service cloud.firestore {
     // Orders Collection
     // ============================================
     match /orders/{orderId} {
-      // Waiters can read and write their own orders
+      // Any waiter can read and modify any order (restaurant workflow)
       allow read: if isAuthenticated();
-      allow create: if isWaiter() && 
-                      request.resource.data.waiterId == request.auth.uid;
-      allow update: if isWaiter() && 
-                      resource.data.waiterId == request.auth.uid;
+      allow create: if isWaiter();
+      allow update: if isWaiter();
       allow delete: if false; // Orders should not be deleted
       
       // Order Items Subcollection
       match /items/{itemId} {
-        // Waiters can only modify items in their own orders
+        // Any waiter can modify items in any order (collaborative service)
         allow read: if isAuthenticated();
-        allow write: if isWaiter() && 
-                       get(/databases/$(database)/documents/orders/$(orderId)).data.waiterId == request.auth.uid;
+        allow write: if isWaiter();
       }
     }
     
