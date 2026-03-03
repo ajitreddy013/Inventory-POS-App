@@ -167,4 +167,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   
   // Close Sell operation
   closeSellAndGenerateReports: () => ipcRenderer.invoke("close-sell-and-generate-reports"),
+  
+  // Generic invoke method for Firebase and other IPC handlers
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
 });
