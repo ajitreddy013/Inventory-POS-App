@@ -78,7 +78,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Display waiter status (active/inactive)
   - _Requirements: 1.1, 1.2_
 
-- [ ] 2.2.2 Implement waiter CRUD operations
+- [x] 2.2.2 Implement waiter CRUD operations
   - Create waiter with PIN (4-6 digits validation)
   - Update waiter PIN with uniqueness check
   - Deactivate/reactivate waiter accounts
