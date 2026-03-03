@@ -186,16 +186,16 @@ function registerWaiterHandlers() {
   });
   
   // Deactivate waiter
-  ipcMain.handle('firebase:deactivate-waiter', async (event, waiterId) => {
+  ipcMain.handle('firebase:deactivate-waiter', async (event, waiterId, isActive = false) => {
     try {
       await updateDocument('waiters', waiterId, {
-        isActive: false,
+        isActive,
         updatedAt: new Date()
       });
       return { success: true };
     } catch (error) {
-      console.error('Error deactivating waiter:', error);
-      return { success: false, error: 'Failed to deactivate waiter' };
+      console.error('Error updating waiter status:', error);
+      return { success: false, error: 'Failed to update waiter status' };
     }
   });
 }
