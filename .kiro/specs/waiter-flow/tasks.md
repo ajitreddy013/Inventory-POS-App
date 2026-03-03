@@ -123,26 +123,26 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 26.1-26.8
 
 ### Task 2.4: Menu Management with Firebase
-- [ ] 2.4.1 Implement menu item CRUD operations
+- [x] 2.4.1 Implement menu item CRUD operations
   - Create menu item with category and price
   - Update menu item details
   - Delete menu item (if no active orders)
   - List menu items by category
   - _Requirements: 18.1, 18.2, 18.3_
 
-- [ ] 2.4.2 Implement modifier management
+- [x] 2.4.2 Implement modifier management
   - Create modifiers (spice levels and paid add-ons)
   - Associate modifiers with menu items
   - Set modifier prices
   - _Requirements: 18.2, 18.5_
 
-- [ ] 2.4.3 Add real-time menu sync listeners
+- [x] 2.4.3 Add real-time menu sync listeners
   - Subscribe to menu item changes
   - Subscribe to modifier changes
   - Update UI on remote changes
   - _Requirements: 5.2, 18.4_
 
-- [ ] 2.4.4 Write property test for menu sync
+- [x] 2.4.4 Write property test for menu sync
   - **Property 17: Out-of-Stock Indicator Display**
   - **Validates: Requirements 5.3**
 
