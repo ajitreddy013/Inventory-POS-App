@@ -89,7 +89,7 @@ async function setupWaiters() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    console.log(`  ✓ Created waiter: ${waiter.name} (PIN: ${waiter.pin}, ID: ${docRef.id})`);
+    console.log(`  ✓ Created waiter: ${waiter.name} (ID: ${docRef.id})`);
   }
 }
 
@@ -315,7 +315,9 @@ async function setupCustomers() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    console.log(`  ✓ Created customer: ${customer.name} (${customer.phone})`);
+    // Mask phone number in logs (PII protection)
+    const maskedPhone = customer.phone.slice(0, 2) + '****' + customer.phone.slice(-2);
+    console.log(`  ✓ Created customer: ${customer.name} (${maskedPhone})`);
   }
 }
 

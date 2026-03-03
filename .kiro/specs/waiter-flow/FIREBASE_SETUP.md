@@ -20,8 +20,9 @@
 
 1. In the left sidebar, click "Build" → "Firestore Database"
 2. Click "Create database"
-3. **Security rules**: Select "Start in production mode"
-   - We'll add custom rules later
+3. **Security rules**: Select "Start in test mode"
+   - Test mode allows 30 days of open access for development
+   - We'll deploy production rules before expiration
 4. **Location**: Choose closest to India:
    - Recommended: `asia-south1` (Mumbai)
    - Alternative: `asia-southeast1` (Singapore)
@@ -117,7 +118,7 @@ EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 Add these lines to `.gitignore`:
 
-```
+```text
 # Firebase
 .env
 firebase-admin-key.json

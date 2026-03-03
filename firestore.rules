@@ -133,9 +133,10 @@ service cloud.firestore {
       
       // Order Items Subcollection
       match /items/{itemId} {
-        // Waiters can read and write items in their orders
+        // Waiters can only modify items in their own orders
         allow read: if isAuthenticated();
-        allow write: if isWaiter();
+        allow write: if isWaiter() && 
+                       get(/databases/$(database)/documents/orders/$(orderId)).data.waiterId == request.auth.uid;
       }
     }
     

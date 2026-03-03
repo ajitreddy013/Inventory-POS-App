@@ -12,6 +12,16 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
+// Validate required Firebase configuration
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+
+if (missingKeys.length > 0) {
+  console.error('❌ Missing required Firebase configuration:', missingKeys.join(', '));
+  console.error('Please check your .env file and ensure all REACT_APP_FIREBASE_* variables are set.');
+  process.exit(1);
+}
+
 async function testConnection() {
   try {
     console.log('🔄 Testing Firebase connection...');

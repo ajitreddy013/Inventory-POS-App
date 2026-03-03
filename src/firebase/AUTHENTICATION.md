@@ -114,6 +114,7 @@ function MyComponent() {
 - PINs stored as plain text in Firestore
 - Acceptable for this use case (low security risk)
 - Quick lookup and validation
+- **Design Decision**: Waiter PINs are intentionally plain text for simplicity and performance. Waiters have limited privileges (order taking only) and PINs can be easily changed by managers if compromised.
 
 **Validation:**
 - PIN format: 4-6 digits

@@ -14,6 +14,17 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
+// Validate required Firebase configuration
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+
+if (missingKeys.length > 0) {
+  throw new Error(
+    `Missing required Firebase configuration: ${missingKeys.join(', ')}. ` +
+    'Please check your .env file and ensure all REACT_APP_FIREBASE_* variables are set.'
+  );
+}
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
@@ -30,6 +41,8 @@ enableIndexedDbPersistence(firestore)
       console.warn('Multiple tabs open, persistence enabled in first tab only');
     } else if (err.code === 'unimplemented') {
       console.warn('Browser does not support offline persistence');
+    } else {
+      console.error('Unexpected persistence error:', err.code, err.message);
     }
   });
 
