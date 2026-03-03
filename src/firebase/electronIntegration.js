@@ -8,6 +8,7 @@
  */
 
 const { ipcMain } = require('electron');
+const bcrypt = require('bcrypt');
 const {
   initializeAdminSDK,
   createCustomToken,
@@ -43,6 +44,7 @@ async function initializeFirebaseAdmin() {
     
     // Register IPC handlers
     registerWaiterHandlers();
+    registerManagerHandlers();
     registerMenuHandlers();
     registerOrderHandlers();
     registerInventoryHandlers();
@@ -196,6 +198,193 @@ function registerWaiterHandlers() {
     } catch (error) {
       console.error('Error updating waiter status:', error);
       return { success: false, error: 'Failed to update waiter status' };
+    }
+  });
+}
+
+/**
+ * MANAGER AUTHENTICATION HANDLERS
+ * 
+ * These handlers manage manager accounts with bcrypt-hashed PINs.
+ * Managers have elevated privileges for sensitive operations.
+ */
+function registerManagerHandlers() {
+  const SALT_ROUNDS = 10;
+  
+  // Create new manager
+  ipcMain.handle('firebase:create-manager', async (event, managerData) => {
+    try {
+      const { name, pin, role } = managerData;
+      
+      // Validate input
+      if (!name || !pin || !role) {
+        return { success: false, error: 'All fields are required' };
+      }
+      
+      // Validate PIN format (4-6 digits)
+      if (!/^\d{4,6}$/.test(pin)) {
+        return { success: false, error: 'PIN must be 4-6 digits' };
+      }
+      
+      // Validate role
+      const validRoles = ['owner', 'manager', 'supervisor'];
+      if (!validRoles.includes(role)) {
+        return { success: false, error: 'Invalid role' };
+      }
+      
+      // Hash PIN with bcrypt
+      const pinHash = await bcrypt.hash(pin, SALT_ROUNDS);
+      
+      // Create manager document
+      const managerId = `manager_${Date.now()}`;
+      await setDocument('managers', managerId, {
+        name,
+        pinHash,
+        role,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      return {
+        success: true,
+        manager: { id: managerId, name, role }
+      };
+    } catch (error) {
+      console.error('Error creating manager:', error);
+      return { success: false, error: 'Failed to create manager' };
+    }
+  });
+  
+  // Update manager details
+  ipcMain.handle('firebase:update-manager', async (event, managerId, updates) => {
+    try {
+      const { name, role } = updates;
+      
+      // Validate role if provided
+      if (role) {
+        const validRoles = ['owner', 'manager', 'supervisor'];
+        if (!validRoles.includes(role)) {
+          return { success: false, error: 'Invalid role' };
+        }
+      }
+      
+      // Update manager document
+      const updateData = {
+        updatedAt: new Date()
+      };
+      
+      if (name) updateData.name = name;
+      if (role) updateData.role = role;
+      
+      await updateDocument('managers', managerId, updateData);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating manager:', error);
+      return { success: false, error: 'Failed to update manager' };
+    }
+  });
+  
+  // Change manager's own PIN
+  ipcMain.handle('firebase:change-manager-pin', async (event, managerId, oldPin, newPin) => {
+    try {
+      // Validate new PIN format
+      if (!newPin || !/^\d{4,6}$/.test(newPin)) {
+        return { success: false, error: 'New PIN must be 4-6 digits' };
+      }
+      
+      // Get manager document
+      const manager = await getDocument('managers', managerId);
+      
+      if (!manager) {
+        return { success: false, error: 'Manager not found' };
+      }
+      
+      // Verify old PIN
+      const isOldPinValid = await bcrypt.compare(oldPin, manager.pinHash);
+      
+      if (!isOldPinValid) {
+        return { success: false, error: 'Current PIN is incorrect' };
+      }
+      
+      // Hash and update new PIN
+      const newPinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
+      await updateDocument('managers', managerId, {
+        pinHash: newPinHash,
+        updatedAt: new Date()
+      });
+      
+      return { success: true, message: 'PIN updated successfully' };
+    } catch (error) {
+      console.error('Error changing manager PIN:', error);
+      return { success: false, error: 'Failed to change PIN' };
+    }
+  });
+  
+  // Get all managers
+  ipcMain.handle('firebase:get-managers', async () => {
+    try {
+      const managers = await queryCollection('managers', [], {
+        orderBy: { field: 'name', direction: 'asc' }
+      });
+      
+      // Remove pinHash from response for security
+      const sanitizedManagers = managers.map(({ pinHash, ...manager }) => manager);
+      
+      return { success: true, managers: sanitizedManagers };
+    } catch (error) {
+      console.error('Error getting managers:', error);
+      return { success: false, error: 'Failed to get managers' };
+    }
+  });
+  
+  // Deactivate/reactivate manager
+  ipcMain.handle('firebase:deactivate-manager', async (event, managerId, isActive = false) => {
+    try {
+      await updateDocument('managers', managerId, {
+        isActive,
+        updatedAt: new Date()
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating manager status:', error);
+      return { success: false, error: 'Failed to update manager status' };
+    }
+  });
+  
+  // Authenticate manager with PIN (for protected operations)
+  ipcMain.handle('firebase:authenticate-manager', async (event, pin) => {
+    try {
+      // Validate PIN format
+      if (!pin || !/^\d{4,6}$/.test(pin)) {
+        return { success: false, error: 'Invalid PIN format' };
+      }
+      
+      // Get all active managers
+      const managers = await queryCollection('managers', [
+        { field: 'isActive', operator: '==', value: true }
+      ]);
+      
+      // Check PIN against all managers
+      for (const manager of managers) {
+        const isMatch = await bcrypt.compare(pin, manager.pinHash);
+        if (isMatch) {
+          return {
+            success: true,
+            manager: {
+              id: manager.id,
+              name: manager.name,
+              role: manager.role
+            }
+          };
+        }
+      }
+      
+      return { success: false, error: 'Invalid PIN' };
+    } catch (error) {
+      console.error('Error authenticating manager:', error);
+      return { success: false, error: 'Authentication failed' };
     }
   });
 }
