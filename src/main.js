@@ -46,6 +46,7 @@ const ReportService = require("./services/reportService"); // Business report ge
 const DailyReportService = require("./services/dailyReportService"); // Daily summary reports
 const EmailService = require("./email-service");           // Email automation
 const { initializeSampleData } = require("./init-sample-data"); // Sample data for testing
+const { initializeFirebaseAdmin } = require("./firebase/electronIntegration"); // Firebase Admin SDK
 
 // Date utility functions for consistent date handling
 const { 
@@ -141,13 +142,23 @@ function createWindow() {
  */
 app.whenReady().then(async () => {
   try {
-    // STEP 1: Database Initialization
+    // STEP 1: Firebase Admin SDK Initialization
+    console.log('Initializing Firebase Admin SDK...');
+    try {
+      await initializeFirebaseAdmin();
+      console.log('Firebase Admin SDK initialized successfully');
+    } catch (error) {
+      console.error('Firebase Admin SDK initialization failed:', error);
+      console.log('Continuing without Firebase functionality...');
+    }
+
+    // STEP 2: Database Initialization
     console.log('Initializing database...');
     database = new Database();
     await database.initialize();
     console.log('Database initialized successfully');
 
-    // STEP 2: Sample Data Loading (First-time setup)
+    // STEP 3: Sample Data Loading (First-time setup)
     // This ensures the application has demo data for immediate use
     try {
       const products = await database.getProducts();
@@ -162,7 +173,7 @@ app.whenReady().then(async () => {
       console.log("Sample data initialization skipped:", error.message);
     }
 
-    // STEP 3: Service Initialization
+    // STEP 4: Service Initialization
     // Initialize all business services required for the application
     console.log('Initializing services...');
     printerService = new PrinterService();           // Thermal printer integration
@@ -172,7 +183,7 @@ app.whenReady().then(async () => {
     emailService = new EmailService();               // Email automation
     console.log('All services initialized successfully');
 
-    // STEP 4: Background Task Scheduling
+    // STEP 5: Background Task Scheduling
     // Schedule daily email report to run at 11:59 PM every day
     // This ensures business owners receive daily summaries automatically
     cron.schedule("59 23 * * *", async () => {
@@ -181,7 +192,7 @@ app.whenReady().then(async () => {
     });
     console.log('Daily email report scheduled for 11:59 PM');
 
-    // STEP 5: Window Creation
+    // STEP 6: Window Creation
     createWindow();
 
     // Handle app activation (macOS behavior)

@@ -50,6 +50,7 @@ import {
   DollarSign,      // Spendings icon
   Wallet,          // Counter balance icon
   Clock,           // Pending bills icon
+  Users,           // Waiters icon
 } from "lucide-react";
 
 // Application styles
@@ -68,6 +69,9 @@ import Settings from "./components/Settings";                     // App setting
 import Spendings from "./components/Spendings";                   // Expense tracking
 import CounterBalance from "./components/CounterBalance";         // Cash management
 import PendingBills from "./components/PendingBills";             // Saved bills
+import WaiterManagement from "./components/WaiterManagement";     // Waiter management
+import ManagerManagement from "./components/ManagerManagement";   // Manager management
+import MenuManagement from "./components/MenuManagement";         // Menu management
 
 /**
  * APP CONTENT COMPONENT
@@ -174,6 +178,9 @@ function AppContent() {
   const menuItems = [
     { path: "/", name: "Dashboard", icon: BarChart3 },           // Main overview
     { path: "/tables", name: "Tables", icon: Coffee },             // Table management
+    { path: "/waiters", name: "Waiters", icon: Users },            // Waiter management
+    { path: "/managers", name: "Managers", icon: SettingsIcon },   // Manager management
+    { path: "/menu", name: "Menu", icon: Package },                // Menu management
     { path: "/products", name: "Products", icon: Package },        // Product catalog
     { path: "/inventory", name: "Inventory", icon: Package },      // Stock monitoring
     { path: "/transfer", name: "Daily Transfer", icon: ArrowRight }, // Stock transfers
@@ -247,6 +254,9 @@ function AppContent() {
               )
             }
           />
+          <Route path="/waiters" element={<WaiterManagement />} />
+          <Route path="/managers" element={<ManagerManagement />} />
+          <Route path="/menu" element={<MenuManagement />} />
           <Route path="/products" element={<ProductManagement />} />
           <Route path="/inventory" element={<InventoryManagement />} />
           <Route path="/transfer" element={<DailyTransfer />} />

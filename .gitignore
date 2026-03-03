@@ -97,5 +97,7 @@ secrets.json
 
 # Firebase
 firebase-admin-key.json
+firebase-service-account.json
+firebase-service-account-*.json
 .firebase/
 *firebase-key*.json
