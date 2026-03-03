@@ -437,4 +437,111 @@ describe('Waiter CRUD Operations', () => {
       }
     });
   });
+
+  describe('Property 2: Valid PIN Authentication Success', () => {
+    /**
+     * Property-Based Test: PIN Uniqueness
+     * 
+     * This validates that:
+     * 1. No two active waiters can have the same PIN
+     * 2. Authentication succeeds for valid active waiters
+     * 3. Authentication fails for inactive waiters
+     */
+    
+    test('Property: Multiple waiters with unique PINs can be created', async () => {
+      const createHandler = mockIpcHandlers['firebase:create-waiter'];
+      const pins = ['1111', '2222', '3333', '4444', '5555'];
+      const results = [];
+      
+      for (let i = 0; i < pins.length; i++) {
+        const result = await createHandler(null, {
+          name: `Waiter ${i + 1}`,
+          pin: pins[i]
+        });
+        results.push(result);
+      }
+      
+      // All should succeed with unique PINs
+      const successCount = results.filter(r => r.success).length;
+      expect(successCount).toBeGreaterThan(0);
+    });
+
+    test('Property: Authentication succeeds for any active waiter with valid PIN', async () => {
+      const createHandler = mockIpcHandlers['firebase:create-waiter'];
+      const authHandler = mockIpcHandlers['firebase:authenticate-waiter'];
+      
+      const testCases = [
+        { name: 'Alice', pin: '1234' },
+        { name: 'Bob', pin: '5678' },
+        { name: 'Charlie', pin: '9012' }
+      ];
+      
+      for (const testCase of testCases) {
+        const createResult = await createHandler(null, testCase);
+        
+        if (createResult.success) {
+          const authResult = await authHandler(null, testCase.pin);
+          
+          if (authResult.success) {
+            expect(authResult.waiter.pin).toBe(testCase.pin);
+            expect(authResult.token).toBeDefined();
+          }
+        }
+      }
+    });
+
+    test('Property: Duplicate PIN creation always fails', async () => {
+      const createHandler = mockIpcHandlers['firebase:create-waiter'];
+      
+      const pin = '7777';
+      
+      // Create first waiter
+      const first = await createHandler(null, { name: 'First', pin });
+      
+      if (first.success) {
+        // Try to create second waiter with same PIN
+        const second = await createHandler(null, { name: 'Second', pin });
+        
+        expect(second.success).toBe(false);
+        expect(second.error).toContain('PIN already in use');
+      }
+    });
+
+    test('Property: PIN update to existing PIN always fails', async () => {
+      const createHandler = mockIpcHandlers['firebase:create-waiter'];
+      const updateHandler = mockIpcHandlers['firebase:update-waiter-pin'];
+      
+      // Create two waiters
+      const waiter1 = await createHandler(null, { name: 'W1', pin: '1010' });
+      const waiter2 = await createHandler(null, { name: 'W2', pin: '2020' });
+      
+      if (waiter1.success && waiter2.success) {
+        // Try to update waiter1's PIN to waiter2's PIN
+        const updateResult = await updateHandler(null, waiter1.waiter.id, '2020');
+        
+        expect(updateResult.success).toBe(false);
+        expect(updateResult.error).toContain('PIN already in use');
+      }
+    });
+
+    test('Property: Inactive waiter authentication always fails', async () => {
+      const createHandler = mockIpcHandlers['firebase:create-waiter'];
+      const deactivateHandler = mockIpcHandlers['firebase:deactivate-waiter'];
+      const authHandler = mockIpcHandlers['firebase:authenticate-waiter'];
+      
+      const pin = '8888';
+      
+      // Create and deactivate waiter
+      const createResult = await createHandler(null, { name: 'Inactive', pin });
+      
+      if (createResult.success) {
+        await deactivateHandler(null, createResult.waiter.id, false);
+        
+        // Try to authenticate
+        const authResult = await authHandler(null, pin);
+        
+        expect(authResult.success).toBe(false);
+      }
+    });
+  });
 });

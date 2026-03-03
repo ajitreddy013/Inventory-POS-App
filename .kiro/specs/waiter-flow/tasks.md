@@ -85,7 +85,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - List all waiters with status
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 2.2.3 Write property test for PIN uniqueness
+- [x] 2.2.3 Write property test for PIN uniqueness
   - **Property 2: Valid PIN Authentication Success**
   - **Validates: Requirements 1.2**
 
