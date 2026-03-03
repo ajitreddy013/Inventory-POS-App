@@ -113,7 +113,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Display attempts remaining on failure
   - _Requirements: 26.2, 26.3, 26.7, 26.8_
 
-- [ ] 2.3.3 Write unit tests for manager authentication
+- [x] 2.3.3 Write unit tests for manager authentication
   - Test PIN hashing and verification
   - Test lockout mechanism
   - Test lockout timer reset
