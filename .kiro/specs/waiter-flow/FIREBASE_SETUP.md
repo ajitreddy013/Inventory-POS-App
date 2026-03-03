@@ -182,3 +182,155 @@ After completing this setup:
 **Setup Complete!** ✅
 
 Once you have your Firebase credentials, proceed to Task 1.2 to set up the database schema.
+
+
+---
+
+## Step 4: Deploy Security Rules
+
+Security rules control who can read and write data in Firestore.
+
+### Deploy Rules via Firebase Console
+
+1. Go to Firebase Console → Firestore Database → Rules
+2. Copy the contents of `firestore.rules` from your project root
+3. Paste into the rules editor
+4. Click "Publish"
+
+### Deploy Rules via Firebase CLI (Alternative)
+
+```bash
+# Install Firebase CLI
+npm install -g firebase-tools
+
+# Login to Firebase
+firebase login
+
+# Initialize Firebase in your project
+firebase init firestore
+
+# Deploy rules
+firebase deploy --only firestore:rules
+```
+
+### Verify Rules
+
+Test rules in Firebase Console:
+1. Go to Firestore Database → Rules
+2. Click "Rules Playground"
+3. Test read/write operations with different auth states
+
+---
+
+## Step 5: Create Composite Indexes
+
+Indexes optimize query performance. See `src/firebase/INDEXES.md` for complete list.
+
+### High Priority Indexes (Create First)
+
+1. **orders - tableId + status**
+   - Collection: `orders`
+   - Fields: `tableId` (Ascending), `status` (Ascending)
+
+2. **orders - waiterId + status**
+   - Collection: `orders`
+   - Fields: `waiterId` (Ascending), `status` (Ascending)
+
+3. **tables - sectionId + status**
+   - Collection: `tables`
+   - Fields: `sectionId` (Ascending), `status` (Ascending)
+
+4. **menuItems - categoryId + isOutOfStock**
+   - Collection: `menuItems`
+   - Fields: `categoryId` (Ascending), `isOutOfStock` (Ascending)
+
+### Create Indexes via Firebase Console
+
+1. Go to Firebase Console → Firestore Database → Indexes
+2. Click "Create Index"
+3. Select collection and add fields
+4. Click "Create"
+5. Wait for index to build (1-5 minutes)
+
+### Create Indexes Automatically
+
+When you run a query that needs an index, Firestore will show an error with a link. Click the link to auto-create the index.
+
+---
+
+## Step 6: Verify Database Setup
+
+### Check Collections in Firebase Console
+
+1. Go to Firebase Console → Firestore Database → Data
+2. Verify these collections exist:
+   - ✅ managers (2 documents)
+   - ✅ waiters (4 documents)
+   - ✅ sections (3 documents)
+   - ✅ tables (7 documents)
+   - ✅ menuCategories (5 documents)
+   - ✅ menuItems (6 documents)
+   - ✅ modifiers (5 documents)
+   - ✅ inventory (1 document)
+   - ✅ customers (2 documents)
+
+### Test Data Access
+
+Run this test script:
+
+```bash
+node src/firebase/testConnection.js
+```
+
+Expected output:
+```
+✅ Firebase connection successful!
+📊 Collections created: 9
+```
+
+---
+
+## Step 7: Update Security Rules Expiration
+
+Your database is currently in **Test Mode** (30 days). Before expiration:
+
+1. Go to Firebase Console → Firestore Database → Rules
+2. Update the rules to production mode (already done in `firestore.rules`)
+3. Click "Publish"
+
+**Important:** Test mode expires on **April 2, 2026**. Deploy production rules before then!
+
+---
+
+## Troubleshooting
+
+### Error: "Permission denied"
+- Check if security rules are deployed
+- Verify user is authenticated
+- Check if user has correct role (waiter/manager)
+
+### Error: "The query requires an index"
+- Click the link in the error message
+- Firebase will auto-create the index
+- Wait for index to build
+
+### Error: "Quota exceeded"
+- Check Firebase Console → Usage
+- Free tier limits: 50K reads/day, 20K writes/day
+- Upgrade to Blaze plan if needed
+
+### Collections not showing in console
+- Refresh the page
+- Check if script ran successfully
+- Verify Firebase credentials in `.env`
+
+---
+
+## Next Steps
+
+✅ Task 1.1: Firebase Project Configuration - COMPLETE
+✅ Task 1.2: Firestore Database Schema Setup - COMPLETE
+
+**Ready for Task 1.3:** Firebase Authentication Setup
+
+Continue with authentication setup to enable waiter login with PINs.
