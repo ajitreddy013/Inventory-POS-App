@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // Helper Functions
+    // ============================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user is a valid waiter
+    function isWaiter() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/waiters/$(request.auth.uid));
+    }
+    
+    // Check if user is a manager (for desktop app)
+    function isManager() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+    }
+    
+    // ============================================
+    // Managers Collection
+    // ============================================
+    match /managers/{managerId} {
+      // Managers can read their own document
+      // Only admin SDK can write (desktop app)
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Waiters Collection
+    // ============================================
+    match /waiters/{waiterId} {
+      // Waiters can read for authentication
+      // Only admin SDK can write (desktop app manages waiters)
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Sections Collection
+    // ============================================
+    match /sections/{sectionId} {
+      // All authenticated users can read sections
+      // Only admin SDK can write
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Tables Collection
+    // ============================================
+    match /tables/{tableId} {
+      // Waiters can read and update table status
+      allow read: if isAuthenticated();
+      allow update: if isWaiter();
+      // Only admin SDK can create/delete tables
+      allow create, delete: if false;
+    }
+    
+    // ============================================
+    // Menu Categories Collection
+    // ============================================
+    match /menuCategories/{categoryId} {
+      // All authenticated users can read
+      // Only admin SDK can write
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Menu Items Collection
+    // ============================================
+    match /menuItems/{itemId} {
+      // All authenticated users can read menu
+      // Waiters can update out-of-stock status
+      allow read: if isAuthenticated();
+      allow update: if isWaiter() && 
+                      request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['isOutOfStock', 'updatedAt']);
+      // Only admin SDK can create/delete items
+      allow create, delete: if false;
+    }
+    
+    // ============================================
+    // Modifiers Collection
+    // ============================================
+    match /modifiers/{modifierId} {
+      // All authenticated users can read
+      // Only admin SDK can write
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Inventory Collection
+    // ============================================
+    match /inventory/{inventoryId} {
+      // All authenticated users can read inventory
+      // Only admin SDK can write (desktop app manages inventory)
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Inventory Movements Collection
+    // ============================================
+    match /inventoryMovements/{movementId} {
+      // All authenticated users can read movement history
+      // Only admin SDK can write (requires manager authentication)
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Orders Collection
+    // ============================================
+    match /orders/{orderId} {
+      // Any waiter can read and modify any order (restaurant workflow)
+      allow read: if isAuthenticated();
+      allow create: if isWaiter();
+      allow update: if isWaiter();
+      allow delete: if false; // Orders should not be deleted
+      
+      // Order Items Subcollection
+      match /items/{itemId} {
+        // Any waiter can modify items in any order (collaborative service)
+        allow read: if isAuthenticated();
+        allow write: if isWaiter();
+      }
+    }
+    
+    // ============================================
+    // KOTs Collection
+    // ============================================
+    match /kots/{kotId} {
+      // All authenticated users can read KOTs
+      // Only admin SDK can write (desktop app generates KOTs)
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Bills Collection
+    // ============================================
+    match /bills/{billId} {
+      // All authenticated users can read bills
+      // Only admin SDK can write (desktop app generates bills)
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    
+    // ============================================
+    // Customers Collection
+    // ============================================
+    match /customers/{customerId} {
+      // All authenticated users can read customers
+      // Waiters can create new customers
+      allow read: if isAuthenticated();
+      allow create: if isWaiter();
+      allow update, delete: if false;
+    }
+    
+    // ============================================
+    // Sync Metadata Collection
+    // ============================================
+    match /syncMetadata/{deviceId} {
+      // Devices can read and write their own sync metadata
+      allow read, write: if isAuthenticated() && 
+                           deviceId == request.auth.uid;
+    }
+    
+    // ============================================
+    // Default Deny All
+    // ============================================
+    // Deny access to any other collections not explicitly defined
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -21,6 +21,7 @@ WaiterFlow is a distributed restaurant ordering system consisting of mobile Andr
 - Route KOTs automatically to kitchen and bar printers based on item category
 - Maintain data consistency across distributed devices using last-write-wins conflict resolution
 - Provide comprehensive restaurant management including inventory, billing, and reporting
+- Support collaborative service model where any waiter can help any table
 
 ### Technology Stack
 
@@ -1366,13 +1367,17 @@ service cloud.firestore {
       allow write: if false; // Desktop app uses admin SDK
     }
     
-    // Orders - read/write for waiters
+    // Orders - any waiter can read/write any order (collaborative service)
     match /orders/{orderId} {
-      allow read, write: if isWaiter();
+      allow read: if isAuthenticated();
+      allow create: if isWaiter();
+      allow update: if isWaiter();
+      allow delete: if false; // Orders should not be deleted
       
-      // Order items subcollection
+      // Order items subcollection - any waiter can modify
       match /items/{itemId} {
-        allow read, write: if isWaiter();
+        allow read: if isAuthenticated();
+        allow write: if isWaiter();
       }
     }
     
@@ -1772,14 +1777,14 @@ async function listWaiters(): Promise<Waiter[]> {
 ```typescript
 import { doc, setDoc, collection, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 
-// Create order
+// Create order (any waiter can create)
 async function createOrder(order: OrderInput): Promise<Order> {
   try {
     const ordersRef = collection(firestore, 'orders')
     const docRef = await addDoc(ordersRef, {
       orderNumber: order.orderNumber,
       tableId: order.tableId,
-      waiterId: order.waiterId,
+      waiterId: order.waiterId, // Tracks who created it
       status: 'draft',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -1791,7 +1796,7 @@ async function createOrder(order: OrderInput): Promise<Order> {
   }
 }
 
-// Add order items (subcollection)
+// Add order items (any waiter can add to any order)
 async function addOrderItems(orderId: string, items: OrderItemInput[]): Promise<OrderItem[]> {
   try {
     const orderItemsRef = collection(firestore, 'orders', orderId, 'items')
@@ -1812,7 +1817,7 @@ async function addOrderItems(orderId: string, items: OrderItemInput[]): Promise<
   }
 }
 
-// Update order status
+// Update order status (any waiter can update any order)
 async function updateOrderStatus(orderId: string, status: string): Promise<void> {
   try {
     const orderRef = doc(firestore, 'orders', orderId)
@@ -1824,6 +1829,9 @@ async function updateOrderStatus(orderId: string, status: string): Promise<void>
     throw new Error(error.message)
   }
 }
+
+// Note: waiterId field tracks who originally created the order,
+// but any waiter can modify it (collaborative restaurant service)
 ```
 
 **Menu Operations:**
