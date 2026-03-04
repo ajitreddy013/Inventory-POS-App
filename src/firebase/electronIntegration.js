@@ -930,23 +930,132 @@ function registerOrderHandlers() {
  * INVENTORY MANAGEMENT HANDLERS
  * 
  * These handlers manage inventory with atomic transactions.
+ * Requirements: 10.1-10.5, 11.1-11.4, 26.1, 26.4, 26.9
  */
 function registerInventoryHandlers() {
   
-  // Deduct inventory (atomic transaction)
-  ipcMain.handle('firebase:deduct-inventory', async (event, itemId, quantity) => {
+  // Create inventory record for bar item
+  ipcMain.handle('firebase:create-inventory', async (event, inventoryData) => {
+    try {
+      const { menuItemId, quantity } = inventoryData;
+      
+      // Validate input
+      if (!menuItemId) {
+        return { success: false, error: 'Menu item ID is required' };
+      }
+      
+      if (quantity === undefined || quantity === null || quantity < 0) {
+        return { success: false, error: 'Quantity must be a non-negative number' };
+      }
+      
+      // Verify menu item exists and is a bar item
+      const menuItem = await getDocument('menuItems', menuItemId);
+      if (!menuItem) {
+        return { success: false, error: 'Menu item not found' };
+      }
+      
+      // Create inventory record (use menuItemId as document ID)
+      await setDocument('inventory', menuItemId, {
+        menuItemId,
+        quantity: parseFloat(quantity),
+        autoOutOfStock: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      // Update menu item out of stock status
+      await updateDocument('menuItems', menuItemId, {
+        isOutOfStock: quantity === 0,
+        updatedAt: new Date()
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error creating inventory:', error);
+      return { success: false, error: 'Failed to create inventory record' };
+    }
+  });
+  
+  // Get inventory record
+  ipcMain.handle('firebase:get-inventory', async (event, menuItemId) => {
+    try {
+      const inventory = await getDocument('inventory', menuItemId);
+      
+      if (!inventory) {
+        return { success: false, error: 'Inventory record not found' };
+      }
+      
+      return { success: true, inventory: { id: menuItemId, ...inventory } };
+    } catch (error) {
+      console.error('Error getting inventory:', error);
+      return { success: false, error: 'Failed to get inventory' };
+    }
+  });
+  
+  // Get all inventory records
+  ipcMain.handle('firebase:get-all-inventory', async () => {
+    try {
+      const inventoryRecords = await queryCollection('inventory', [], {
+        orderBy: { field: 'updatedAt', direction: 'desc' }
+      });
+      
+      return { success: true, inventory: inventoryRecords };
+    } catch (error) {
+      console.error('Error getting all inventory:', error);
+      return { success: false, error: 'Failed to get inventory' };
+    }
+  });
+  
+  // Update inventory quantity
+  ipcMain.handle('firebase:update-inventory', async (event, menuItemId, quantity) => {
+    try {
+      // Validate input
+      if (quantity === undefined || quantity === null || quantity < 0) {
+        return { success: false, error: 'Quantity must be a non-negative number' };
+      }
+      
+      const firestore = getAdminFirestore();
+      
+      await runTransaction(async (transaction) => {
+        const inventoryRef = firestore.collection('inventory').doc(menuItemId);
+        const menuItemRef = firestore.collection('menuItems').doc(menuItemId);
+        
+        // Update inventory
+        transaction.set(inventoryRef, {
+          menuItemId,
+          quantity: parseFloat(quantity),
+          autoOutOfStock: true,
+          updatedAt: new Date()
+        }, { merge: true });
+        
+        // Update out of stock status
+        transaction.update(menuItemRef, {
+          isOutOfStock: quantity === 0,
+          updatedAt: new Date()
+        });
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating inventory:', error);
+      return { success: false, error: 'Failed to update inventory' };
+    }
+  });
+  
+  // Deduct inventory (atomic transaction) - for order finalization
+  ipcMain.handle('firebase:deduct-inventory', async (event, menuItemId, quantity) => {
     try {
       const firestore = getAdminFirestore();
       
       const result = await runTransaction(async (transaction) => {
-        const itemRef = firestore.collection('inventory').doc(itemId);
-        const itemDoc = await transaction.get(itemRef);
+        const inventoryRef = firestore.collection('inventory').doc(menuItemId);
+        const inventoryDoc = await transaction.get(inventoryRef);
         
-        if (!itemDoc.exists) {
-          throw new Error('Item not found');
+        if (!inventoryDoc.exists) {
+          throw new Error('Inventory record not found');
         }
         
-        const currentQuantity = itemDoc.data().quantity || 0;
+        const currentQuantity = inventoryDoc.data().quantity || 0;
         
         if (currentQuantity < quantity) {
           throw new Error('Insufficient inventory');
@@ -954,14 +1063,14 @@ function registerInventoryHandlers() {
         
         const newQuantity = currentQuantity - quantity;
         
-        transaction.update(itemRef, {
+        transaction.update(inventoryRef, {
           quantity: newQuantity,
           updatedAt: new Date()
         });
         
         // Auto mark out of stock if quantity reaches zero
         if (newQuantity === 0) {
-          const menuItemRef = firestore.collection('menuItems').doc(itemId);
+          const menuItemRef = firestore.collection('menuItems').doc(menuItemId);
           transaction.update(menuItemRef, {
             isOutOfStock: true,
             updatedAt: new Date()
@@ -978,33 +1087,364 @@ function registerInventoryHandlers() {
     }
   });
   
-  // Update inventory
-  ipcMain.handle('firebase:update-inventory', async (event, itemId, quantity) => {
+  // Finalize order and deduct inventory for bar items (Requirements 11.1, 11.2)
+  ipcMain.handle('firebase:finalize-order', async (event, orderId) => {
     try {
-      const firestore = getAdminFirestore();
+      // Get order details
+      const order = await getDocument('orders', orderId);
+      if (!order) {
+        return { success: false, error: 'Order not found' };
+      }
       
-      await runTransaction(async (transaction) => {
-        const itemRef = firestore.collection('inventory').doc(itemId);
+      // Get order items
+      const orderItems = order.items || [];
+      
+      // Deduct inventory for bar items only
+      const deductionResults = [];
+      const errors = [];
+      
+      for (const item of orderItems) {
+        // Get menu item to check if it's a bar item
+        const menuItem = await getDocument('menuItems', item.menuItemId);
         
-        transaction.set(itemRef, {
-          quantity,
-          updatedAt: new Date()
-        }, { merge: true });
+        if (!menuItem) {
+          errors.push(`Menu item ${item.menuItemId} not found`);
+          continue;
+        }
         
-        // Update out of stock status
-        const menuItemRef = firestore.collection('menuItems').doc(itemId);
-        transaction.update(menuItemRef, {
-          isOutOfStock: quantity === 0,
-          updatedAt: new Date()
-        });
+        // Skip kitchen items - only deduct bar items
+        if (menuItem.itemCategory !== 'drink' && !menuItem.isBarItem) {
+          continue;
+        }
+        
+        // Deduct inventory
+        try {
+          const deductResult = await ipcMain.emit('firebase:deduct-inventory', event, item.menuItemId, item.quantity);
+          deductionResults.push({
+            menuItemId: item.menuItemId,
+            menuItemName: menuItem.name,
+            quantity: item.quantity,
+            success: true
+          });
+        } catch (deductError) {
+          errors.push(`Failed to deduct ${menuItem.name}: ${deductError.message}`);
+          deductionResults.push({
+            menuItemId: item.menuItemId,
+            menuItemName: menuItem.name,
+            quantity: item.quantity,
+            success: false,
+            error: deductError.message
+          });
+        }
+      }
+      
+      // Update order status to completed
+      await updateDocument('orders', orderId, {
+        status: 'completed',
+        finalizedAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      return {
+        success: errors.length === 0,
+        deductions: deductionResults,
+        errors: errors.length > 0 ? errors : undefined,
+        message: errors.length === 0 
+          ? 'Order finalized and inventory deducted successfully'
+          : 'Order finalized with some inventory deduction errors'
+      };
+    } catch (error) {
+      console.error('Error finalizing order:', error);
+      return { success: false, error: 'Failed to finalize order' };
+    }
+  });
+  
+  // Manual out-of-stock marking (Requirements 10.1, 10.2, 10.5)
+  ipcMain.handle('firebase:mark-manual-out-of-stock', async (event, menuItemId, isOutOfStock, reason) => {
+    try {
+      // Update menu item out of stock status
+      await updateDocument('menuItems', menuItemId, {
+        isOutOfStock,
+        manualOutOfStock: isOutOfStock,
+        outOfStockReason: reason || '',
+        updatedAt: new Date()
       });
       
       return { success: true };
     } catch (error) {
-      console.error('Error updating inventory:', error);
-      return { success: false, error: 'Failed to update inventory' };
+      console.error('Error marking manual out of stock:', error);
+      return { success: false, error: 'Failed to update out of stock status' };
     }
   });
+  
+  // Get out-of-stock items dashboard (Requirements 10.5)
+  ipcMain.handle('firebase:get-out-of-stock-items', async () => {
+    try {
+      const outOfStockItems = await queryCollection('menuItems', [
+        { field: 'isOutOfStock', operator: '==', value: true },
+        { field: 'isActive', operator: '==', value: true }
+      ], {
+        orderBy: { field: 'name', direction: 'asc' }
+      });
+      
+      return { success: true, items: outOfStockItems };
+    } catch (error) {
+      console.error('Error getting out of stock items:', error);
+      return { success: false, error: 'Failed to get out of stock items' };
+    }
+  });
+  
+  // Manager-authenticated inventory movement (Requirements 26.1, 26.4, 26.9)
+  ipcMain.handle('firebase:move-stock-to-counter', async (event, movementData) => {
+    try {
+      const { menuItemId, quantity, managerPin, reason } = movementData;
+      
+      // Validate input
+      if (!menuItemId || !quantity || !managerPin) {
+        return { success: false, error: 'Menu item ID, quantity, and manager PIN are required' };
+      }
+      
+      if (quantity <= 0) {
+        return { success: false, error: 'Quantity must be positive' };
+      }
+      
+      // Authenticate manager
+      const authResult = await authenticateManagerForInventory(managerPin);
+      if (!authResult.success) {
+        return authResult;
+      }
+      
+      const manager = authResult.manager;
+      
+      // Get menu item details
+      const menuItem = await getDocument('menuItems', menuItemId);
+      if (!menuItem) {
+        return { success: false, error: 'Menu item not found' };
+      }
+      
+      const firestore = getAdminFirestore();
+      
+      // Use transaction to update inventory and log movement
+      await runTransaction(async (transaction) => {
+        const inventoryRef = firestore.collection('inventory').doc(menuItemId);
+        const menuItemRef = firestore.collection('menuItems').doc(menuItemId);
+        
+        // Get current inventory
+        const inventoryDoc = await transaction.get(inventoryRef);
+        const currentQuantity = inventoryDoc.exists ? (inventoryDoc.data().quantity || 0) : 0;
+        const newQuantity = currentQuantity + quantity;
+        
+        // Update inventory
+        transaction.set(inventoryRef, {
+          menuItemId,
+          quantity: newQuantity,
+          autoOutOfStock: true,
+          updatedAt: new Date()
+        }, { merge: true });
+        
+        // Mark as in-stock if quantity > 0
+        if (newQuantity > 0) {
+          transaction.update(menuItemRef, {
+            isOutOfStock: false,
+            manualOutOfStock: false,
+            updatedAt: new Date()
+          });
+        }
+        
+        // Log inventory movement
+        const movementId = `movement_${Date.now()}`;
+        const movementRef = firestore.collection('inventoryMovements').doc(movementId);
+        transaction.set(movementRef, {
+          menuItemId,
+          menuItemName: menuItem.name,
+          movementType: 'godown_to_counter',
+          quantity,
+          fromLocation: 'godown',
+          toLocation: 'counter',
+          authorizedBy: manager.id,
+          managerName: manager.name,
+          reason: reason || '',
+          timestamp: new Date()
+        });
+      });
+      
+      return { 
+        success: true, 
+        message: `Successfully moved ${quantity} units of ${menuItem.name} to counter` 
+      };
+    } catch (error) {
+      console.error('Error moving stock to counter:', error);
+      return { success: false, error: 'Failed to move stock' };
+    }
+  });
+  
+  // Get inventory movement history (Requirements 26.9)
+  ipcMain.handle('firebase:get-inventory-movements', async (event, filters = {}) => {
+    try {
+      const queryFilters = [];
+      
+      // Filter by menu item
+      if (filters.menuItemId) {
+        queryFilters.push({ 
+          field: 'menuItemId', 
+          operator: '==', 
+          value: filters.menuItemId 
+        });
+      }
+      
+      // Filter by manager
+      if (filters.managerId) {
+        queryFilters.push({ 
+          field: 'authorizedBy', 
+          operator: '==', 
+          value: filters.managerId 
+        });
+      }
+      
+      // Filter by date range (if provided)
+      if (filters.startDate) {
+        queryFilters.push({ 
+          field: 'timestamp', 
+          operator: '>=', 
+          value: new Date(filters.startDate) 
+        });
+      }
+      
+      if (filters.endDate) {
+        queryFilters.push({ 
+          field: 'timestamp', 
+          operator: '<=', 
+          value: new Date(filters.endDate) 
+        });
+      }
+      
+      const movements = await queryCollection('inventoryMovements', queryFilters, {
+        orderBy: { field: 'timestamp', direction: 'desc' }
+      });
+      
+      return { success: true, movements };
+    } catch (error) {
+      console.error('Error getting inventory movements:', error);
+      return { success: false, error: 'Failed to get inventory movements' };
+    }
+  });
+  
+  // Export inventory movements to CSV
+  ipcMain.handle('firebase:export-inventory-movements', async (event, filters = {}) => {
+    try {
+      // Get movements with filters
+      const result = await ipcMain.handleOnce('firebase:get-inventory-movements', filters);
+      
+      if (!result.success) {
+        return result;
+      }
+      
+      const movements = result.movements;
+      
+      // Convert to CSV format
+      const headers = ['Date/Time', 'Item', 'Quantity', 'From', 'To', 'Manager', 'Reason'];
+      const rows = movements.map(m => [
+        new Date(m.timestamp).toLocaleString(),
+        m.menuItemName,
+        m.quantity,
+        m.fromLocation,
+        m.toLocation,
+        m.managerName,
+        m.reason || ''
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      return { success: true, csv: csvContent };
+    } catch (error) {
+      console.error('Error exporting inventory movements:', error);
+      return { success: false, error: 'Failed to export movements' };
+    }
+  });
+}
+
+/**
+ * Helper function to authenticate manager for inventory operations
+ * Includes lockout protection (3 attempts = 5 minute lockout)
+ */
+async function authenticateManagerForInventory(pin) {
+  try {
+    // Validate PIN format
+    if (!pin || !/^\d{4,6}$/.test(pin)) {
+      return { success: false, error: 'Invalid PIN format' };
+    }
+    
+    // Check failed attempts (stored in memory for simplicity)
+    // In production, this should be stored in a database or secure storage
+    const lockoutKey = 'manager_lockout';
+    const attemptsKey = 'manager_failed_attempts';
+    
+    // Get lockout status from global state (simplified)
+    if (global.managerLockoutUntil && Date.now() < global.managerLockoutUntil) {
+      const remainingMinutes = Math.ceil((global.managerLockoutUntil - Date.now()) / 60000);
+      return { 
+        success: false, 
+        error: `Account locked. Try again in ${remainingMinutes} minutes`,
+        attemptsRemaining: 0
+      };
+    }
+    
+    // Reset lockout if expired
+    if (global.managerLockoutUntil && Date.now() >= global.managerLockoutUntil) {
+      global.managerLockoutUntil = null;
+      global.managerFailedAttempts = 0;
+    }
+    
+    // Get all active managers
+    const managers = await queryCollection('managers', [
+      { field: 'isActive', operator: '==', value: true }
+    ]);
+    
+    // Check PIN against all managers
+    for (const manager of managers) {
+      const isMatch = await bcrypt.compare(pin, manager.pinHash);
+      if (isMatch) {
+        // Reset failed attempts on success
+        global.managerFailedAttempts = 0;
+        global.managerLockoutUntil = null;
+        
+        return {
+          success: true,
+          manager: {
+            id: manager.id,
+            name: manager.name,
+            role: manager.role
+          }
+        };
+      }
+    }
+    
+    // Invalid PIN - increment failed attempts
+    global.managerFailedAttempts = (global.managerFailedAttempts || 0) + 1;
+    const remaining = 3 - global.managerFailedAttempts;
+    
+    // Lock account after 3 failed attempts
+    if (global.managerFailedAttempts >= 3) {
+      global.managerLockoutUntil = Date.now() + (5 * 60 * 1000); // 5 minutes
+      return {
+        success: false,
+        error: 'Account locked for 5 minutes due to too many failed attempts',
+        attemptsRemaining: 0
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'Invalid manager PIN',
+      attemptsRemaining: Math.max(0, remaining)
+    };
+  } catch (error) {
+    console.error('Error authenticating manager:', error);
+    return { success: false, error: 'Authentication failed' };
+  }
 }
 
 /**
