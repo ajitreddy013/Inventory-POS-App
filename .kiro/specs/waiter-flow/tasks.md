@@ -187,46 +187,46 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 4.1, 4.2, 15.1-15.5, 16.1-16.8
 
 ### Task 2.6: Inventory Management with Manager Authentication
-- [ ] 2.6.1 Implement inventory tracking
+- [x] 2.6.1 Implement inventory tracking
   - Create inventory records for bar items
   - Update inventory quantities
   - Query inventory levels
   - _Requirements: 11.1, 11.2_
 
-- [ ] 2.6.2 Implement inventory deduction with transactions
+- [x] 2.6.2 Implement inventory deduction with transactions
   - Deduct bar item inventory on order finalization
   - Skip deduction for kitchen items
   - Use Firestore transactions for atomicity
   - _Requirements: 11.1, 11.2_
 
-- [ ] 2.6.3 Implement auto out-of-stock logic
+- [x] 2.6.3 Implement auto out-of-stock logic
   - Mark bar items out of stock when inventory reaches zero
   - Restore in-stock status when inventory > 0
   - _Requirements: 10.3, 10.4, 11.3_
 
-- [ ] 2.6.4 Add manual out-of-stock marking
+- [x] 2.6.4 Add manual out-of-stock marking
   - Allow managers to manually mark items out of stock
   - Display out-of-stock dashboard
   - _Requirements: 10.1, 10.2, 10.5_
 
-- [ ] 2.6.5 Implement manager-authenticated inventory movements
+- [x] 2.6.5 Implement manager-authenticated inventory movements
   - Create "Move Stock to Counter" interface
   - Require manager PIN authentication before movement
   - Log all movements with manager ID and timestamp
   - Add optional reason field
   - _Requirements: 26.1, 26.4, 26.9_
 
-- [ ] 2.6.6 Create inventory movement history viewer
+- [x] 2.6.6 Create inventory movement history viewer
   - Display all movements with filters (item, date, manager)
   - Show movement details (quantity, from/to, reason)
   - Export to CSV functionality
   - _Requirements: 26.9_
 
-- [ ] 2.6.7 Write property test for inventory deduction
+- [x] 2.6.7 Write property test for inventory deduction
   - **Property 35: Inventory Balance Invariant**
   - **Validates: Requirements 11.4**
 
-- [ ] 2.6.8 Write property test for auto out-of-stock
+- [x] 2.6.8 Write property test for auto out-of-stock
   - **Property 31: Zero Inventory Auto Out-of-Stock**
   - **Validates: Requirements 10.3, 11.3**
 
