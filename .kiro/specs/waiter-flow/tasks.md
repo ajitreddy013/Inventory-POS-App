@@ -150,36 +150,36 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 5.1, 5.2, 18.1-18.5
 
 ### Task 2.5: Table and Section Management
-- [ ] 2.5.1 Implement section CRUD operations
+- [x] 2.5.1 Implement section CRUD operations
   - Create sections with custom names
   - Update section names
   - Delete empty sections
   - _Requirements: 16.1, 16.4_
 
-- [ ] 2.5.2 Implement table CRUD operations
+- [x] 2.5.2 Implement table CRUD operations
   - Create tables with name and section assignment
   - Update table name and section
   - Delete tables with no active orders
   - Display tables grouped by section
   - _Requirements: 16.2, 16.3, 16.4, 16.5, 16.6_
 
-- [ ] 2.5.3 Implement table operations
+- [x] 2.5.3 Implement table operations
   - Merge multiple tables into single order
   - Split table order into separate bills
   - Transfer order between tables
   - Preserve waiter attribution during operations
   - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5_
 
-- [ ] 2.5.4 Add real-time table status listeners
+- [x] 2.5.4 Add real-time table status listeners
   - Subscribe to table status changes
   - Update UI when tables change
   - _Requirements: 4.2, 16.7_
 
-- [ ] 2.5.5 Write property test for table operations
+- [x] 2.5.5 Write property test for table operations
   - **Property 40: Table Merge Item Preservation**
   - **Validates: Requirements 15.5**
 
-- [ ] 2.5.6 Write property test for table-section invariant
+- [x] 2.5.6 Write property test for table-section invariant
   - **Property 41: Table Section Membership Invariant**
   - **Validates: Requirements 16.8**
 
