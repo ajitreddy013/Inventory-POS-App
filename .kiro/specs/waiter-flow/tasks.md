@@ -838,26 +838,26 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 12.3, 12.5, 14.1, 24.1-24.5
 
 ### Task 5.3: Idempotency Implementation
-- [ ] 5.3.1 Implement order ID generation
+- [x] 5.3.1 Implement order ID generation
   - Generate unique IDs based on device and timestamp
   - Use deterministic ID generation
   - _Requirements: 25.2_
 
-- [ ] 5.3.2 Implement idempotent order submission
+- [x] 5.3.2 Implement idempotent order submission
   - Use setDoc with generated ID
   - Ensure multiple submissions create single record
   - Use same ID for retries
   - _Requirements: 25.1, 25.3, 25.4_
 
-- [ ] 5.3.3 Write property test for order submission idempotence
+- [x] 5.3.3 Write property test for order submission idempotence
   - **Property 51: Order Submission Idempotence**
   - **Validates: Requirements 25.1, 25.4**
 
-- [ ] 5.3.4 Write property test for unique order IDs
+- [x] 5.3.4 Write property test for unique order IDs
   - **Property 52: Unique Order ID Generation**
   - **Validates: Requirements 25.2**
 
-- [ ] 5.3.5 Write property test for retry ID consistency
+- [x] 5.3.5 Write property test for retry ID consistency
   - **Property 53: Retry ID Consistency**
   - **Validates: Requirements 25.3**
 
