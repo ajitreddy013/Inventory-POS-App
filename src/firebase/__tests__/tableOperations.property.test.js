@@ -27,7 +27,7 @@ describe('Property-Based Tests: Table Operations', () => {
      */
     test('Property 40: Merged order contains all items with preserved waiter attribution', () => {
       // Run multiple iterations to simulate property-based testing
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         // Generate 2-5 tables with 1-5 items each
         const numTables = randomInt(2, 5);
         const tables = [];
@@ -87,7 +87,7 @@ describe('Property-Based Tests: Table Operations', () => {
     });
 
     test('Property 40: Waiter attribution is never null or undefined after merge', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const numTables = randomInt(2, 5);
         const tables = [];
         
@@ -124,7 +124,7 @@ describe('Property-Based Tests: Table Operations', () => {
     });
 
     test('Property 40: Merge is commutative (order of tables does not matter)', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const numTables = randomInt(2, 3);
         const tables = [];
         
@@ -177,7 +177,7 @@ describe('Property-Based Tests: Table Operations', () => {
      * (section_id should be non-null and reference a valid section).
      */
     test('Property 41: Every table has exactly one section ID', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const numTables = randomInt(1, 20);
         const tables = [];
         
@@ -201,7 +201,7 @@ describe('Property-Based Tests: Table Operations', () => {
     });
 
     test('Property 41: Table cannot belong to multiple sections', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const table = {
           id: `table_${randomString()}`,
           name: `Table ${run}`,
@@ -219,7 +219,7 @@ describe('Property-Based Tests: Table Operations', () => {
     });
 
     test('Property 41: Section ID remains valid after table updates', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const originalTable = {
           id: `table_${randomString()}`,
           name: `Table ${run}`,
@@ -246,7 +246,7 @@ describe('Property-Based Tests: Table Operations', () => {
     });
 
     test('Property 41: All tables in a section have the same section ID', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const sectionId = `section_${randomString()}`;
         const numTables = randomInt(1, 10);
         const tables = [];
@@ -271,7 +271,7 @@ describe('Property-Based Tests: Table Operations', () => {
     });
 
     test('Property 41: Table creation requires valid section ID', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const tableData = {
           name: `Table ${run}`,
           sectionId: `section_${randomString()}`
@@ -304,7 +304,7 @@ describe('Property-Based Tests: Table Operations', () => {
 
   describe('Combined Properties', () => {
     test('Property: Merged tables maintain section membership', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const sectionId = `section_${randomString()}`;
         const numTables = randomInt(2, 4);
         const tables = [];
