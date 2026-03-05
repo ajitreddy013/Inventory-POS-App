@@ -421,35 +421,35 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 2.1-2.6, 3.1-3.5
 
 ### Task 3.4: Authentication Screen
-- [ ] 3.4.1 Create PIN entry UI
+- [x] 3.4.1 Create PIN entry UI
   - Build numeric keypad
   - Add PIN display with masked digits
   - Add login button
   - Style for mobile UX
   - _Requirements: 1.1_
 
-- [ ] 3.4.2 Implement PIN validation and authentication
+- [x] 3.4.2 Implement PIN validation and authentication
   - Validate PIN format (4-6 digits)
   - Query Firestore for matching waiter
   - Generate custom token (server-side function)
   - Sign in with custom token
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 3.4.3 Implement session persistence
+- [x] 3.4.3 Implement session persistence
   - Store waiterId and waiterName in AsyncStorage
   - Auto-login on app restart if session exists
   - Add logout functionality
   - _Requirements: 1.4_
 
-- [ ] 3.4.4 Write property test for PIN format validation
+- [x] 3.4.4 Write property test for PIN format validation
   - **Property 1: PIN Format Validation**
   - **Validates: Requirements 1.1**
 
-- [ ] 3.4.5 Write property test for authentication success
+- [x] 3.4.5 Write property test for authentication success
   - **Property 2: Valid PIN Authentication Success**
   - **Validates: Requirements 1.2**
 
-- [ ] 3.4.6 Write property test for authentication failure
+- [x] 3.4.6 Write property test for authentication failure
   - **Property 3: Invalid PIN Authentication Failure**
   - **Validates: Requirements 1.3**
 
