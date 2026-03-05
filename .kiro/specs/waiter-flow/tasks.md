@@ -457,33 +457,33 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 1.1-1.5
 
 ### Task 3.5: Table Selection Screen
-- [ ] 3.5.1 Create table grid UI
+- [x] 3.5.1 Create table grid UI
   - Display tables in grid layout
   - Show table name and status
   - Add section filter dropdown
   - Style table cards with status colors
   - _Requirements: 4.1, 4.2_
 
-- [ ] 3.5.2 Implement table status indicators
+- [x] 3.5.2 Implement table status indicators
   - Show available (green), occupied (yellow), pending_bill (red)
   - Update colors based on table status
   - _Requirements: 4.2_
 
-- [ ] 3.5.3 Implement real-time table updates
+- [x] 3.5.3 Implement real-time table updates
   - Subscribe to tables collection changes
   - Update UI when table status changes
   - _Requirements: 4.2_
 
-- [ ] 3.5.4 Add table selection navigation
+- [x] 3.5.4 Add table selection navigation
   - Navigate to order entry on table tap
   - Load existing order if table is occupied
   - _Requirements: 4.3, 4.5_
 
-- [ ] 3.5.5 Write property test for complete table display
+- [x] 3.5.5 Write property test for complete table display
   - **Property 13: Complete Table Display**
   - **Validates: Requirements 4.1**
 
-- [ ] 3.5.6 Write property test for table status validity
+- [x] 3.5.6 Write property test for table status validity
   - **Property 14: Table Status Validity**
   - **Validates: Requirements 4.2**
 
