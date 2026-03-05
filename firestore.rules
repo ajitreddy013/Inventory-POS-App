@@ -24,18 +24,10 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/managers/$(request.auth.uid));
     }
     
-    // Check if waiter owns the order
-    function isOrderOwner(orderId) {
-      return isAuthenticated() && 
-             resource.data.waiterId == request.auth.uid;
-    }
-    
     // ============================================
     // Managers Collection
     // ============================================
     match /managers/{managerId} {
-      // Managers can read their own document
-      // Only admin SDK can write (desktop app)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -44,8 +36,6 @@ service cloud.firestore {
     // Waiters Collection
     // ============================================
     match /waiters/{waiterId} {
-      // Waiters can read for authentication
-      // Only admin SDK can write (desktop app manages waiters)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -54,8 +44,6 @@ service cloud.firestore {
     // Sections Collection
     // ============================================
     match /sections/{sectionId} {
-      // All authenticated users can read sections
-      // Only admin SDK can write
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -64,10 +52,8 @@ service cloud.firestore {
     // Tables Collection
     // ============================================
     match /tables/{tableId} {
-      // Waiters can read and update table status
       allow read: if isAuthenticated();
       allow update: if isWaiter();
-      // Only admin SDK can create/delete tables
       allow create, delete: if false;
     }
     
@@ -75,8 +61,6 @@ service cloud.firestore {
     // Menu Categories Collection
     // ============================================
     match /menuCategories/{categoryId} {
-      // All authenticated users can read
-      // Only admin SDK can write
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -85,13 +69,10 @@ service cloud.firestore {
     // Menu Items Collection
     // ============================================
     match /menuItems/{itemId} {
-      // All authenticated users can read menu
-      // Waiters can update out-of-stock status
       allow read: if isAuthenticated();
       allow update: if isWaiter() && 
                       request.resource.data.diff(resource.data).affectedKeys()
                         .hasOnly(['isOutOfStock', 'updatedAt']);
-      // Only admin SDK can create/delete items
       allow create, delete: if false;
     }
     
@@ -99,8 +80,6 @@ service cloud.firestore {
     // Modifiers Collection
     // ============================================
     match /modifiers/{modifierId} {
-      // All authenticated users can read
-      // Only admin SDK can write
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -109,8 +88,6 @@ service cloud.firestore {
     // Inventory Collection
     // ============================================
     match /inventory/{inventoryId} {
-      // All authenticated users can read inventory
-      // Only admin SDK can write (desktop app manages inventory)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -119,8 +96,6 @@ service cloud.firestore {
     // Inventory Movements Collection
     // ============================================
     match /inventoryMovements/{movementId} {
-      // All authenticated users can read movement history
-      // Only admin SDK can write (requires manager authentication)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -129,20 +104,16 @@ service cloud.firestore {
     // Orders Collection
     // ============================================
     match /orders/{orderId} {
-      // SECURED: Waiters can only modify THEIR OWN orders
+      // Any waiter can read and modify any order (restaurant workflow)
       allow read: if isAuthenticated();
-      // Waiter can create orders
       allow create: if isWaiter();
-      // Waiter can only update their own orders (not any order)
-      allow update: if isWaiter() && resource.data.waiterId == request.auth.uid;
-      allow delete: if false; // Orders should not be deleted
+      allow update: if isWaiter();
+      allow delete: if false;
       
-      // Order Items Subcollection - same restriction
+      // Order Items Subcollection
       match /items/{itemId} {
         allow read: if isAuthenticated();
-        // Only order owner can modify items
-        allow write: if isWaiter() && 
-                       get(/databases/$(database)/documents/orders/$(orderId)).data.waiterId == request.auth.uid;
+        allow write: if isWaiter();
       }
     }
     
@@ -150,8 +121,6 @@ service cloud.firestore {
     // KOTs Collection
     // ============================================
     match /kots/{kotId} {
-      // All authenticated users can read KOTs
-      // Only admin SDK can write (desktop app generates KOTs)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -160,8 +129,6 @@ service cloud.firestore {
     // Bills Collection
     // ============================================
     match /bills/{billId} {
-      // All authenticated users can read bills
-      // Only admin SDK can write (desktop app generates bills)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -170,18 +137,8 @@ service cloud.firestore {
     // Customers Collection
     // ============================================
     match /customers/{customerId} {
-      // All authenticated users can read customers
-      // Waiters can create limited customers (rate limited by app)
       allow read: if isAuthenticated();
-      // Only allow waiter to create with validated data
-      allow create: if isWaiter() && 
-                    request.resource.data.keys().hasAll(['name', 'phone']) &&
-                    request.resource.data.name is string &&
-                    request.resource.data.name.size() > 0 &&
-                    request.resource.data.name.size() <= 100 &&
-                    request.resource.data.phone is string &&
-                    request.resource.data.phone.size() >= 10 &&
-                    request.resource.data.phone.size() <= 15;
+      allow create: if isWaiter();
       allow update, delete: if false;
     }
     
@@ -189,7 +146,6 @@ service cloud.firestore {
     // Sync Metadata Collection
     // ============================================
     match /syncMetadata/{deviceId} {
-      // Devices can read and write their own sync metadata
       allow read, write: if isAuthenticated() && 
                            deviceId == request.auth.uid;
     }
@@ -197,7 +153,6 @@ service cloud.firestore {
     // ============================================
     // Default Deny All
     // ============================================
-    // Deny access to any other collections not explicitly defined
     match /{document=**} {
       allow read, write: if false;
     }

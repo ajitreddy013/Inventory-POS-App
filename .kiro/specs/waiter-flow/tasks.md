@@ -728,7 +728,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Verify print quality and formatting
   - _Requirements: 7.1_
 
-- [-] 4.2.6 Write unit tests for printer driver
+- [x] 4.2.6 Write unit tests for printer driver
   - Test ESC/POS command generation
   - Test connection handling
   - Test error scenarios
@@ -754,7 +754,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Auto-retry failed KOTs when printer comes online
   - _Requirements: 22.4_
 
-- [-] 4.3.4 Write unit tests for failed KOT handling
+- [x] 4.3.4 Write unit tests for failed KOT handling
   - Test storage and retrieval
   - Test retry logic
   - Test automatic retry

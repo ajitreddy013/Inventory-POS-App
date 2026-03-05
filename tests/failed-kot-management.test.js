@@ -309,16 +309,10 @@ describe('Failed KOT Management Tests', () => {
 
   describe('Test 4: Automatic Retry on Printer Reconnection', () => {
     test('should auto-retry failed KOTs when kitchen printer reconnects', async () => {
-      // Setup: printer starts offline
-      mockPrinterService.checkStatus.mockResolvedValueOnce({
-        online: false,
-        status: 'offline',
-      });
-
       await kotRouter.initialize();
 
-      // Wait for initial status check
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Set initial status to offline
+      kotRouter.lastPrinterStatus = { kitchen: false, bar: false };
 
       // Mock failed KOTs in Firestore
       const mockDocs = [
@@ -346,29 +340,25 @@ describe('Failed KOT Management Tests', () => {
         where: mockWhere,
       });
 
-      // Simulate printer coming online
-      mockPrinterService.checkStatus.mockResolvedValue({
-        online: true,
-        status: 'online',
-      });
+      // Simulate kitchen printer coming online
+      mockPrinterService.checkStatus
+        .mockResolvedValueOnce({ online: true, status: 'online' })   // kitchen online
+        .mockResolvedValueOnce({ online: false, status: 'offline' }); // bar offline
 
       // Trigger status check
       await kotRouter.checkPrinterStatusAndRetry();
 
-      // Verify auto-retry was attempted
+      // Verify auto-retry was attempted for kitchen
       expect(mockWhere).toHaveBeenCalledWith('printerType', '==', 'kitchen');
 
       console.log('✓ Test 4 passed: Auto-retry triggered on printer reconnection');
     });
 
     test('should not auto-retry when printer stays online', async () => {
-      // Setup: printer starts online
-      mockPrinterService.checkStatus.mockResolvedValue({
-        online: true,
-        status: 'online',
-      });
-
       await kotRouter.initialize();
+
+      // Set initial status to online
+      kotRouter.lastPrinterStatus = { kitchen: true, bar: true };
 
       // Mock Firestore to track calls
       const mockWhere = jest.fn();
@@ -376,13 +366,12 @@ describe('Failed KOT Management Tests', () => {
         where: mockWhere,
       });
 
-      // First check - establishes baseline
-      await kotRouter.checkPrinterStatusAndRetry();
+      // Simulate printers staying online
+      mockPrinterService.checkStatus
+        .mockResolvedValueOnce({ online: true, status: 'online' })
+        .mockResolvedValueOnce({ online: true, status: 'online' });
 
-      // Clear mock calls
-      mockWhere.mockClear();
-
-      // Second check - printer still online
+      // Check - printer still online
       await kotRouter.checkPrinterStatusAndRetry();
 
       // Should not query for failed KOTs since printer didn't reconnect
