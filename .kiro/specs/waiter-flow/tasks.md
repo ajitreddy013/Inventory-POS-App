@@ -274,20 +274,20 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 12.1-12.5, 13.1-13.5, 14.1-14.5
 
 ### Task 2.8: Waiter Performance Reporting
-- [ ] 2.8.1 Implement waiter sales report queries
+- [x] 2.8.1 Implement waiter sales report queries
   - Query orders by waiter and date range
   - Calculate total sales per waiter
   - Count orders per waiter
   - List table assignments per waiter
   - _Requirements: 17.1, 17.2, 17.3, 17.4_
 
-- [ ] 2.8.2 Add report period selection
+- [x] 2.8.2 Add report period selection
   - Support daily, weekly, and monthly periods
   - Generate reports for all waiters
   - Display comparative metrics
   - _Requirements: 17.1_
 
-- [ ] 2.8.3 Write property test for sales sum invariant
+- [x] 2.8.3 Write property test for sales sum invariant
   - **Property 42: Waiter Sales Sum Invariant**
   - **Validates: Requirements 17.5**
 
