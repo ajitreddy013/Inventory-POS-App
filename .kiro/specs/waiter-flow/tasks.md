@@ -383,13 +383,13 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 3.1, 3.4
 
 ### Task 3.3: Firebase Sync Engine (Mobile)
-- [ ] 3.3.1 Implement FirestoreSyncEngine class
+- [x] 3.3.1 Implement FirestoreSyncEngine class
   - Set up Firestore offline persistence
   - Create collection subscription methods
   - Implement sync status tracking
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 3.3.2 Implement real-time listeners
+- [x] 3.3.2 Implement real-time listeners
   - Subscribe to orders collection
   - Subscribe to menuItems collection
   - Subscribe to tables collection
@@ -397,23 +397,23 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Update local SQLite mirror on changes
   - _Requirements: 2.2, 5.2_
 
-- [ ] 3.3.3 Implement network status monitoring
+- [x] 3.3.3 Implement network status monitoring
   - Use NetInfo to detect connectivity changes
   - Show online/offline notifications
   - Update sync status indicator
   - _Requirements: 2.6, 3.3_
 
-- [ ] 3.3.4 Implement offline write queueing
+- [x] 3.3.4 Implement offline write queueing
   - Queue writes when offline
   - Firestore SDK handles automatic retry
   - Monitor pending write count
   - _Requirements: 3.1, 3.3_
 
-- [ ] 3.3.5 Write property test for offline sync completeness
+- [x] 3.3.5 Write property test for offline sync completeness
   - **Property 6: Offline Sync Completeness**
   - **Validates: Requirements 2.3, 3.3**
 
-- [ ] 3.3.6 Write property test for conflict resolution
+- [x] 3.3.6 Write property test for conflict resolution
   - **Property 7: Last-Write-Wins Conflict Resolution**
   - **Validates: Requirements 2.5**
 
