@@ -234,39 +234,39 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 10.1-10.5, 11.1-11.4, 26.1, 26.4, 26.9
 
 ### Task 2.7: Billing System
-- [ ] 2.7.1 Implement bill generation
+- [x] 2.7.1 Implement bill generation
   - Generate bill from completed order
   - Calculate subtotal from order items
   - Support Cash, Card, and UPI payment methods
   - _Requirements: 12.1, 12.2_
 
-- [ ] 2.7.2 Implement discount application
+- [x] 2.7.2 Implement discount application
   - Apply percentage discounts to bill total
   - Apply fixed amount discounts to bill total
   - Calculate final total after discount
   - _Requirements: 13.1, 13.2, 13.3, 13.5_
 
-- [ ] 2.7.3 Implement split payment validation
+- [x] 2.7.3 Implement split payment validation
   - Allow maximum 2 payment methods
   - Validate payment sum equals bill total
   - _Requirements: 12.3, 12.5_
 
-- [ ] 2.7.4 Implement pending bills with customer tracking
+- [x] 2.7.4 Implement pending bills with customer tracking
   - Require customer phone for pending bills
   - Check for existing customer records
   - Display previous order history for returning customers
   - Search pending bills by phone/name
   - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
 
-- [ ] 2.7.5 Write property test for split payment validation
+- [x] 2.7.5 Write property test for split payment validation
   - **Property 37: Split Payment Sum Validation**
   - **Validates: Requirements 12.5**
 
-- [ ] 2.7.6 Write property test for percentage discount
+- [x] 2.7.6 Write property test for percentage discount
   - **Property 38: Percentage Discount Calculation**
   - **Validates: Requirements 13.5**
 
-- [ ] 2.7.7 Write property test for pending bill phone requirement
+- [x] 2.7.7 Write property test for pending bill phone requirement
   - **Property 39: Pending Bill Phone Requirement**
   - **Validates: Requirements 14.1**
 
