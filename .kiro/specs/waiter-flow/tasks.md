@@ -383,13 +383,13 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 3.1, 3.4
 
 ### Task 3.3: Firebase Sync Engine (Mobile)
-- [ ] 3.3.1 Implement FirestoreSyncEngine class
+- [x] 3.3.1 Implement FirestoreSyncEngine class
   - Set up Firestore offline persistence
   - Create collection subscription methods
   - Implement sync status tracking
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 3.3.2 Implement real-time listeners
+- [x] 3.3.2 Implement real-time listeners
   - Subscribe to orders collection
   - Subscribe to menuItems collection
   - Subscribe to tables collection
@@ -397,23 +397,23 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Update local SQLite mirror on changes
   - _Requirements: 2.2, 5.2_
 
-- [ ] 3.3.3 Implement network status monitoring
+- [x] 3.3.3 Implement network status monitoring
   - Use NetInfo to detect connectivity changes
   - Show online/offline notifications
   - Update sync status indicator
   - _Requirements: 2.6, 3.3_
 
-- [ ] 3.3.4 Implement offline write queueing
+- [x] 3.3.4 Implement offline write queueing
   - Queue writes when offline
   - Firestore SDK handles automatic retry
   - Monitor pending write count
   - _Requirements: 3.1, 3.3_
 
-- [ ] 3.3.5 Write property test for offline sync completeness
+- [x] 3.3.5 Write property test for offline sync completeness
   - **Property 6: Offline Sync Completeness**
   - **Validates: Requirements 2.3, 3.3**
 
-- [ ] 3.3.6 Write property test for conflict resolution
+- [x] 3.3.6 Write property test for conflict resolution
   - **Property 7: Last-Write-Wins Conflict Resolution**
   - **Validates: Requirements 2.5**
 
@@ -421,35 +421,35 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 2.1-2.6, 3.1-3.5
 
 ### Task 3.4: Authentication Screen
-- [ ] 3.4.1 Create PIN entry UI
+- [x] 3.4.1 Create PIN entry UI
   - Build numeric keypad
   - Add PIN display with masked digits
   - Add login button
   - Style for mobile UX
   - _Requirements: 1.1_
 
-- [ ] 3.4.2 Implement PIN validation and authentication
+- [x] 3.4.2 Implement PIN validation and authentication
   - Validate PIN format (4-6 digits)
   - Query Firestore for matching waiter
   - Generate custom token (server-side function)
   - Sign in with custom token
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 3.4.3 Implement session persistence
+- [x] 3.4.3 Implement session persistence
   - Store waiterId and waiterName in AsyncStorage
   - Auto-login on app restart if session exists
   - Add logout functionality
   - _Requirements: 1.4_
 
-- [ ] 3.4.4 Write property test for PIN format validation
+- [x] 3.4.4 Write property test for PIN format validation
   - **Property 1: PIN Format Validation**
   - **Validates: Requirements 1.1**
 
-- [ ] 3.4.5 Write property test for authentication success
+- [x] 3.4.5 Write property test for authentication success
   - **Property 2: Valid PIN Authentication Success**
   - **Validates: Requirements 1.2**
 
-- [ ] 3.4.6 Write property test for authentication failure
+- [x] 3.4.6 Write property test for authentication failure
   - **Property 3: Invalid PIN Authentication Failure**
   - **Validates: Requirements 1.3**
 
@@ -457,33 +457,33 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 1.1-1.5
 
 ### Task 3.5: Table Selection Screen
-- [ ] 3.5.1 Create table grid UI
+- [x] 3.5.1 Create table grid UI
   - Display tables in grid layout
   - Show table name and status
   - Add section filter dropdown
   - Style table cards with status colors
   - _Requirements: 4.1, 4.2_
 
-- [ ] 3.5.2 Implement table status indicators
+- [x] 3.5.2 Implement table status indicators
   - Show available (green), occupied (yellow), pending_bill (red)
   - Update colors based on table status
   - _Requirements: 4.2_
 
-- [ ] 3.5.3 Implement real-time table updates
+- [x] 3.5.3 Implement real-time table updates
   - Subscribe to tables collection changes
   - Update UI when table status changes
   - _Requirements: 4.2_
 
-- [ ] 3.5.4 Add table selection navigation
+- [x] 3.5.4 Add table selection navigation
   - Navigate to order entry on table tap
   - Load existing order if table is occupied
   - _Requirements: 4.3, 4.5_
 
-- [ ] 3.5.5 Write property test for complete table display
+- [x] 3.5.5 Write property test for complete table display
   - **Property 13: Complete Table Display**
   - **Validates: Requirements 4.1**
 
-- [ ] 3.5.6 Write property test for table status validity
+- [x] 3.5.6 Write property test for table status validity
   - **Property 14: Table Status Validity**
   - **Validates: Requirements 4.2**
 
@@ -491,30 +491,30 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 4.1-4.5
 
 ### Task 3.6: Menu Browser Component
-- [ ] 3.6.1 Create menu item list UI
+- [x] 3.6.1 Create menu item list UI
   - Display menu items in scrollable list
   - Show item name, price, and category
   - Add category filter tabs
   - _Requirements: 5.1_
 
-- [ ] 3.6.2 Implement search functionality
+- [x] 3.6.2 Implement search functionality
   - Add search bar
   - Filter items by name (case-insensitive)
   - Update list in real-time as user types
   - _Requirements: 5.5_
 
-- [ ] 3.6.3 Display out-of-stock indicators
+- [x] 3.6.3 Display out-of-stock indicators
   - Show red marker for out-of-stock items
   - Disable selection of out-of-stock items
   - _Requirements: 5.3_
 
-- [ ] 3.6.4 Implement real-time menu updates
+- [x] 3.6.4 Implement real-time menu updates
   - Subscribe to menuItems collection
   - Update UI when items change
   - Update prices and out-of-stock status
   - _Requirements: 5.2, 5.4_
 
-- [ ] 3.6.5 Write property test for menu search accuracy
+- [x] 3.6.5 Write property test for menu search accuracy
   - **Property 18: Menu Search Accuracy**
   - **Validates: Requirements 5.5**
 
@@ -522,52 +522,52 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 5.1-5.5
 
 ### Task 3.7: Order Entry Screen
-- [ ] 3.7.1 Create order item list UI
+- [x] 3.7.1 Create order item list UI
   - Display order items with quantities
   - Show item prices and modifiers
   - Display order total at bottom
   - Add "Send to Kitchen" button
   - _Requirements: 6.1_
 
-- [ ] 3.7.2 Implement add item functionality
+- [x] 3.7.2 Implement add item functionality
   - Add selected menu item to order
   - Show modifier selection dialog
   - Support spice level selection (free)
   - Support paid add-on selection
   - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] 3.7.3 Implement quantity adjustment
+- [x] 3.7.3 Implement quantity adjustment
   - Add +/- buttons for quantity
   - Update item total on quantity change
   - _Requirements: 6.5_
 
-- [ ] 3.7.4 Implement item removal
+- [x] 3.7.4 Implement item removal
   - Add delete button for items
   - Only allow removal before sending to kitchen
   - _Requirements: 9.3, 9.4_
 
-- [ ] 3.7.5 Implement order total calculation
+- [x] 3.7.5 Implement order total calculation
   - Calculate item totals (base price + paid add-ons)
   - Sum all item totals for order total
   - Update total in real-time
   - _Requirements: 6.6_
 
-- [ ] 3.7.6 Implement order submission
+- [x] 3.7.6 Implement order submission
   - Save order to Firestore
   - Mark items as sent to kitchen
   - Trigger KOT generation (desktop handles printing)
   - Associate order with authenticated waiter
   - _Requirements: 1.5, 9.1_
 
-- [ ] 3.7.7 Write property test for free spice modifiers
+- [x] 3.7.7 Write property test for free spice modifiers
   - **Property 20: Free Spice Level Modifiers**
   - **Validates: Requirements 6.2**
 
-- [ ] 3.7.8 Write property test for price calculation
+- [x] 3.7.8 Write property test for price calculation
   - **Property 21: Order Item Price Calculation Invariant**
   - **Validates: Requirements 6.6**
 
-- [ ] 3.7.9 Write property test for sent item immutability
+- [x] 3.7.9 Write property test for sent item immutability
   - **Property 29: Sent Item Immutability**
   - **Validates: Requirements 9.3, 9.4**
 
@@ -575,38 +575,38 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 6.1-6.6, 9.1, 9.3, 9.4
 
 ### Task 3.8: Offline Functionality and Testing
-- [ ] 3.8.1 Test offline order creation
+- [x] 3.8.1 Test offline order creation
   - Disable network
   - Create orders
   - Verify local storage
   - _Requirements: 3.1, 3.2_
 
-- [ ] 3.8.2 Test sync queue population
+- [x] 3.8.2 Test sync queue population
   - Verify pending changes tracked
   - Check sync_queue table
   - _Requirements: 3.3, 3.4_
 
-- [ ] 3.8.3 Test automatic sync on reconnection
+- [x] 3.8.3 Test automatic sync on reconnection
   - Re-enable network
   - Verify automatic upload
   - Check sync completion notification
   - _Requirements: 3.3_
 
-- [ ] 3.8.4 Add offline indicator UI
+- [x] 3.8.4 Add offline indicator UI
   - Show offline banner when disconnected
   - Show syncing indicator during sync
   - Show connected status when online
   - _Requirements: 2.6_
 
-- [ ] 3.8.5 Write property test for offline order storage
+- [x] 3.8.5 Write property test for offline order storage
   - **Property 9: Offline Order Storage**
   - **Validates: Requirements 3.1**
 
-- [ ] 3.8.6 Write property test for offline functionality preservation
+- [x] 3.8.6 Write property test for offline functionality preservation
   - **Property 10: Offline Functionality Preservation**
   - **Validates: Requirements 3.2**
 
-- [ ] 3.8.7 Write property test for round-trip integrity
+- [x] 3.8.7 Write property test for round-trip integrity
   - **Property 12: Offline Order Round-Trip Integrity**
   - **Validates: Requirements 3.5**
 
@@ -614,25 +614,25 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 2.6, 3.1-3.5
 
 ### Task 3.9: Mobile Table Operations
-- [ ] 3.9.1 Implement table merge on mobile
+- [x] 3.9.1 Implement table merge on mobile
   - Add "Merge Tables" button
   - Allow selection of multiple tables
   - Combine orders while preserving waiter attribution
   - _Requirements: 15.4, 15.5_
 
-- [ ] 3.9.2 Implement table split on mobile
+- [x] 3.9.2 Implement table split on mobile
   - Add "Split Table" button
   - Allow item selection for each split
   - Create separate orders
   - _Requirements: 15.4_
 
-- [ ] 3.9.3 Implement table transfer on mobile
+- [x] 3.9.3 Implement table transfer on mobile
   - Add "Transfer Table" button
   - Allow destination table selection
   - Move order to new table
   - _Requirements: 15.4_
 
-- [ ] 3.9.4 Write unit tests for mobile table operations
+- [x] 3.9.4 Write unit tests for mobile table operations
   - Test merge, split, transfer
   - Verify data integrity
   - _Requirements: 15.4, 15.5_
