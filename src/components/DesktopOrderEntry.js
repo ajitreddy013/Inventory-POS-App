@@ -102,10 +102,38 @@ const DesktopOrderEntry = ({ onBack }) => {
     }
   };
 
-  const handleTableSelect = (table) => {
+  const handleTableSelect = async (table) => {
     setSelectedTable(table);
-    setOrderItems([]);
     setSearchTerm("");
+    
+    // Load existing order for this table if it exists
+    if (table.currentOrderId) {
+      try {
+        const result = await window.electronAPI.invoke(
+          "firebase:get-table-orders",
+          table.id
+        );
+        
+        if (result.success && result.orders && result.orders.length > 0) {
+          const existingOrder = result.orders[0];
+          
+          // Load order items and mark submitted items as sent to kitchen
+          const loadedItems = (existingOrder.items || []).map((item) => ({
+            ...item,
+            sentToKitchen: existingOrder.status === "submitted" || existingOrder.status === "preparing",
+          }));
+          
+          setOrderItems(loadedItems);
+        } else {
+          setOrderItems([]);
+        }
+      } catch (error) {
+        console.error("Error loading existing order:", error);
+        setOrderItems([]);
+      }
+    } else {
+      setOrderItems([]);
+    }
   };
 
   const handleBackToTables = () => {
@@ -439,9 +467,14 @@ const DesktopOrderEntry = ({ onBack }) => {
                 <p className="empty-order">No items in order</p>
               ) : (
                 orderItems.map((item) => (
-                  <div key={item.id} className="order-item">
+                  <div key={item.id} className={`order-item ${item.sentToKitchen ? 'sent-to-kitchen' : ''}`}>
                     <div className="item-info">
-                      <h4>{item.menuItemName}</h4>
+                      <h4>
+                        {item.menuItemName}
+                        {item.sentToKitchen && (
+                          <span className="sent-badge">Sent to Kitchen</span>
+                        )}
+                      </h4>
                       <p>₹{item.basePrice.toFixed(2)} base</p>
                       {item.modifiers.length > 0 && (
                         <div className="item-modifiers">
@@ -459,6 +492,7 @@ const DesktopOrderEntry = ({ onBack }) => {
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
                         className="qty-btn"
                         disabled={item.sentToKitchen}
+                        title={item.sentToKitchen ? "Cannot modify - already sent to kitchen" : "Decrease quantity"}
                       >
                         <Minus size={16} />
                       </button>
@@ -471,11 +505,13 @@ const DesktopOrderEntry = ({ onBack }) => {
                         className="qty-input"
                         min="1"
                         disabled={item.sentToKitchen}
+                        title={item.sentToKitchen ? "Cannot modify - already sent to kitchen" : "Enter quantity"}
                       />
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
                         className="qty-btn"
                         disabled={item.sentToKitchen}
+                        title={item.sentToKitchen ? "Cannot modify - already sent to kitchen" : "Increase quantity"}
                       >
                         <Plus size={16} />
                       </button>
@@ -487,6 +523,7 @@ const DesktopOrderEntry = ({ onBack }) => {
                       onClick={() => removeFromOrder(item.id)}
                       className="remove-btn"
                       disabled={item.sentToKitchen}
+                      title={item.sentToKitchen ? "Cannot remove - already sent to kitchen" : "Remove item"}
                     >
                       <Trash2 size={16} />
                     </button>
