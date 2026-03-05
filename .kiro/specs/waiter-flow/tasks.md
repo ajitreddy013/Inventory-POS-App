@@ -491,30 +491,30 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 4.1-4.5
 
 ### Task 3.6: Menu Browser Component
-- [ ] 3.6.1 Create menu item list UI
+- [x] 3.6.1 Create menu item list UI
   - Display menu items in scrollable list
   - Show item name, price, and category
   - Add category filter tabs
   - _Requirements: 5.1_
 
-- [ ] 3.6.2 Implement search functionality
+- [x] 3.6.2 Implement search functionality
   - Add search bar
   - Filter items by name (case-insensitive)
   - Update list in real-time as user types
   - _Requirements: 5.5_
 
-- [ ] 3.6.3 Display out-of-stock indicators
+- [x] 3.6.3 Display out-of-stock indicators
   - Show red marker for out-of-stock items
   - Disable selection of out-of-stock items
   - _Requirements: 5.3_
 
-- [ ] 3.6.4 Implement real-time menu updates
+- [x] 3.6.4 Implement real-time menu updates
   - Subscribe to menuItems collection
   - Update UI when items change
   - Update prices and out-of-stock status
   - _Requirements: 5.2, 5.4_
 
-- [ ] 3.6.5 Write property test for menu search accuracy
+- [x] 3.6.5 Write property test for menu search accuracy
   - **Property 18: Menu Search Accuracy**
   - **Validates: Requirements 5.5**
 
