@@ -522,52 +522,52 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 5.1-5.5
 
 ### Task 3.7: Order Entry Screen
-- [ ] 3.7.1 Create order item list UI
+- [x] 3.7.1 Create order item list UI
   - Display order items with quantities
   - Show item prices and modifiers
   - Display order total at bottom
   - Add "Send to Kitchen" button
   - _Requirements: 6.1_
 
-- [ ] 3.7.2 Implement add item functionality
+- [x] 3.7.2 Implement add item functionality
   - Add selected menu item to order
   - Show modifier selection dialog
   - Support spice level selection (free)
   - Support paid add-on selection
   - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] 3.7.3 Implement quantity adjustment
+- [x] 3.7.3 Implement quantity adjustment
   - Add +/- buttons for quantity
   - Update item total on quantity change
   - _Requirements: 6.5_
 
-- [ ] 3.7.4 Implement item removal
+- [x] 3.7.4 Implement item removal
   - Add delete button for items
   - Only allow removal before sending to kitchen
   - _Requirements: 9.3, 9.4_
 
-- [ ] 3.7.5 Implement order total calculation
+- [x] 3.7.5 Implement order total calculation
   - Calculate item totals (base price + paid add-ons)
   - Sum all item totals for order total
   - Update total in real-time
   - _Requirements: 6.6_
 
-- [ ] 3.7.6 Implement order submission
+- [x] 3.7.6 Implement order submission
   - Save order to Firestore
   - Mark items as sent to kitchen
   - Trigger KOT generation (desktop handles printing)
   - Associate order with authenticated waiter
   - _Requirements: 1.5, 9.1_
 
-- [ ] 3.7.7 Write property test for free spice modifiers
+- [x] 3.7.7 Write property test for free spice modifiers
   - **Property 20: Free Spice Level Modifiers**
   - **Validates: Requirements 6.2**
 
-- [ ] 3.7.8 Write property test for price calculation
+- [x] 3.7.8 Write property test for price calculation
   - **Property 21: Order Item Price Calculation Invariant**
   - **Validates: Requirements 6.6**
 
-- [ ] 3.7.9 Write property test for sent item immutability
+- [x] 3.7.9 Write property test for sent item immutability
   - **Property 29: Sent Item Immutability**
   - **Validates: Requirements 9.3, 9.4**
 
