@@ -163,7 +163,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Display tables grouped by section
   - _Requirements: 16.2, 16.3, 16.4, 16.5, 16.6_
 
-- [x] 2.5.3 Implement table operations
+- [x] 2.5.3 Implement table operations3
   - Merge multiple tables into single order
   - Split table order into separate bills
   - Transfer order between tables
@@ -643,55 +643,55 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 ## Phase 4: KOT Printing Integration
 
 ### Task 4.1: KOT Router Implementation
-- [ ] 4.1.1 Create KOTRouter class
+- [x] 4.1.1 Create KOTRouter class
   - Implement category-based routing logic
   - Separate food items (kitchen) from drink items (bar)
   - Handle mixed orders with split routing
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 4.1.2 Implement KOT generation
+- [x] 4.1.2 Implement KOT generation
   - Generate KOT with metadata (order number, table, waiter, timestamp)
   - Format items with quantities and modifiers
   - Add incremental indicators for quantity increases
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 4.1.3 Implement incremental KOT logic
+- [x] 4.1.3 Implement incremental KOT logic
   - Detect new items vs quantity increases
   - Generate KOTs with only new/incremental items
   - Mark items with "+" prefix for increments
   - _Requirements: 9.1, 9.2_
 
-- [ ] 4.1.4 Store KOT records in Firestore
+- [x] 4.1.4 Store KOT records in Firestore
   - Save KOT details to kots collection
   - Link KOT to order
   - Track print status
   - _Requirements: 8.7_
 
-- [ ] 4.1.5 Write property test for food item routing
+- [x] 4.1.5 Write property test for food item routing
   - **Property 22: Food Item Kitchen Routing**
   - **Validates: Requirements 7.2**
 
-- [ ] 4.1.6 Write property test for drink item routing
+- [x] 4.1.6 Write property test for drink item routing
   - **Property 23: Drink Item Bar Routing**
   - **Validates: Requirements 7.3**
 
-- [ ] 4.1.7 Write property test for mixed order routing
+- [x] 4.1.7 Write property test for mixed order routing
   - **Property 24: Mixed Order Split Routing**
   - **Validates: Requirements 7.4**
 
-- [ ] 4.1.8 Write property test for KOT completeness
+- [x] 4.1.8 Write property test for KOT completeness
   - **Property 26: KOT Completeness**
   - **Validates: Requirements 8.3, 8.4, 8.7**
 
-- [ ] 4.1.9 Write property test for KOT metadata
+- [x] 4.1.9 Write property test for KOT metadata
   - **Property 27: KOT Required Metadata**
   - **Validates: Requirements 8.1, 8.2, 8.5, 8.6**
 
-- [ ] 4.1.10 Write property test for incremental KOT content
+- [x] 4.1.10 Write property test for incremental KOT content
   - **Property 28: Incremental KOT Content**
   - **Validates: Requirements 9.1, 9.2**
 
-- [ ] 4.1.11 Write property test for KOT quantity sum
+- [x] 4.1.11 Write property test for KOT quantity sum
   - **Property 30: KOT Quantity Sum Invariant**
   - **Validates: Requirements 9.5**
 
@@ -699,25 +699,25 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 7.1-7.5, 8.1-8.7, 9.1, 9.2, 9.5
 
 ### Task 4.2: Thermal Printer Driver
-- [ ] 4.2.1 Implement ESC/POS command generation
+- [x] 4.2.1 Implement ESC/POS command generation
   - Create ESCPOSFormatter class
   - Generate printer initialization commands
   - Format text (bold, size, alignment)
   - Add paper cut command
   - _Requirements: 7.1_
 
-- [ ] 4.2.2 Implement printer connection management
+- [x] 4.2.2 Implement printer connection management
   - Connect to network printers via IP/port
   - Handle connection errors
   - Implement connection pooling
   - _Requirements: 7.1_
 
-- [ ] 4.2.3 Add printer status checking
+- [x] 4.2.3 Add printer status checking
   - Query printer status (online/offline/error)
   - Detect paper out, cover open
   - _Requirements: 23.4_
 
-- [ ] 4.2.4 Implement print retry logic
+- [x] 4.2.4 Implement print retry logic
   - Retry failed prints with exponential backoff
   - Store failed KOTs for manual retry
   - _Requirements: 22.4_
@@ -728,7 +728,7 @@ This implementation plan covers the complete WaiterFlow system including mobile 
   - Verify print quality and formatting
   - _Requirements: 7.1_
 
-- [ ] 4.2.6 Write unit tests for printer driver
+- [-] 4.2.6 Write unit tests for printer driver
   - Test ESC/POS command generation
   - Test connection handling
   - Test error scenarios

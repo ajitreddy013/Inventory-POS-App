@@ -25,6 +25,8 @@ import {
   addToSyncQueue
 } from '../services/databaseHelpers';
 import MenuBrowser from '../components/MenuBrowser';
+import OfflineIndicator from '../components/OfflineIndicator';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -83,6 +85,7 @@ export default function OrderEntryScreen({
   const [availableModifiers, setAvailableModifiers] = useState<Modifier[]>([]);
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const { status, pendingSyncCount } = useSyncStatus();
 
   useEffect(() => {
     if (orderId) {
@@ -441,6 +444,9 @@ export default function OrderEntryScreen({
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order for table: {tableName}</Text>
       </View>
+
+      {/* Offline Indicator */}
+      <OfflineIndicator status={status} pendingSyncCount={pendingSyncCount} />
 
       {/* Menu Browser */}
       <View style={styles.menuSection}>
