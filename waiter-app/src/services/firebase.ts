@@ -10,9 +10,6 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { 
   getFirestore, 
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   Firestore
 } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
@@ -66,12 +63,8 @@ export function initializeFirebase(): { app: FirebaseApp; firestore: Firestore; 
       app = initializeApp(firebaseConfig);
       console.log('✅ Firebase app initialized');
 
-      // Initialize Firestore with offline persistence
-      firestore = initializeFirestore(app, {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager()
-        })
-      });
+      // Initialize Firestore (offline persistence is enabled by default in React Native)
+      firestore = getFirestore(app);
       console.log('✅ Firestore initialized with offline persistence');
 
       // Initialize Auth
