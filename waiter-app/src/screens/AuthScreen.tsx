@@ -55,9 +55,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   };
 
   const handleNumberPress = (num: string) => {
-    if (pin.length < 6) {
-      setPin(pin + num);
+    if (pin.length < 4) {
+      const newPin = pin + num;
+      setPin(newPin);
       setError('');
+      
+      // Auto-submit when 4 digits entered
+      if (newPin.length === 4) {
+        handleLogin(newPin);
+      }
     }
   };
 
@@ -72,13 +78,18 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   };
 
   const validatePinFormat = (pin: string): boolean => {
-    // PIN must be 4-6 digits
-    return /^\d{4,6}$/.test(pin);
+    // PIN must be exactly 4 digits
+    return /^\d{4}$/.test(pin);
   };
 
-  const handleLogin = async () => {
-    if (!validatePinFormat(pin)) {
-      setError('PIN must be 4-6 digits');
+  const handleLogin = async (pinToValidate?: string) => {
+    const pinValue = pinToValidate || pin;
+    
+    console.log('Login attempt with PIN:', pinValue);
+    
+    if (!validatePinFormat(pinValue)) {
+      console.log('PIN validation failed');
+      setError('PIN must be 4 digits');
       return;
     }
 
@@ -87,16 +98,19 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
     try {
       // Query Firestore for waiter with matching PIN
+      console.log('Querying Firestore for PIN:', pinValue);
       const waitersRef = collection(db, 'waiters');
       const q = query(
         waitersRef,
-        where('pin', '==', pin),
+        where('pin', '==', pinValue),
         where('is_active', '==', true)
       );
       
       const snapshot = await getDocs(q);
+      console.log('Query result - docs found:', snapshot.docs.length);
 
       if (snapshot.empty) {
+        console.log('No waiter found with PIN:', pinValue);
         setError('Invalid PIN. Please try again.');
         setLoading(false);
         return;
@@ -107,10 +121,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       const waiterId = waiterDoc.id;
       const waiterName = waiterData.name;
 
-      // Generate custom token (in production, this should be done server-side)
-      // For now, we'll use Firebase Auth directly
-      // Note: In production, you'd call a Cloud Function to generate the custom token
-      
+      console.log('Login successful:', { waiterId, waiterName });
+
       // Store session
       await AsyncStorage.setItem('waiterId', waiterId);
       await AsyncStorage.setItem('waiterName', waiterName);
@@ -141,7 +153,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const renderPinDots = () => {
     return (
       <View style={styles.pinDotsContainer}>
-        {[0, 1, 2, 3, 4, 5].map((index) => (
+        {[0, 1, 2, 3].map((index) => (
           <View
             key={index}
             style={[
