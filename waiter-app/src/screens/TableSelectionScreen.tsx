@@ -16,6 +16,8 @@ import {
   Dimensions
 } from 'react-native';
 import { getAll, query as dbQuery } from '../services/databaseHelpers';
+import OfflineIndicator from '../components/OfflineIndicator';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -41,6 +43,7 @@ interface TableSelectionScreenProps {
   waiterId: string;
   waiterName: string;
   onTableSelect: (tableId: string, tableName: string, orderId?: string) => void;
+  onTableOperation: (tableId: string, tableName: string, operation: 'merge' | 'split' | 'transfer') => void;
   onLogout: () => void;
 }
 
@@ -48,6 +51,7 @@ export default function TableSelectionScreen({
   waiterId,
   waiterName,
   onTableSelect,
+  onTableOperation,
   onLogout
 }: TableSelectionScreenProps) {
   const [sections, setSections] = useState<Section[]>([]);
@@ -55,6 +59,7 @@ export default function TableSelectionScreen({
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const { status, pendingSyncCount } = useSyncStatus();
 
   useEffect(() => {
     loadSections();
@@ -152,10 +157,25 @@ export default function TableSelectionScreen({
     // TODO: Implement navigation
   };
 
-  const handleMoveTable = () => {
-    setShowBottomSheet(false);
-    // Navigate to table transfer screen
-    // TODO: Implement navigation
+  const handleMergeTables = () => {
+    if (selectedTable) {
+      setShowBottomSheet(false);
+      onTableOperation(selectedTable.id, selectedTable.name, 'merge');
+    }
+  };
+
+  const handleSplitTable = () => {
+    if (selectedTable) {
+      setShowBottomSheet(false);
+      onTableOperation(selectedTable.id, selectedTable.name, 'split');
+    }
+  };
+
+  const handleTransferTable = () => {
+    if (selectedTable) {
+      setShowBottomSheet(false);
+      onTableOperation(selectedTable.id, selectedTable.name, 'transfer');
+    }
   };
 
   const renderSectionTabs = () => {
@@ -265,9 +285,25 @@ export default function TableSelectionScreen({
 
               <TouchableOpacity
                 style={styles.bottomSheetButton}
-                onPress={handleMoveTable}
+                onPress={handleTransferTable}
               >
-                <Text style={styles.bottomSheetButtonText}>Move Table</Text>
+                <Text style={styles.bottomSheetButtonText}>Transfer</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.bottomSheetButtons}>
+              <TouchableOpacity
+                style={styles.bottomSheetButton}
+                onPress={handleMergeTables}
+              >
+                <Text style={styles.bottomSheetButtonText}>Merge Tables</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bottomSheetButton}
+                onPress={handleSplitTable}
+              >
+                <Text style={styles.bottomSheetButtonText}>Split Table</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -288,6 +324,9 @@ export default function TableSelectionScreen({
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Offline Indicator */}
+      <OfflineIndicator status={status} pendingSyncCount={pendingSyncCount} />
 
       {/* Section Tabs */}
       {renderSectionTabs()}
@@ -449,7 +488,8 @@ const styles = StyleSheet.create({
   },
   bottomSheetButtons: {
     flexDirection: 'row',
-    gap: 12
+    gap: 12,
+    marginBottom: 12
   },
   bottomSheetButton: {
     flex: 1,
