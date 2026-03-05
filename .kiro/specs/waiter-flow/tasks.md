@@ -764,18 +764,18 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 22.4, 23.4
 
 ### Task 4.4: Configuration Parser
-- [ ] 4.4.1 Implement configuration parser
+- [x] 4.4.1 Implement configuration parser
   - Parse printer configuration files
   - Validate configuration structure
   - Return descriptive errors for invalid config
   - _Requirements: 19.1, 19.2_
 
-- [ ] 4.4.2 Implement configuration printer
+- [x] 4.4.2 Implement configuration printer
   - Format Configuration objects to string
   - Maintain consistent formatting
   - _Requirements: 19.3_
 
-- [ ] 4.4.3 Write property test for config round-trip
+- [x] 4.4.3 Write property test for config round-trip
   - **Property 43: Configuration Round-Trip Integrity**
   - **Validates: Requirements 19.4**
 

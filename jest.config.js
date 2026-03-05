@@ -10,7 +10,7 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   transformIgnorePatterns: [
-    'node_modules/(?!(fast-check)/)'
+    'node_modules/(?!fast-check)'
   ],
   transform: {
     '^.+\\.js$': 'babel-jest'
