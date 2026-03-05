@@ -805,32 +805,32 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 20.1-20.5
 
 ### Task 5.2: Data Validation
-- [ ] 5.2.1 Implement order validation
+- [x] 5.2.1 Implement order validation
   - Validate at least one item exists
   - Validate positive quantities
   - Validate valid modifiers for items
   - Validate non-negative total
   - _Requirements: 24.1, 24.2, 24.3, 24.4_
 
-- [ ] 5.2.2 Implement bill validation
+- [x] 5.2.2 Implement bill validation
   - Validate payment sum equals total
   - Validate max 2 payment methods
   - Validate pending bills have customer phone
   - _Requirements: 12.3, 12.5, 14.1_
 
-- [ ] 5.2.3 Write property test for empty order rejection
+- [x] 5.2.3 Write property test for empty order rejection
   - **Property 48: Empty Order Rejection**
   - **Validates: Requirements 24.1**
 
-- [ ] 5.2.4 Write property test for positive quantity
+- [x] 5.2.4 Write property test for positive quantity
   - **Property 49: Positive Quantity Validation**
   - **Validates: Requirements 24.2**
 
-- [ ] 5.2.5 Write property test for order total calculation
+- [x] 5.2.5 Write property test for order total calculation
   - **Property 50: Order Total Calculation Invariant**
   - **Validates: Requirements 24.5**
 
-- [ ] 5.2.6 Write property test for split payment method limit
+- [x] 5.2.6 Write property test for split payment method limit
   - **Property 36: Split Payment Method Limit**
   - **Validates: Requirements 12.3**
 
