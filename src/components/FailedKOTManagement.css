@@ -1,0 +1,312 @@
+.failed-kot-management {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.failed-kot-management .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.failed-kot-management .title-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.failed-kot-management .title-section .icon {
+  color: #ef4444;
+}
+
+.failed-kot-management h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.failed-kot-management .actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.failed-kot-management .last-refresh {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.failed-kot-management .btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.failed-kot-management .btn-refresh:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.failed-kot-management .btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.failed-kot-management .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Loading State */
+.failed-kot-management .loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.failed-kot-management .loading-state p {
+  margin-top: 16px;
+  font-size: 16px;
+}
+
+/* Empty State */
+.failed-kot-management .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 2px dashed #d1d5db;
+}
+
+.failed-kot-management .empty-state .success-icon {
+  color: #10b981;
+  margin-bottom: 16px;
+}
+
+.failed-kot-management .empty-state h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.failed-kot-management .empty-state p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Failed KOTs List */
+.failed-kot-management .failed-kots-list {
+  background-color: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.failed-kot-management .list-header {
+  display: grid;
+  grid-template-columns: 140px 120px 100px 100px 1fr 80px 150px 140px;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.failed-kot-management .failed-kot-item {
+  display: grid;
+  grid-template-columns: 140px 120px 100px 100px 1fr 80px 150px 140px;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.failed-kot-management .failed-kot-item:hover {
+  background-color: #f9fafb;
+}
+
+.failed-kot-management .failed-kot-item:last-child {
+  border-bottom: none;
+}
+
+.failed-kot-management .col-kot strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.failed-kot-management .col-error {
+  font-size: 13px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Printer Badge */
+.failed-kot-management .printer-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.failed-kot-management .printer-badge.kitchen {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.failed-kot-management .printer-badge.bar {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+/* Retry Badge */
+.failed-kot-management .retry-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.failed-kot-management .retry-badge.status-new {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.failed-kot-management .retry-badge.status-warning {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.failed-kot-management .retry-badge.status-critical {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* Retry Button */
+.failed-kot-management .btn-retry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.failed-kot-management .btn-retry:hover:not(:disabled) {
+  background-color: #059669;
+}
+
+.failed-kot-management .btn-retry:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Footer Info */
+.failed-kot-management .footer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background-color: #fef3c7;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .failed-kot-management .list-header,
+  .failed-kot-management .failed-kot-item {
+    grid-template-columns: 120px 100px 80px 90px 1fr 70px 130px 120px;
+    gap: 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .failed-kot-management {
+    padding: 12px;
+  }
+
+  .failed-kot-management .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .failed-kot-management .actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .failed-kot-management .list-header {
+    display: none;
+  }
+
+  .failed-kot-management .failed-kot-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+  }
+
+  .failed-kot-management .failed-kot-item > span {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .failed-kot-management .failed-kot-item > span::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+}

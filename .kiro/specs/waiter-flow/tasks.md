@@ -738,23 +738,23 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 7.1, 22.4, 23.4
 
 ### Task 4.3: Failed KOT Management
-- [ ] 4.3.1 Create failed KOT storage
+- [x] 4.3.1 Create failed KOT storage
   - Store failed KOTs in local database
   - Track retry count and error message
   - _Requirements: 23.4_
 
-- [ ] 4.3.2 Implement manual retry UI
+- [x] 4.3.2 Implement manual retry UI
   - Display list of failed KOTs
   - Add "Retry" button for each KOT
   - Show retry status
   - _Requirements: 23.4_
 
-- [ ] 4.3.3 Implement automatic retry on printer reconnection
+- [x] 4.3.3 Implement automatic retry on printer reconnection
   - Monitor printer status changes
   - Auto-retry failed KOTs when printer comes online
   - _Requirements: 22.4_
 
-- [ ] 4.3.4 Write unit tests for failed KOT handling
+- [-] 4.3.4 Write unit tests for failed KOT handling
   - Test storage and retrieval
   - Test retry logic
   - Test automatic retry

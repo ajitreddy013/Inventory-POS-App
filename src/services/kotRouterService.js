@@ -14,6 +14,11 @@ class KOTRouterService {
   constructor(printerService) {
     this.printerService = printerService;
     this.db = null;
+    this.printerStatusMonitor = null;
+    this.lastPrinterStatus = {
+      kitchen: false,
+      bar: false
+    };
   }
 
   /**
@@ -23,6 +28,9 @@ class KOTRouterService {
     try {
       this.db = getAdminFirestore();
       console.log('KOT Router Service initialized');
+      
+      // Start monitoring printer status for automatic retry
+      this.startPrinterStatusMonitoring();
     } catch (error) {
       console.error('Failed to initialize KOT Router:', error);
       throw error;
@@ -521,6 +529,129 @@ class KOTRouterService {
       console.error('Error getting failed KOTs:', error);
       throw error;
     }
+  }
+
+  /**
+   * Start monitoring printer status for automatic retry
+   * Requirements: 22.4
+   */
+  startPrinterStatusMonitoring() {
+    if (!this.printerService) {
+      console.log('Printer service not available, skipping status monitoring');
+      return;
+    }
+
+    // Check printer status every 10 seconds
+    this.printerStatusMonitor = setInterval(async () => {
+      try {
+        await this.checkPrinterStatusAndRetry();
+      } catch (error) {
+        console.error('Error checking printer status:', error);
+      }
+    }, 10000);
+
+    console.log('Printer status monitoring started');
+  }
+
+  /**
+   * Stop monitoring printer status
+   */
+  stopPrinterStatusMonitoring() {
+    if (this.printerStatusMonitor) {
+      clearInterval(this.printerStatusMonitor);
+      this.printerStatusMonitor = null;
+      console.log('Printer status monitoring stopped');
+    }
+  }
+
+  /**
+   * Check printer status and auto-retry failed KOTs on reconnection
+   * Requirements: 22.4
+   */
+  async checkPrinterStatusAndRetry() {
+    if (!this.printerService) {
+      return;
+    }
+
+    try {
+      // Check kitchen printer status
+      const kitchenStatus = await this.printerService.checkStatus('kitchen');
+      const kitchenOnline = kitchenStatus.online || kitchenStatus.status === 'online';
+
+      // Check bar printer status
+      const barStatus = await this.printerService.checkStatus('bar');
+      const barOnline = barStatus.online || barStatus.status === 'online';
+
+      // Detect printer reconnection (was offline, now online)
+      const kitchenReconnected = !this.lastPrinterStatus.kitchen && kitchenOnline;
+      const barReconnected = !this.lastPrinterStatus.bar && barOnline;
+
+      // Update last status
+      this.lastPrinterStatus.kitchen = kitchenOnline;
+      this.lastPrinterStatus.bar = barOnline;
+
+      // Auto-retry failed KOTs when printer comes online
+      if (kitchenReconnected) {
+        console.log('Kitchen printer reconnected, auto-retrying failed KOTs');
+        await this.autoRetryFailedKOTs('kitchen');
+      }
+
+      if (barReconnected) {
+        console.log('Bar printer reconnected, auto-retrying failed KOTs');
+        await this.autoRetryFailedKOTs('bar');
+      }
+    } catch (error) {
+      console.error('Error in checkPrinterStatusAndRetry:', error);
+    }
+  }
+
+  /**
+   * Automatically retry all failed KOTs for a specific printer
+   * Requirements: 22.4
+   * 
+   * @param {string} printerType - 'kitchen' or 'bar'
+   */
+  async autoRetryFailedKOTs(printerType) {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      // Get all failed KOTs for this printer type
+      const snapshot = await this.db
+        .collection('failedKOTs')
+        .where('printerType', '==', printerType)
+        .where('retryCount', '<', 3)
+        .get();
+
+      if (snapshot.empty) {
+        console.log(`No failed KOTs to retry for ${printerType} printer`);
+        return;
+      }
+
+      console.log(`Auto-retrying ${snapshot.size} failed KOTs for ${printerType} printer`);
+
+      const retryPromises = [];
+      snapshot.forEach(doc => {
+        retryPromises.push(this.retryFailedKOT(doc.id));
+      });
+
+      const results = await Promise.allSettled(retryPromises);
+      
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failed = results.length - successful;
+
+      console.log(`Auto-retry complete: ${successful} successful, ${failed} failed`);
+    } catch (error) {
+      console.error(`Error auto-retrying failed KOTs for ${printerType}:`, error);
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  cleanup() {
+    this.stopPrinterStatusMonitoring();
   }
 }
 

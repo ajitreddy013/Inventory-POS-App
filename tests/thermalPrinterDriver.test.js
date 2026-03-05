@@ -5,7 +5,7 @@
  * Requirements: 7.1, 23.4
  */
 
-const { ESCPOSFormatter, ThermalPrinterDriver } = require('../thermalPrinterDriver');
+const { ESCPOSFormatter, ThermalPrinterDriver } = require('../src/services/thermalPrinterDriver');
 
 // Mock the net module to prevent actual network connections
 jest.mock('net', () => {

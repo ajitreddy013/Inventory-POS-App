@@ -24,6 +24,12 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/managers/$(request.auth.uid));
     }
     
+    // Check if waiter owns the order
+    function isOrderOwner(orderId) {
+      return isAuthenticated() && 
+             resource.data.waiterId == request.auth.uid;
+    }
+    
     // ============================================
     // Managers Collection
     // ============================================
@@ -123,17 +129,20 @@ service cloud.firestore {
     // Orders Collection
     // ============================================
     match /orders/{orderId} {
-      // Any waiter can read and modify any order (restaurant workflow)
+      // SECURED: Waiters can only modify THEIR OWN orders
       allow read: if isAuthenticated();
+      // Waiter can create orders
       allow create: if isWaiter();
-      allow update: if isWaiter();
+      // Waiter can only update their own orders (not any order)
+      allow update: if isWaiter() && resource.data.waiterId == request.auth.uid;
       allow delete: if false; // Orders should not be deleted
       
-      // Order Items Subcollection
+      // Order Items Subcollection - same restriction
       match /items/{itemId} {
-        // Any waiter can modify items in any order (collaborative service)
         allow read: if isAuthenticated();
-        allow write: if isWaiter();
+        // Only order owner can modify items
+        allow write: if isWaiter() && 
+                       get(/databases/$(database)/documents/orders/$(orderId)).data.waiterId == request.auth.uid;
       }
     }
     
@@ -162,9 +171,17 @@ service cloud.firestore {
     // ============================================
     match /customers/{customerId} {
       // All authenticated users can read customers
-      // Waiters can create new customers
+      // Waiters can create limited customers (rate limited by app)
       allow read: if isAuthenticated();
-      allow create: if isWaiter();
+      // Only allow waiter to create with validated data
+      allow create: if isWaiter() && 
+                    request.resource.data.keys().hasAll(['name', 'phone']) &&
+                    request.resource.data.name is string &&
+                    request.resource.data.name.size() > 0 &&
+                    request.resource.data.name.size() <= 100 &&
+                    request.resource.data.phone is string &&
+                    request.resource.data.phone.size() >= 10 &&
+                    request.resource.data.phone.size() <= 15;
       allow update, delete: if false;
     }
     

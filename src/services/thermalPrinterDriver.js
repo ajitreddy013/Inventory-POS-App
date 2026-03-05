@@ -233,13 +233,24 @@ class PrinterConnection extends EventEmitter {
    * Disconnect from printer
    */
   disconnect() {
-    this.manuallyDisconnected = true; // Set flag to prevent auto-reconnect
-    if (this.socket) {
-      this.socket.destroy();
-      this.socket = null;
-    }
-    this.isConnected = false;
-    this.reconnectAttempts = this.maxReconnectAttempts; // Prevent auto-reconnect
+    return new Promise((resolve) => {
+      this.manuallyDisconnected = true; // Set flag to prevent auto-reconnect
+      this.reconnectAttempts = this.maxReconnectAttempts; // Prevent auto-reconnect
+      
+      if (this.socket && !this.socket.destroyed) {
+        // Wait for socket to close before resolving
+        this.socket.once('close', () => {
+          this.socket = null;
+          this.isConnected = false;
+          resolve();
+        });
+        this.socket.destroy();
+      } else {
+        this.socket = null;
+        this.isConnected = false;
+        resolve();
+      }
+    });
   }
 
   /**
@@ -592,10 +603,14 @@ class ThermalPrinterDriver {
   async disconnectAll() {
     this.stopRetryProcessor();
     
+    const disconnectPromises = [];
     for (const [name, connection] of this.printers.entries()) {
       console.log(`Disconnecting ${name} printer`);
-      connection.disconnect();
+      disconnectPromises.push(connection.disconnect());
     }
+    
+    // Wait for all disconnections to complete
+    await Promise.all(disconnectPromises);
 
     this.printers.clear();
     this.printQueue.clear();

@@ -2887,6 +2887,49 @@ function registerKOTRouterStub() {
       return { success: false, error: 'Failed to get KOT status' };
     }
   });
+
+  // Get failed KOTs
+  // Requirements: 23.4
+  ipcMain.handle('kot:get-failed-kots', async () => {
+    try {
+      const KOTRouterService = require('../services/kotRouterService');
+      const kotRouter = new KOTRouterService();
+      await kotRouter.initialize();
+      
+      const failedKOTs = await kotRouter.getFailedKOTs();
+      
+      return {
+        success: true,
+        failedKOTs
+      };
+    } catch (error) {
+      console.error('Error getting failed KOTs:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Retry failed KOT
+  // Requirements: 22.4, 23.4
+  ipcMain.handle('kot:retry-failed-kot', async (event, failedKOTId) => {
+    try {
+      const KOTRouterService = require('../services/kotRouterService');
+      const kotRouter = new KOTRouterService();
+      await kotRouter.initialize();
+      
+      const result = await kotRouter.retryFailedKOT(failedKOTId);
+      
+      return result;
+    } catch (error) {
+      console.error('Error retrying failed KOT:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
 }
 
 // Export initialization function
