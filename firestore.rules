@@ -28,8 +28,6 @@ service cloud.firestore {
     // Managers Collection
     // ============================================
     match /managers/{managerId} {
-      // Managers can read their own document
-      // Only admin SDK can write (desktop app)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -38,8 +36,6 @@ service cloud.firestore {
     // Waiters Collection
     // ============================================
     match /waiters/{waiterId} {
-      // Waiters can read for authentication
-      // Only admin SDK can write (desktop app manages waiters)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -48,8 +44,6 @@ service cloud.firestore {
     // Sections Collection
     // ============================================
     match /sections/{sectionId} {
-      // All authenticated users can read sections
-      // Only admin SDK can write
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -58,10 +52,8 @@ service cloud.firestore {
     // Tables Collection
     // ============================================
     match /tables/{tableId} {
-      // Waiters can read and update table status
       allow read: if isAuthenticated();
       allow update: if isWaiter();
-      // Only admin SDK can create/delete tables
       allow create, delete: if false;
     }
     
@@ -69,8 +61,6 @@ service cloud.firestore {
     // Menu Categories Collection
     // ============================================
     match /menuCategories/{categoryId} {
-      // All authenticated users can read
-      // Only admin SDK can write
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -79,13 +69,10 @@ service cloud.firestore {
     // Menu Items Collection
     // ============================================
     match /menuItems/{itemId} {
-      // All authenticated users can read menu
-      // Waiters can update out-of-stock status
       allow read: if isAuthenticated();
       allow update: if isWaiter() && 
                       request.resource.data.diff(resource.data).affectedKeys()
                         .hasOnly(['isOutOfStock', 'updatedAt']);
-      // Only admin SDK can create/delete items
       allow create, delete: if false;
     }
     
@@ -93,8 +80,6 @@ service cloud.firestore {
     // Modifiers Collection
     // ============================================
     match /modifiers/{modifierId} {
-      // All authenticated users can read
-      // Only admin SDK can write
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -103,8 +88,6 @@ service cloud.firestore {
     // Inventory Collection
     // ============================================
     match /inventory/{inventoryId} {
-      // All authenticated users can read inventory
-      // Only admin SDK can write (desktop app manages inventory)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -113,8 +96,6 @@ service cloud.firestore {
     // Inventory Movements Collection
     // ============================================
     match /inventoryMovements/{movementId} {
-      // All authenticated users can read movement history
-      // Only admin SDK can write (requires manager authentication)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -127,11 +108,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isWaiter();
       allow update: if isWaiter();
-      allow delete: if false; // Orders should not be deleted
+      allow delete: if false;
       
       // Order Items Subcollection
       match /items/{itemId} {
-        // Any waiter can modify items in any order (collaborative service)
         allow read: if isAuthenticated();
         allow write: if isWaiter();
       }
@@ -141,8 +121,6 @@ service cloud.firestore {
     // KOTs Collection
     // ============================================
     match /kots/{kotId} {
-      // All authenticated users can read KOTs
-      // Only admin SDK can write (desktop app generates KOTs)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -151,8 +129,6 @@ service cloud.firestore {
     // Bills Collection
     // ============================================
     match /bills/{billId} {
-      // All authenticated users can read bills
-      // Only admin SDK can write (desktop app generates bills)
       allow read: if isAuthenticated();
       allow write: if false;
     }
@@ -161,8 +137,6 @@ service cloud.firestore {
     // Customers Collection
     // ============================================
     match /customers/{customerId} {
-      // All authenticated users can read customers
-      // Waiters can create new customers
       allow read: if isAuthenticated();
       allow create: if isWaiter();
       allow update, delete: if false;
@@ -172,7 +146,6 @@ service cloud.firestore {
     // Sync Metadata Collection
     // ============================================
     match /syncMetadata/{deviceId} {
-      // Devices can read and write their own sync metadata
       allow read, write: if isAuthenticated() && 
                            deviceId == request.auth.uid;
     }
@@ -180,7 +153,6 @@ service cloud.firestore {
     // ============================================
     // Default Deny All
     // ============================================
-    // Deny access to any other collections not explicitly defined
     match /{document=**} {
       allow read, write: if false;
     }

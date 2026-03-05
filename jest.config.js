@@ -10,10 +10,10 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   transformIgnorePatterns: [
-    'node_modules/(?!(fast-check)/)'
+    'node_modules/(?!fast-check)'
   ],
-  moduleNameMapper: {
-    '^fast-check$': '<rootDir>/node_modules/fast-check/lib/fast-check.js'
+  transform: {
+    '^.+\\.js$': 'babel-jest'
   },
   testTimeout: 30000
 };

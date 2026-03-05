@@ -72,6 +72,7 @@ import PendingBills from "./components/PendingBills";             // Saved bills
 import WaiterManagement from "./components/WaiterManagement";     // Waiter management
 import ManagerManagement from "./components/ManagerManagement";   // Manager management
 import MenuManagement from "./components/MenuManagement";         // Menu management
+import FailedKOTManagement from "./components/FailedKOTManagement"; // Failed KOT management
 
 /**
  * APP CONTENT COMPONENT
@@ -181,6 +182,7 @@ function AppContent() {
     { path: "/waiters", name: "Waiters", icon: Users },            // Waiter management
     { path: "/managers", name: "Managers", icon: SettingsIcon },   // Manager management
     { path: "/menu", name: "Menu", icon: Package },                // Menu management
+    { path: "/failed-kots", name: "Failed KOTs", icon: Clock },    // Failed KOT management
     { path: "/products", name: "Products", icon: Package },        // Product catalog
     { path: "/inventory", name: "Inventory", icon: Package },      // Stock monitoring
     { path: "/transfer", name: "Daily Transfer", icon: ArrowRight }, // Stock transfers
@@ -257,6 +259,7 @@ function AppContent() {
           <Route path="/waiters" element={<WaiterManagement />} />
           <Route path="/managers" element={<ManagerManagement />} />
           <Route path="/menu" element={<MenuManagement />} />
+          <Route path="/failed-kots" element={<FailedKOTManagement />} />
           <Route path="/products" element={<ProductManagement />} />
           <Route path="/inventory" element={<InventoryManagement />} />
           <Route path="/transfer" element={<DailyTransfer />} />

@@ -18,6 +18,8 @@ import { signInWithCustomToken } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { setDeviceInfo } from '../services/databaseHelpers';
+import OfflineIndicator from '../components/OfflineIndicator';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -31,6 +33,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { status, pendingSyncCount } = useSyncStatus();
 
   useEffect(() => {
     // Check for existing session
@@ -189,6 +192,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   return (
     <View style={styles.container}>
+      {/* Offline Indicator */}
+      <OfflineIndicator status={status} pendingSyncCount={pendingSyncCount} />
+      
       <View style={styles.header}>
         <Text style={styles.title}>WaiterFlow</Text>
         <Text style={styles.subtitle}>Enter your PIN to continue</Text>
