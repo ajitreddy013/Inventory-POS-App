@@ -50,6 +50,9 @@ async function initializeFirebaseAdmin() {
     registerOrderHandlers();
     registerInventoryHandlers();
     registerSectionHandlers();
+    registerBillingHandlers();
+    registerWaiterReportingHandlers();
+    registerKOTRouterStub();
     registerRealtimeListeners();
     
     console.log('Firebase IPC handlers registered');
@@ -2174,6 +2177,714 @@ function registerRealtimeListeners() {
     } catch (error) {
       console.error('Error unsubscribing:', error);
       return { success: false, error: 'Failed to unsubscribe' };
+    }
+  });
+}
+
+/**
+ * BILLING SYSTEM HANDLERS
+ * 
+ * These handlers manage bill generation, discounts, split payments, and pending bills.
+ * Requirements: 12.1-12.5, 13.1-13.5, 14.1-14.5
+ */
+function registerBillingHandlers() {
+  
+  // Generate bill from completed order (Requirements 12.1, 12.2)
+  ipcMain.handle('firebase:generate-bill', async (event, billData) => {
+    try {
+      const { orderId, payments, discountType, discountValue, customerPhone, customerName, isPending } = billData;
+      
+      // Validate input
+      if (!orderId) {
+        return { success: false, error: 'Order ID is required' };
+      }
+      
+      if (!payments || !Array.isArray(payments) || payments.length === 0) {
+        return { success: false, error: 'At least one payment method is required' };
+      }
+      
+      // Validate payment methods (Requirements 12.2)
+      const validPaymentTypes = ['cash', 'card', 'upi'];
+      for (const payment of payments) {
+        if (!validPaymentTypes.includes(payment.type)) {
+          return { success: false, error: `Invalid payment type: ${payment.type}` };
+        }
+        if (!payment.amount || payment.amount <= 0) {
+          return { success: false, error: 'Payment amount must be positive' };
+        }
+      }
+      
+      // Validate split payment limit (Requirements 12.3)
+      if (payments.length > 2) {
+        return { success: false, error: 'Maximum 2 payment methods allowed' };
+      }
+      
+      // Get order details
+      const order = await getDocument('orders', orderId);
+      if (!order) {
+        return { success: false, error: 'Order not found' };
+      }
+      
+      // Calculate subtotal from order items
+      let subtotal = 0;
+      if (order.items && Array.isArray(order.items)) {
+        for (const item of order.items) {
+          subtotal += item.totalPrice || (item.basePrice * item.quantity);
+        }
+      }
+      
+      // Apply discount (Requirements 13.1, 13.2, 13.3, 13.5)
+      let discountAmount = 0;
+      if (discountType && discountValue) {
+        if (discountType === 'percentage') {
+          // Percentage discount: discount_amount = subtotal * (discount_value / 100)
+          discountAmount = subtotal * (discountValue / 100);
+        } else if (discountType === 'fixed') {
+          // Fixed amount discount
+          discountAmount = discountValue;
+        } else {
+          return { success: false, error: 'Invalid discount type. Must be percentage or fixed' };
+        }
+        
+        // Ensure discount doesn't exceed subtotal
+        if (discountAmount > subtotal) {
+          discountAmount = subtotal;
+        }
+      }
+      
+      // Calculate final total
+      const total = subtotal - discountAmount;
+      
+      // Validate payment sum equals total (Requirements 12.5)
+      const paymentSum = payments.reduce((sum, p) => sum + p.amount, 0);
+      const tolerance = 0.01; // Allow small floating point differences
+      
+      if (Math.abs(paymentSum - total) > tolerance) {
+        return { 
+          success: false, 
+          error: `Payment sum (${paymentSum}) does not equal bill total (${total})` 
+        };
+      }
+      
+      // Validate pending bill requirements (Requirements 14.1)
+      if (isPending && (!customerPhone || !customerPhone.trim())) {
+        return { success: false, error: 'Customer phone is required for pending bills' };
+      }
+      
+      // Check for existing customer (Requirements 14.2, 14.3)
+      let customerId = null;
+      let previousOrders = [];
+      
+      if (customerPhone && customerPhone.trim()) {
+        const existingCustomers = await queryCollection('customers', [
+          { field: 'phone', operator: '==', value: customerPhone.trim() }
+        ]);
+        
+        if (existingCustomers.length > 0) {
+          // Returning customer
+          customerId = existingCustomers[0].id;
+          
+          // Get previous order history
+          const customerBills = await queryCollection('bills', [
+            { field: 'customerId', operator: '==', value: customerId }
+          ], {
+            orderBy: { field: 'createdAt', direction: 'desc' }
+          });
+          
+          previousOrders = customerBills;
+        } else {
+          // New customer - create customer record
+          customerId = `customer_${Date.now()}`;
+          await setDocument('customers', customerId, {
+            phone: customerPhone.trim(),
+            name: customerName?.trim() || '',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      }
+      
+      // Create bill document
+      const billId = `bill_${Date.now()}`;
+      const billNumber = `BILL-${Date.now()}`;
+      
+      await setDocument('bills', billId, {
+        billNumber,
+        orderId,
+        subtotal,
+        discountType: discountType || null,
+        discountValue: discountValue || 0,
+        discountAmount,
+        total,
+        isPending: isPending || false,
+        customerId,
+        customerPhone: customerPhone?.trim() || null,
+        customerName: customerName?.trim() || null,
+        payments,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      // Update order status to completed
+      await updateDocument('orders', orderId, {
+        status: 'completed',
+        billId,
+        completedAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      return {
+        success: true,
+        bill: {
+          id: billId,
+          billNumber,
+          subtotal,
+          discountAmount,
+          total,
+          payments,
+          isPending: isPending || false,
+          customerId,
+          previousOrders: previousOrders.length
+        },
+        message: previousOrders.length > 0 
+          ? `Bill generated. Customer has ${previousOrders.length} previous orders.`
+          : 'Bill generated successfully'
+      };
+    } catch (error) {
+      console.error('Error generating bill:', error);
+      return { success: false, error: 'Failed to generate bill' };
+    }
+  });
+  
+  // Get bill by ID
+  ipcMain.handle('firebase:get-bill', async (event, billId) => {
+    try {
+      const bill = await getDocument('bills', billId);
+      
+      if (!bill) {
+        return { success: false, error: 'Bill not found' };
+      }
+      
+      return { success: true, bill: { id: billId, ...bill } };
+    } catch (error) {
+      console.error('Error getting bill:', error);
+      return { success: false, error: 'Failed to get bill' };
+    }
+  });
+  
+  // Get all bills (with optional filters)
+  ipcMain.handle('firebase:get-bills', async (event, filters = {}) => {
+    try {
+      const queryFilters = [];
+      
+      // Filter by pending status
+      if (filters.isPending !== undefined) {
+        queryFilters.push({ 
+          field: 'isPending', 
+          operator: '==', 
+          value: filters.isPending 
+        });
+      }
+      
+      // Filter by customer phone
+      if (filters.customerPhone) {
+        queryFilters.push({ 
+          field: 'customerPhone', 
+          operator: '==', 
+          value: filters.customerPhone 
+        });
+      }
+      
+      // Filter by customer ID
+      if (filters.customerId) {
+        queryFilters.push({ 
+          field: 'customerId', 
+          operator: '==', 
+          value: filters.customerId 
+        });
+      }
+      
+      // Filter by date range
+      if (filters.startDate) {
+        queryFilters.push({ 
+          field: 'createdAt', 
+          operator: '>=', 
+          value: new Date(filters.startDate) 
+        });
+      }
+      
+      if (filters.endDate) {
+        queryFilters.push({ 
+          field: 'createdAt', 
+          operator: '<=', 
+          value: new Date(filters.endDate) 
+        });
+      }
+      
+      const bills = await queryCollection('bills', queryFilters, {
+        orderBy: { field: 'createdAt', direction: 'desc' }
+      });
+      
+      return { success: true, bills };
+    } catch (error) {
+      console.error('Error getting bills:', error);
+      return { success: false, error: 'Failed to get bills' };
+    }
+  });
+  
+  // Search pending bills by phone or name (Requirements 14.4)
+  ipcMain.handle('firebase:search-pending-bills', async (event, searchTerm) => {
+    try {
+      if (!searchTerm || !searchTerm.trim()) {
+        return { success: false, error: 'Search term is required' };
+      }
+      
+      const term = searchTerm.trim();
+      
+      // Search by phone
+      const billsByPhone = await queryCollection('bills', [
+        { field: 'isPending', operator: '==', value: true },
+        { field: 'customerPhone', operator: '==', value: term }
+      ], {
+        orderBy: { field: 'createdAt', direction: 'desc' }
+      });
+      
+      // Search by name (case-insensitive search requires client-side filtering)
+      const allPendingBills = await queryCollection('bills', [
+        { field: 'isPending', operator: '==', value: true }
+      ], {
+        orderBy: { field: 'createdAt', direction: 'desc' }
+      });
+      
+      const billsByName = allPendingBills.filter(bill => 
+        bill.customerName && 
+        bill.customerName.toLowerCase().includes(term.toLowerCase())
+      );
+      
+      // Combine results (remove duplicates)
+      const billMap = new Map();
+      [...billsByPhone, ...billsByName].forEach(bill => {
+        billMap.set(bill.id, bill);
+      });
+      
+      const results = Array.from(billMap.values());
+      
+      return { success: true, bills: results };
+    } catch (error) {
+      console.error('Error searching pending bills:', error);
+      return { success: false, error: 'Failed to search pending bills' };
+    }
+  });
+  
+  // Get customer by phone (Requirements 14.2)
+  ipcMain.handle('firebase:get-customer-by-phone', async (event, phone) => {
+    try {
+      if (!phone || !phone.trim()) {
+        return { success: false, error: 'Phone number is required' };
+      }
+      
+      const customers = await queryCollection('customers', [
+        { field: 'phone', operator: '==', value: phone.trim() }
+      ]);
+      
+      if (customers.length === 0) {
+        return { success: false, error: 'Customer not found' };
+      }
+      
+      const customer = customers[0];
+      
+      // Get customer's order history (Requirements 14.3, 14.5)
+      const bills = await queryCollection('bills', [
+        { field: 'customerId', operator: '==', value: customer.id }
+      ], {
+        orderBy: { field: 'createdAt', direction: 'desc' }
+      });
+      
+      // Separate pending and completed bills
+      const pendingBills = bills.filter(b => b.isPending);
+      const completedBills = bills.filter(b => !b.isPending);
+      
+      return {
+        success: true,
+        customer: { id: customer.id, ...customer },
+        orderHistory: {
+          total: bills.length,
+          pending: pendingBills,
+          completed: completedBills
+        }
+      };
+    } catch (error) {
+      console.error('Error getting customer by phone:', error);
+      return { success: false, error: 'Failed to get customer' };
+    }
+  });
+  
+  // Update bill (e.g., mark pending bill as paid)
+  ipcMain.handle('firebase:update-bill', async (event, billId, updates) => {
+    try {
+      const bill = await getDocument('bills', billId);
+      
+      if (!bill) {
+        return { success: false, error: 'Bill not found' };
+      }
+      
+      const updateData = { updatedAt: new Date() };
+      
+      // Allow updating pending status
+      if (updates.isPending !== undefined) {
+        updateData.isPending = updates.isPending;
+      }
+      
+      // Allow updating payments (e.g., when clearing pending bill)
+      if (updates.payments) {
+        updateData.payments = updates.payments;
+      }
+      
+      await updateDocument('bills', billId, updateData);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating bill:', error);
+      return { success: false, error: 'Failed to update bill' };
+    }
+  });
+  
+  // Delete bill (soft delete - mark as cancelled)
+  ipcMain.handle('firebase:delete-bill', async (event, billId) => {
+    try {
+      await updateDocument('bills', billId, {
+        status: 'cancelled',
+        updatedAt: new Date()
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting bill:', error);
+      return { success: false, error: 'Failed to delete bill' };
+    }
+  });
+}
+
+// Register waiter reporting handlers (Requirements 17.1-17.5)
+function registerWaiterReportingHandlers() {
+  
+  // Get waiter sales report for a specific period (Requirements 17.1, 17.2, 17.3, 17.4)
+  ipcMain.handle('firebase:get-waiter-report', async (event, { waiterId, period, startDate, endDate }) => {
+    try {
+      if (!waiterId) {
+        return { success: false, error: 'Waiter ID is required' };
+      }
+      
+      // Calculate date range based on period
+      let start, end;
+      
+      if (startDate && endDate) {
+        // Custom date range provided
+        start = new Date(startDate);
+        end = new Date(endDate);
+      } else if (period) {
+        // Calculate date range based on period
+        end = new Date();
+        end.setHours(23, 59, 59, 999); // End of today
+        
+        start = new Date();
+        
+        if (period === 'daily') {
+          start.setHours(0, 0, 0, 0); // Start of today
+        } else if (period === 'weekly') {
+          start.setDate(start.getDate() - 7);
+          start.setHours(0, 0, 0, 0);
+        } else if (period === 'monthly') {
+          start.setDate(start.getDate() - 30);
+          start.setHours(0, 0, 0, 0);
+        } else {
+          return { success: false, error: 'Invalid period. Must be daily, weekly, or monthly' };
+        }
+      } else {
+        return { success: false, error: 'Either period or startDate/endDate must be provided' };
+      }
+      
+      // Get waiter details
+      const waiter = await getDocument('waiters', waiterId);
+      if (!waiter) {
+        return { success: false, error: 'Waiter not found' };
+      }
+      
+      // Query orders by waiter and date range (Requirements 17.1)
+      const orders = await queryCollection('orders', [
+        { field: 'waiterId', operator: '==', value: waiterId },
+        { field: 'status', operator: '==', value: 'completed' },
+        { field: 'completedAt', operator: '>=', value: start },
+        { field: 'completedAt', operator: '<=', value: end }
+      ]);
+      
+      // Count orders per waiter (Requirements 17.2)
+      const orderCount = orders.length;
+      
+      // Get unique table assignments (Requirements 17.3)
+      const tableIds = new Set();
+      orders.forEach(order => {
+        if (order.tableId) {
+          tableIds.add(order.tableId);
+        }
+      });
+      
+      // Get table names for the assignments
+      const tableAssignments = [];
+      for (const tableId of tableIds) {
+        const table = await getDocument('tables', tableId);
+        if (table) {
+          tableAssignments.push(table.name || tableId);
+        }
+      }
+      
+      // Calculate total sales per waiter (Requirements 17.4)
+      let totalSales = 0;
+      
+      for (const order of orders) {
+        // Get bill for this order
+        if (order.billId) {
+          const bill = await getDocument('bills', order.billId);
+          if (bill && bill.total) {
+            totalSales += bill.total;
+          }
+        }
+      }
+      
+      return {
+        success: true,
+        report: {
+          waiterId,
+          waiterName: waiter.name,
+          period: period || 'custom',
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          orderCount,
+          totalSales: parseFloat(totalSales.toFixed(2)),
+          tableAssignments: tableAssignments.sort()
+        }
+      };
+    } catch (error) {
+      console.error('Error generating waiter report:', error);
+      return { success: false, error: 'Failed to generate waiter report' };
+    }
+  });
+  
+  // Get sales reports for all waiters (Requirements 17.1)
+  ipcMain.handle('firebase:get-all-waiters-report', async (event, { period, startDate, endDate }) => {
+    try {
+      // Calculate date range based on period
+      let start, end;
+      
+      if (startDate && endDate) {
+        start = new Date(startDate);
+        end = new Date(endDate);
+      } else if (period) {
+        end = new Date();
+        end.setHours(23, 59, 59, 999);
+        
+        start = new Date();
+        
+        if (period === 'daily') {
+          start.setHours(0, 0, 0, 0);
+        } else if (period === 'weekly') {
+          start.setDate(start.getDate() - 7);
+          start.setHours(0, 0, 0, 0);
+        } else if (period === 'monthly') {
+          start.setDate(start.getDate() - 30);
+          start.setHours(0, 0, 0, 0);
+        } else {
+          return { success: false, error: 'Invalid period. Must be daily, weekly, or monthly' };
+        }
+      } else {
+        return { success: false, error: 'Either period or startDate/endDate must be provided' };
+      }
+      
+      // Get all active waiters
+      const waiters = await queryCollection('waiters', [
+        { field: 'isActive', operator: '==', value: true }
+      ]);
+      
+      // Generate report for each waiter
+      const reports = [];
+      
+      for (const waiter of waiters) {
+        // Query orders by waiter and date range
+        const orders = await queryCollection('orders', [
+          { field: 'waiterId', operator: '==', value: waiter.id },
+          { field: 'status', operator: '==', value: 'completed' },
+          { field: 'completedAt', operator: '>=', value: start },
+          { field: 'completedAt', operator: '<=', value: end }
+        ]);
+        
+        // Count orders
+        const orderCount = orders.length;
+        
+        // Get unique table assignments
+        const tableIds = new Set();
+        orders.forEach(order => {
+          if (order.tableId) {
+            tableIds.add(order.tableId);
+          }
+        });
+        
+        // Get table names
+        const tableAssignments = [];
+        for (const tableId of tableIds) {
+          const table = await getDocument('tables', tableId);
+          if (table) {
+            tableAssignments.push(table.name || tableId);
+          }
+        }
+        
+        // Calculate total sales
+        let totalSales = 0;
+        
+        for (const order of orders) {
+          if (order.billId) {
+            const bill = await getDocument('bills', order.billId);
+            if (bill && bill.total) {
+              totalSales += bill.total;
+            }
+          }
+        }
+        
+        reports.push({
+          waiterId: waiter.id,
+          waiterName: waiter.name,
+          period: period || 'custom',
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          orderCount,
+          totalSales: parseFloat(totalSales.toFixed(2)),
+          tableAssignments: tableAssignments.sort()
+        });
+      }
+      
+      // Calculate total restaurant sales for the period (for Property 42 validation)
+      const totalRestaurantSales = reports.reduce((sum, report) => sum + report.totalSales, 0);
+      
+      return {
+        success: true,
+        reports,
+        summary: {
+          period: period || 'custom',
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          totalWaiters: reports.length,
+          totalOrders: reports.reduce((sum, r) => sum + r.orderCount, 0),
+          totalRestaurantSales: parseFloat(totalRestaurantSales.toFixed(2))
+        }
+      };
+    } catch (error) {
+      console.error('Error generating all waiters report:', error);
+      return { success: false, error: 'Failed to generate all waiters report' };
+    }
+  });
+}
+
+/**
+ * KOT ROUTER STUB HANDLERS
+ * 
+ * Placeholder handlers for KOT routing functionality.
+ * Task 4.1 (KOT Router Implementation) is not yet complete.
+ * These stubs allow desktop order entry to function without full KOT printing.
+ * 
+ * Requirements: 27.5, 27.6, 27.7
+ */
+function registerKOTRouterStub() {
+  
+  // Route order to KOT Router (stub implementation)
+  ipcMain.handle('firebase:route-to-kot', async (event, orderData) => {
+    try {
+      console.log('[KOT Router Stub] Received order for KOT generation:', orderData);
+      
+      // TODO: Implement full KOT routing in Task 4.1
+      // For now, just log the order and return success
+      
+      const { orderId, items, tableId, tableName, systemUser } = orderData;
+      
+      if (!orderId || !items || items.length === 0) {
+        return { success: false, error: 'Invalid order data for KOT generation' };
+      }
+      
+      // Separate items by category (food vs drink)
+      const foodItems = items.filter(item => {
+        // TODO: Get actual category from menu item
+        // For now, assume all items are food
+        return true;
+      });
+      
+      const drinkItems = items.filter(item => {
+        // TODO: Get actual category from menu item
+        return false;
+      });
+      
+      // Generate KOT metadata
+      const kotMetadata = {
+        orderNumber: orderId,
+        tableNumber: tableName || tableId,
+        waiterName: systemUser || 'Manager',
+        timestamp: new Date().toISOString(),
+      };
+      
+      // Stub KOT generation
+      const kots = [];
+      
+      if (foodItems.length > 0) {
+        kots.push({
+          id: `kot_kitchen_${Date.now()}`,
+          type: 'kitchen',
+          items: foodItems,
+          metadata: kotMetadata,
+          status: 'pending_print',
+        });
+      }
+      
+      if (drinkItems.length > 0) {
+        kots.push({
+          id: `kot_bar_${Date.now()}`,
+          type: 'bar',
+          items: drinkItems,
+          metadata: kotMetadata,
+          status: 'pending_print',
+        });
+      }
+      
+      console.log('[KOT Router Stub] Generated KOTs:', kots);
+      
+      // TODO: In Task 4.1, implement actual printer routing
+      // - Route food items to kitchen printer
+      // - Route drink items to bar printer
+      // - Handle mixed orders with split routing
+      // - Store KOT records in Firestore
+      // - Handle print failures and retries
+      
+      return {
+        success: true,
+        kots,
+        message: 'KOT routing stubbed (Task 4.1 not yet implemented)',
+      };
+    } catch (error) {
+      console.error('[KOT Router Stub] Error routing to KOT:', error);
+      return { success: false, error: 'Failed to route order to KOT' };
+    }
+  });
+  
+  // Get KOT status (stub implementation)
+  ipcMain.handle('firebase:get-kot-status', async (event, kotId) => {
+    try {
+      console.log('[KOT Router Stub] Get KOT status:', kotId);
+      
+      // TODO: Implement in Task 4.1
+      return {
+        success: true,
+        status: 'pending_print',
+        message: 'KOT status check stubbed (Task 4.1 not yet implemented)',
+      };
+    } catch (error) {
+      console.error('[KOT Router Stub] Error getting KOT status:', error);
+      return { success: false, error: 'Failed to get KOT status' };
     }
   });
 }

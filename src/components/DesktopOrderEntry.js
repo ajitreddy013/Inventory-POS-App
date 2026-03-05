@@ -252,8 +252,24 @@ const DesktopOrderEntry = ({ onBack }) => {
         throw new Error(submitResult.error || "Failed to submit order");
       }
 
-      // TODO: Route to KOT Router (Task 4.1 - not yet implemented)
-      // For now, we'll just mark items as sent to kitchen
+      // Route to KOT Router (stub implementation - Task 4.1 not yet complete)
+      const kotResult = await window.electronAPI.invoke(
+        "firebase:route-to-kot",
+        {
+          orderId,
+          items: orderItems,
+          tableId: selectedTable.id,
+          tableName: selectedTable.name,
+          systemUser: "Manager",
+        }
+      );
+
+      if (!kotResult.success) {
+        console.warn("KOT routing failed:", kotResult.error);
+        // Don't fail the entire operation if KOT routing fails (stub)
+      } else {
+        console.log("KOT routing result:", kotResult);
+      }
       
       alert("Order sent to kitchen successfully!");
 
