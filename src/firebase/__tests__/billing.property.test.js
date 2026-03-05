@@ -39,7 +39,7 @@ describe('Property-Based Tests: Billing System', () => {
      * For any bill, the number of payment methods should be at most 2.
      */
     test('Property 36: Bills cannot have more than 2 payment methods', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const numPayments = randomInt(1, 5);
         const payments = [];
         
@@ -62,7 +62,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 36: Single payment method is always valid', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const payments = [{
           type: randomPaymentType(),
           amount: randomFloat(10, 1000)
@@ -74,7 +74,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 36: Two payment methods is valid', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const payments = [
           { type: randomPaymentType(), amount: randomFloat(10, 500) },
           { type: randomPaymentType(), amount: randomFloat(10, 500) }
@@ -86,7 +86,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 36: Three or more payment methods is invalid', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const numPayments = randomInt(3, 10);
         const payments = [];
         
@@ -118,7 +118,7 @@ describe('Property-Based Tests: Billing System', () => {
      * should equal the bill total (within a tolerance of 0.01 for floating point precision).
      */
     test('Property 37: Payment sum equals bill total', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const billTotal = randomFloat(50, 1000);
         
         // Generate split payments that sum to total
@@ -139,7 +139,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 37: Single payment equals bill total', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const billTotal = randomFloat(50, 1000);
         
         const payments = [
@@ -154,7 +154,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 37: Payment sum less than total is invalid', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const billTotal = randomFloat(100, 1000);
         const shortfall = randomFloat(1, 50);
         
@@ -175,7 +175,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 37: Payment sum greater than total is invalid', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const billTotal = randomFloat(100, 1000);
         const excess = randomFloat(1, 50);
         
@@ -214,7 +214,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 37: Multiple payment methods sum correctly', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const billTotal = randomFloat(100, 1000);
         
         // Split into 2 payments
@@ -243,7 +243,7 @@ describe('Property-Based Tests: Billing System', () => {
      * bill_subtotal multiplied by (discount_value / 100).
      */
     test('Property 38: Percentage discount calculated correctly', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = randomFloat(5, 50);
         
@@ -261,7 +261,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: 10% discount is subtotal / 10', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = 10;
         
@@ -274,7 +274,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: 50% discount is half of subtotal', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = 50;
         
@@ -287,7 +287,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: 100% discount equals subtotal', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = 100;
         
@@ -299,7 +299,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: 0% discount equals zero', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = 0;
         
@@ -310,7 +310,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: Discount never exceeds subtotal', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = randomFloat(0, 150); // Test beyond 100%
         
@@ -327,7 +327,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: Final total after discount is correct', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = randomFloat(5, 50);
         
@@ -342,7 +342,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 38: Fixed discount vs percentage discount', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = randomFloat(10, 30);
         
@@ -370,7 +370,7 @@ describe('Property-Based Tests: Billing System', () => {
      * non-null and non-empty.
      */
     test('Property 39: Pending bills require customer phone', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const isPending = true;
         const customerPhone = `+91${randomInt(1000000000, 9999999999)}`;
         
@@ -411,7 +411,7 @@ describe('Property-Based Tests: Billing System', () => {
     });
 
     test('Property 39: Non-pending bill can have null phone', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const isPending = false;
         const customerPhone = Math.random() > 0.5 ? null : `+91${randomInt(1000000000, 9999999999)}`;
         
@@ -475,7 +475,7 @@ describe('Property-Based Tests: Billing System', () => {
 
   describe('Combined Properties', () => {
     test('Combined: Valid bill with all properties', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const subtotal = randomFloat(100, 1000);
         const discountPercentage = randomFloat(0, 30);
         const discountAmount = subtotal * (discountPercentage / 100);

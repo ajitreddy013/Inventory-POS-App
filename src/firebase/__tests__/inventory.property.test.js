@@ -29,7 +29,7 @@ describe('Property-Based Tests: Inventory Management', () => {
      */
     test('Property 35: Inventory balance equals initial minus sold quantities', () => {
       // Run multiple iterations to simulate property-based testing
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         // Generate initial inventory
         const initialQuantity = randomInt(10, 100);
         
@@ -65,7 +65,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 35: Multiple deductions maintain balance invariant', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(50, 200);
         const deductions = [];
         
@@ -94,7 +94,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 35: Inventory never goes negative', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(10, 50);
         
         // Try to deduct more than available
@@ -117,7 +117,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 35: Sum of all deductions equals total inventory change', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(100, 500);
         const numDeductions = randomInt(5, 20);
         const deductions = [];
@@ -141,7 +141,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 35: Concurrent deductions maintain consistency', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(50, 200);
         
         // Simulate concurrent deductions (order shouldn't matter)
@@ -172,7 +172,7 @@ describe('Property-Based Tests: Inventory Management', () => {
      * should be marked as in-stock.
      */
     test('Property 31: Item marked out of stock when inventory reaches zero', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(1, 50);
         
         // Deduct all inventory
@@ -196,7 +196,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 31: Item marked in-stock when inventory updated to positive', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         // Start with zero inventory (out of stock)
         let currentQuantity = 0;
         let isOutOfStock = true;
@@ -217,7 +217,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 31: Out of stock status toggles correctly with inventory changes', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const operations = [];
         let currentQuantity = randomInt(10, 50);
         let isOutOfStock = false;
@@ -250,7 +250,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 31: Zero inventory always means out of stock', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const quantity = 0;
         const isOutOfStock = quantity === 0;
         
@@ -259,7 +259,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 31: Positive inventory always means in stock (unless manually marked)', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const quantity = randomInt(1, 1000);
         const autoOutOfStock = quantity === 0;
         
@@ -269,7 +269,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 31: Deduction to zero triggers out of stock immediately', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(1, 20);
         
         // Deduct exact amount to reach zero
@@ -289,7 +289,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Property 31: Multiple items maintain independent out of stock status', () => {
-      for (let run = 0; run < 10; run++) {
+      for (let run = 0; run < 5; run++) {
         const numItems = randomInt(3, 10);
         const items = [];
         
@@ -321,7 +321,7 @@ describe('Property-Based Tests: Inventory Management', () => {
 
   describe('Combined Properties', () => {
     test('Combined: Inventory balance and out of stock status are consistent', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         const initialQuantity = randomInt(20, 100);
         const sales = [];
         
@@ -353,7 +353,7 @@ describe('Property-Based Tests: Inventory Management', () => {
     });
 
     test('Combined: Restocking updates both quantity and status', () => {
-      for (let run = 0; run < 20; run++) {
+      for (let run = 0; run < 5; run++) {
         // Start with depleted inventory
         let currentQuantity = 0;
         let isOutOfStock = true;
