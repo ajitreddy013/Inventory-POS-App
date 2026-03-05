@@ -575,38 +575,38 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 6.1-6.6, 9.1, 9.3, 9.4
 
 ### Task 3.8: Offline Functionality and Testing
-- [ ] 3.8.1 Test offline order creation
+- [x] 3.8.1 Test offline order creation
   - Disable network
   - Create orders
   - Verify local storage
   - _Requirements: 3.1, 3.2_
 
-- [ ] 3.8.2 Test sync queue population
+- [x] 3.8.2 Test sync queue population
   - Verify pending changes tracked
   - Check sync_queue table
   - _Requirements: 3.3, 3.4_
 
-- [ ] 3.8.3 Test automatic sync on reconnection
+- [x] 3.8.3 Test automatic sync on reconnection
   - Re-enable network
   - Verify automatic upload
   - Check sync completion notification
   - _Requirements: 3.3_
 
-- [ ] 3.8.4 Add offline indicator UI
+- [x] 3.8.4 Add offline indicator UI
   - Show offline banner when disconnected
   - Show syncing indicator during sync
   - Show connected status when online
   - _Requirements: 2.6_
 
-- [ ] 3.8.5 Write property test for offline order storage
+- [x] 3.8.5 Write property test for offline order storage
   - **Property 9: Offline Order Storage**
   - **Validates: Requirements 3.1**
 
-- [ ] 3.8.6 Write property test for offline functionality preservation
+- [x] 3.8.6 Write property test for offline functionality preservation
   - **Property 10: Offline Functionality Preservation**
   - **Validates: Requirements 3.2**
 
-- [ ] 3.8.7 Write property test for round-trip integrity
+- [x] 3.8.7 Write property test for round-trip integrity
   - **Property 12: Offline Order Round-Trip Integrity**
   - **Validates: Requirements 3.5**
 
@@ -614,25 +614,25 @@ This implementation plan covers the complete WaiterFlow system including mobile 
 **Validates:** Requirements 2.6, 3.1-3.5
 
 ### Task 3.9: Mobile Table Operations
-- [ ] 3.9.1 Implement table merge on mobile
+- [x] 3.9.1 Implement table merge on mobile
   - Add "Merge Tables" button
   - Allow selection of multiple tables
   - Combine orders while preserving waiter attribution
   - _Requirements: 15.4, 15.5_
 
-- [ ] 3.9.2 Implement table split on mobile
+- [x] 3.9.2 Implement table split on mobile
   - Add "Split Table" button
   - Allow item selection for each split
   - Create separate orders
   - _Requirements: 15.4_
 
-- [ ] 3.9.3 Implement table transfer on mobile
+- [x] 3.9.3 Implement table transfer on mobile
   - Add "Transfer Table" button
   - Allow destination table selection
   - Move order to new table
   - _Requirements: 15.4_
 
-- [ ] 3.9.4 Write unit tests for mobile table operations
+- [x] 3.9.4 Write unit tests for mobile table operations
   - Test merge, split, transfer
   - Verify data integrity
   - _Requirements: 15.4, 15.5_
