@@ -101,3 +101,6 @@ firebase-service-account.json
 firebase-service-account-*.json
 .firebase/
 *firebase-key*.json
+
+# Kiro IDE files
+.kiro/
