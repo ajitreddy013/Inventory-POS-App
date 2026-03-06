@@ -27,6 +27,24 @@ import {
   setDeviceInfo
 } from './databaseHelpers';
 
+/**
+ * Convert camelCase to snake_case
+ */
+function camelToSnake(str: string): string {
+  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
+/**
+ * Convert object keys from camelCase to snake_case
+ */
+function convertKeysToSnakeCase(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[camelToSnake(key)] = value;
+  }
+  return result;
+}
+
 export type SyncStatus = 'online' | 'offline' | 'syncing' | 'error';
 
 export interface SyncEngineConfig {
@@ -51,6 +69,7 @@ export class FirestoreSyncEngine {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
+      console.log('Sync engine already initialized, skipping...');
       return;
     }
 
@@ -70,7 +89,7 @@ export class FirestoreSyncEngine {
       console.error('Error initializing sync engine:', error);
       this.updateStatus('error');
       this.config.onError?.(error as Error);
-      throw error;
+      // Don't throw - allow app to continue in offline mode
     }
   }
 
@@ -173,6 +192,12 @@ export class FirestoreSyncEngine {
     firestoreCollection: string,
     sqliteTable: string
   ): void {
+    // Check if we already have a subscription for this collection
+    if ((this as any)[`_subscription_${firestoreCollection}`]) {
+      console.log(`Already subscribed to ${firestoreCollection}, skipping...`);
+      return;
+    }
+
     const collectionRef = collection(db, firestoreCollection);
 
     const unsubscribe = onSnapshot(
@@ -180,7 +205,8 @@ export class FirestoreSyncEngine {
       async (snapshot) => {
         try {
           for (const change of snapshot.docChanges()) {
-            const data = { id: change.doc.id, ...change.doc.data() };
+            const firestoreData = change.doc.data();
+            const data = convertKeysToSnakeCase({ id: change.doc.id, ...firestoreData });
 
             if (change.type === 'added' || change.type === 'modified') {
               await upsert(sqliteTable, data);
@@ -189,18 +215,29 @@ export class FirestoreSyncEngine {
             }
           }
 
-          console.log(`Synced ${snapshot.docChanges().length} changes to ${sqliteTable}`);
+          if (snapshot.docChanges().length > 0) {
+            console.log(`Synced ${snapshot.docChanges().length} changes to ${sqliteTable}`);
+          }
         } catch (error) {
           console.error(`Error syncing ${firestoreCollection}:`, error);
           this.config.onError?.(error as Error);
         }
       },
       (error) => {
+        // Ignore "Target ID already exists" errors - these occur during hot reloads
+        // and don't affect functionality
+        if (error.message && error.message.includes('Target ID already exists')) {
+          console.warn(`Hot reload detected for ${firestoreCollection} listener (this is normal in development)`);
+          return;
+        }
+        
         console.error(`Error in ${firestoreCollection} listener:`, error);
         this.config.onError?.(error);
       }
     );
 
+    // Mark this collection as subscribed
+    (this as any)[`_subscription_${firestoreCollection}`] = true;
     this.unsubscribers.push(unsubscribe);
   }
 
@@ -364,32 +401,84 @@ export class FirestoreSyncEngine {
     this.unsubscribers.forEach(unsubscribe => unsubscribe());
     this.unsubscribers = [];
 
+    // DON'T clear subscription markers - they persist across hot reloads
+    // to prevent duplicate listener creation
+    // Only clear them if explicitly requested (e.g., on logout)
+
     // Unsubscribe from network monitoring
     this.netInfoUnsubscribe?.();
 
     this.isInitialized = false;
     console.log('Sync engine shutdown');
   }
+
+  /**
+   * Complete reset - clears all state including subscription markers
+   * Use this on logout or when you want to completely reinitialize
+   */
+  reset(): void {
+    this.shutdown();
+    
+    // Clear subscription markers
+    Object.keys(this).forEach(key => {
+      if (key.startsWith('_subscription_')) {
+        delete (this as any)[key];
+      }
+    });
+    
+    console.log('Sync engine reset');
+  }
 }
 
-// Singleton instance
-let syncEngineInstance: FirestoreSyncEngine | null = null;
+// Singleton instance - stored outside the module to persist across hot reloads
+const SYNC_ENGINE_KEY = '__WAITERFLOW_SYNC_ENGINE__';
+
+// Store in global scope to survive hot reloads
+if (!(global as any)[SYNC_ENGINE_KEY]) {
+  (global as any)[SYNC_ENGINE_KEY] = {
+    instance: null as FirestoreSyncEngine | null,
+    isInitializing: false
+  };
+}
+
+const syncEngineGlobal = (global as any)[SYNC_ENGINE_KEY];
 
 /**
  * Get or create sync engine instance
  */
 export function getSyncEngine(config?: SyncEngineConfig): FirestoreSyncEngine {
-  if (!syncEngineInstance) {
-    syncEngineInstance = new FirestoreSyncEngine(config);
+  if (!syncEngineGlobal.instance) {
+    syncEngineGlobal.instance = new FirestoreSyncEngine(config);
   }
-  return syncEngineInstance;
+  return syncEngineGlobal.instance;
 }
 
 /**
- * Initialize sync engine
+ * Initialize sync engine (singleton - only initializes once)
  */
 export async function initializeSyncEngine(config?: SyncEngineConfig): Promise<FirestoreSyncEngine> {
-  const engine = getSyncEngine(config);
-  await engine.initialize();
-  return engine;
+  // Prevent multiple simultaneous initializations
+  if (syncEngineGlobal.isInitializing) {
+    console.log('Sync engine initialization already in progress, waiting...');
+    // Wait for the current initialization to complete
+    while (syncEngineGlobal.isInitializing) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return syncEngineGlobal.instance!;
+  }
+
+  // If already initialized, return existing instance
+  if (syncEngineGlobal.instance?.['isInitialized']) {
+    console.log('Sync engine already initialized, returning existing instance');
+    return syncEngineGlobal.instance;
+  }
+
+  syncEngineGlobal.isInitializing = true;
+  try {
+    const engine = getSyncEngine(config);
+    await engine.initialize();
+    return engine;
+  } finally {
+    syncEngineGlobal.isInitializing = false;
+  }
 }
