@@ -198,16 +198,26 @@ class Database {
           FOREIGN KEY (product_id) REFERENCES products (id)
         )`,
 
+        // Sections table
+        `CREATE TABLE IF NOT EXISTS sections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
         // Tables table
         `CREATE TABLE IF NOT EXISTS tables (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT UNIQUE NOT NULL,
           capacity INTEGER NOT NULL,
-          area TEXT NOT NULL, -- 'restaurant' or 'bar'
+          section_id INTEGER, -- FK to sections table (null = no section)
+          area TEXT, -- kept for backward compatibility
           status TEXT DEFAULT 'available', -- 'available', 'occupied', 'reserved'
           current_bill_amount REAL DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE SET NULL
         )`,
 
         // Table orders table (for saving orders before completion)
@@ -890,15 +900,81 @@ class Database {
     });
   }
 
+  // Section operations
+  getSections() {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT * FROM sections ORDER BY name ASC`,
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+  }
+
+  addSection(section) {
+    return new Promise((resolve, reject) => {
+      const { name } = section;
+      this.db.run(
+        `INSERT INTO sections (name) VALUES (?)`,
+        [name],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID, name });
+        }
+      );
+    });
+  }
+
+  updateSection(id, section) {
+    return new Promise((resolve, reject) => {
+      const { name } = section;
+      this.db.run(
+        `UPDATE sections SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [name, id],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ id, name });
+        }
+      );
+    });
+  }
+
+  deleteSection(id) {
+    return new Promise((resolve, reject) => {
+      // First, set section_id to null for all tables in this section
+      this.db.run(
+        `UPDATE tables SET section_id = NULL WHERE section_id = ?`,
+        [id],
+        (err) => {
+          if (err) reject(err);
+          else {
+            // Then delete the section
+            this.db.run(
+              `DELETE FROM sections WHERE id = ?`,
+              [id],
+              function (err2) {
+                if (err2) reject(err2);
+                else resolve({ success: true });
+              }
+            );
+          }
+        }
+      );
+    });
+  }
+
   // Table operations
   getTables() {
     return new Promise((resolve, reject) => {
       this.db.all(
         `
-        SELECT t.*, tord.total as current_bill_amount
+        SELECT t.*, tord.total as current_bill_amount, s.name as section_name
         FROM tables t
         LEFT JOIN table_orders tord ON t.id = tord.table_id
-        ORDER BY t.area, t.name
+        LEFT JOIN sections s ON t.section_id = s.id
+        ORDER BY s.name, t.name
       `,
         (err, rows) => {
           if (err) reject(err);
@@ -910,14 +986,14 @@ class Database {
 
   addTable(table) {
     return new Promise((resolve, reject) => {
-      const { name, capacity, area, status } = table;
+      const { name, capacity, area, status, section_id } = table;
 
       this.db.run(
         `
-        INSERT INTO tables (name, capacity, area, status)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO tables (name, capacity, area, status, section_id)
+        VALUES (?, ?, ?, ?, ?)
       `,
-        [name, capacity, area, status],
+        [name, capacity, area, status, section_id || null],
         function (err) {
           if (err) {
             reject(err);

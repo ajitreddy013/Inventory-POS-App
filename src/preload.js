@@ -83,6 +83,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   testPrinterConnection: () => ipcRenderer.invoke("test-printer-connection"), // Test printer connection
   reconnectPrinter: () => ipcRenderer.invoke("reconnect-printer"),         // Reconnect to printer
 
+  // Section management operations
+  getSections: () => ipcRenderer.invoke("get-sections"),
+  addSection: (section) => ipcRenderer.invoke("add-section", section),
+  updateSection: (id, section) => ipcRenderer.invoke("update-section", id, section),
+  deleteSection: (id) => ipcRenderer.invoke("delete-section", id),
+
+  // Firebase sync operations
+  syncSectionsTables: (data) => ipcRenderer.invoke("firebase:sync-sections-tables", data),
+  getFirebaseSections: () => ipcRenderer.invoke("firebase:get-sections"),
+  getFirebaseTables: () => ipcRenderer.invoke("firebase:get-tables"),
+
   // Table management operations
   getTables: () => ipcRenderer.invoke("get-tables"),
   addTable: (table) => ipcRenderer.invoke("add-table", table),

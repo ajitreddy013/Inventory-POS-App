@@ -179,10 +179,6 @@ function AppContent() {
   const menuItems = [
     { path: "/", name: "Dashboard", icon: BarChart3 },           // Main overview
     { path: "/tables", name: "Tables", icon: Coffee },             // Table management
-    { path: "/waiters", name: "Waiters", icon: Users },            // Waiter management
-    { path: "/managers", name: "Managers", icon: SettingsIcon },   // Manager management
-    { path: "/menu", name: "Menu", icon: Package },                // Menu management
-    { path: "/failed-kots", name: "Failed KOTs", icon: Clock },    // Failed KOT management
     { path: "/products", name: "Products", icon: Package },        // Product catalog
     { path: "/inventory", name: "Inventory", icon: Package },      // Stock monitoring
     { path: "/transfer", name: "Daily Transfer", icon: ArrowRight }, // Stock transfers

@@ -6,6 +6,7 @@ import TableSelectionScreen from './src/screens/TableSelectionScreen';
 import OrderEntryScreen from './src/screens/OrderEntryScreen';
 import TableOperationsScreen from './src/screens/TableOperationsScreen';
 import { initializeSyncEngine } from './src/services/syncEngine';
+import { initializeDatabase } from './src/services/database';
 
 type Screen = 'auth' | 'tables' | 'order' | 'tableOperation';
 type OperationType = 'merge' | 'split' | 'transfer';
@@ -26,7 +27,13 @@ export default function App() {
 
   const initializeApp = async () => {
     try {
-      // Initialize sync engine
+      // Initialize database first
+      console.log('Initializing database...');
+      await initializeDatabase();
+      console.log('Database initialized');
+
+      // Then initialize sync engine
+      console.log('Initializing sync engine...');
       await initializeSyncEngine({
         onStatusChange: (status) => {
           console.log('Sync status:', status);
@@ -35,9 +42,14 @@ export default function App() {
           console.log('Sync complete');
         },
         onError: (error) => {
+          // Ignore hot reload errors in development
+          if (error.message && error.message.includes('Target ID already exists')) {
+            return;
+          }
           console.error('Sync error:', error);
         }
       });
+      console.log('Sync engine initialized');
     } catch (error) {
       console.error('Error initializing app:', error);
     } finally {
@@ -87,7 +99,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       {currentScreen === 'auth' && (
-        <AuthScreen onLogin={handleLogin} />
+        <AuthScreen onAuthSuccess={handleLogin} />
       )}
 
       {currentScreen === 'tables' && (

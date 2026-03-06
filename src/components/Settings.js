@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, Plus, Trash2, Layers } from 'lucide-react';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
@@ -26,6 +26,15 @@ const Settings = () => {
     to: '',
     enabled: false
   });
+  
+  // Section Management State
+  const [sections, setSections] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [newSectionName, setNewSectionName] = useState('');
+  const [newTableName, setNewTableName] = useState('');
+  const [selectedSectionId, setSelectedSectionId] = useState(null);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingPrinterConfig, setIsEditingPrinterConfig] = useState(false);
@@ -41,7 +50,154 @@ const Settings = () => {
     checkPrinterStatus();
     loadBarSettings();
     loadEmailSettings();
+    loadSections();
+    loadTables();
   }, []);
+
+  // Section Management Functions
+  const loadSections = async () => {
+    try {
+      const sectionsData = await window.electronAPI.getSections();
+      setSections(sectionsData);
+    } catch (error) {
+      console.error('Error loading sections:', error);
+    }
+  };
+
+  const loadTables = async () => {
+    try {
+      const tablesData = await window.electronAPI.getTables();
+      setTables(tablesData);
+    } catch (error) {
+      console.error('Error loading tables:', error);
+    }
+  };
+
+  const handleAddSection = async () => {
+    if (!newSectionName.trim()) {
+      alert('Please enter a section name');
+      return;
+    }
+    try {
+      setSectionLoading(true);
+      await window.electronAPI.addSection({ name: newSectionName.trim() });
+      setNewSectionName('');
+      await loadSections();
+      await syncToFirebase();
+      alert('Section added and synced to mobile app!');
+    } catch (error) {
+      if (error.message.includes('UNIQUE constraint')) {
+        alert('Section with this name already exists');
+      } else {
+        alert('Failed to add section');
+      }
+    } finally {
+      setSectionLoading(false);
+    }
+  };
+
+  const handleDeleteSection = async (sectionId) => {
+    if (!confirm('Are you sure you want to delete this section? Tables in this section will become unassigned.')) {
+      return;
+    }
+    try {
+      await window.electronAPI.deleteSection(sectionId);
+      await loadSections();
+      await loadTables();
+      if (selectedSectionId === sectionId) {
+        setSelectedSectionId(null);
+      }
+      await syncToFirebase();
+      alert('Section deleted and synced to mobile app!');
+    } catch (error) {
+      alert('Failed to delete section');
+    }
+  };
+
+  const handleAddTable = async () => {
+    if (!newTableName.trim()) {
+      alert('Please enter a table name');
+      return;
+    }
+    if (!selectedSectionId) {
+      alert('Please select a section first');
+      return;
+    }
+    try {
+      setSectionLoading(true);
+      console.log('Adding table:', newTableName.trim(), 'to section:', selectedSectionId);
+      
+      await window.electronAPI.addTable({
+        name: newTableName.trim(),
+        capacity: 4,
+        section_id: selectedSectionId,
+        area: '',
+        status: 'available'
+      });
+      
+      setNewTableName('');
+      await loadTables();
+      
+      // Try to sync but don't fail if it doesn't work
+      try {
+        await syncToFirebase();
+      } catch (syncErr) {
+        console.warn('Sync failed but table was added:', syncErr);
+      }
+      
+      alert('Table added successfully!');
+    } catch (error) {
+      console.error('Error adding table:', error);
+      if (error.message && error.message.includes('UNIQUE constraint')) {
+        alert('Table with this name already exists');
+      } else {
+        alert('Failed to add table: ' + (error.message || 'Unknown error'));
+      }
+    } finally {
+      setSectionLoading(false);
+    }
+  };
+
+  const handleDeleteTable = async (tableId) => {
+    if (!confirm('Are you sure you want to delete this table?')) {
+      return;
+    }
+    try {
+      await window.electronAPI.deleteTable(tableId);
+      await loadTables();
+      await syncToFirebase();
+      alert('Table deleted and synced to mobile app!');
+    } catch (error) {
+      alert('Failed to delete table');
+    }
+  };
+
+  const getTablesForSection = (sectionId) => {
+    return tables.filter(t => t.section_id === sectionId);
+  };
+
+  // Sync sections and tables to Firebase
+  const syncToFirebase = async () => {
+    try {
+      // Get all sections and tables from local database
+      const allSections = await window.electronAPI.getSections();
+      const allTables = await window.electronAPI.getTables();
+      
+      // Call Firebase sync handler
+      const result = await window.electronAPI.syncSectionsTables({
+        sections: allSections,
+        tables: allTables
+      });
+      
+      if (result.success) {
+        console.log('Synced to Firebase:', result.message);
+      } else {
+        console.error('Firebase sync failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Error syncing to Firebase:', error);
+    }
+  };
 
   const checkPrinterStatus = async () => {
     try {
@@ -323,6 +479,20 @@ const Settings = () => {
     }
   };
 
+  // Menu items for the grid
+  const menuItems = [
+    { name: 'Waiters', path: '/waiters', icon: '👤', color: '#3498db' },
+    { name: 'Managers', path: '/managers', icon: '👔', color: '#9b59b6' },
+    { name: 'Menu', path: '/menu', icon: '📋', color: '#e67e22' },
+    { name: 'Failed KOT', path: '/failed-kots', icon: '⚠️', color: '#e74c3c' },
+    { name: 'Printer', path: '/settings', icon: '🖨️', color: '#2c3e50' },
+    { name: 'Email', path: '/settings', icon: '📧', color: '#27ae60' },
+  ];
+
+  const handleMenuClick = (path) => {
+    window.location.hash = path;
+  };
+
   return (
     <div className="settings">
       <div className="page-header">
@@ -330,6 +500,44 @@ const Settings = () => {
       </div>
 
       <div style={{ padding: '20px 30px' }}>
+        
+        {/* Quick Access Grid */}
+        <div style={{ marginBottom: '30px' }}>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+            gap: '15px' 
+          }}>
+            {menuItems.map((item) => (
+              <div
+                key={item.name}
+                onClick={() => handleMenuClick(item.path)}
+                style={{
+                  background: item.color,
+                  color: '#fff',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                }}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>{item.icon}</div>
+                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>{item.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Bar Information Section */}
         <div className="table-container" style={{ marginBottom: '30px' }}>
           <div style={{ 
@@ -444,6 +652,204 @@ const Settings = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Section & Table Management */}
+        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #3498db' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '20px',
+            borderBottom: '1px solid #e9ecef',
+            background: '#ebf5fb'
+          }}>
+            <h2 style={{ margin: 0, color: '#2c3e50' }}>
+              <Layers size={20} style={{ marginRight: '10px' }} />
+              Section & Table Management
+            </h2>
+            <span style={{ color: '#7f8c8d', fontSize: '0.9rem' }}>
+              Create sections (AC, Garden) and add tables to sync with mobile app
+            </span>
+          </div>
+
+          <div style={{ padding: '20px' }}>
+            {/* Add New Section */}
+            <div style={{ marginBottom: '20px' }}>
+              <h3 style={{ marginBottom: '10px', color: '#2c3e50' }}>Create New Section</h3>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Section name (e.g., AC, Garden, Terrace)"
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddSection()}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid #ddd',
+                    fontSize: '1rem'
+                  }}
+                />
+                <button
+                  onClick={handleAddSection}
+                  disabled={sectionLoading}
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Plus size={16} />
+                  {sectionLoading ? 'Adding...' : 'Add Section'}
+                </button>
+              </div>
+            </div>
+
+            {/* Existing Sections */}
+            <div>
+              <h3 style={{ marginBottom: '15px', color: '#2c3e50' }}>Your Sections</h3>
+              {sections.length === 0 ? (
+                <div style={{ 
+                  padding: '30px', 
+                  textAlign: 'center', 
+                  background: '#f8f9fa',
+                  borderRadius: '8px',
+                  color: '#7f8c8d'
+                }}>
+                  <Layers size={40} style={{ marginBottom: '10px', opacity: 0.5 }} />
+                  <p>No sections yet. Create your first section above!</p>
+                  <p style={{ fontSize: '0.9rem' }}>Examples: AC Hall, Garden, Terrace, Bar Area</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {sections.map(section => (
+                    <div 
+                      key={section.id} 
+                      style={{ 
+                        border: selectedSectionId === section.id ? '2px solid #3498db' : '1px solid #e0e0e0',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        background: selectedSectionId === section.id ? '#f0f8ff' : '#fff'
+                      }}
+                    >
+                      {/* Section Header - Compact */}
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        background: '#f8f9fa',
+                        borderBottom: selectedSectionId === section.id ? '1px solid #e0e0e0' : 'none'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            onClick={() => setSelectedSectionId(selectedSectionId === section.id ? null : section.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                          >
+                            {selectedSectionId === section.id ? '▼' : '▶'}
+                          </button>
+                          <h4 style={{ margin: 0, color: '#2c3e50', fontSize: '0.95rem' }}>{section.name}</h4>
+                          <span style={{ 
+                            background: '#e0e0e0', 
+                            padding: '1px 6px', 
+                            borderRadius: '8px',
+                            fontSize: '0.7rem',
+                            color: '#666'
+                          }}>
+                            {getTablesForSection(section.id).length}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteSection(section.id)}
+                          className="btn btn-danger"
+                          style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+
+                      {/* Tables for this section */}
+                      {selectedSectionId === section.id && (
+                        <div style={{ padding: '15px' }}>
+                          {/* Add Table Form */}
+                          <div style={{ 
+                            display: 'flex', 
+                            gap: '8px', 
+                            marginBottom: '8px',
+                            padding: '8px',
+                            background: '#f8f9fa',
+                            borderRadius: '6px'
+                          }}>
+                            <input
+                              type="text"
+                              placeholder="Table name"
+                              value={newTableName}
+                              onChange={(e) => setNewTableName(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && handleAddTable()}
+                              style={{
+                                flex: 1,
+                                padding: '6px',
+                                borderRadius: '4px',
+                                border: '1px solid #ddd',
+                                fontSize: '0.85rem'
+                              }}
+                            />
+                            <button
+                              onClick={handleAddTable}
+                              disabled={sectionLoading}
+                              className="btn btn-primary"
+                              style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                            >
+                              <Plus size={12} /> Add
+                            </button>
+                          </div>
+
+                          {/* Table List */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {getTablesForSection(section.id).map(table => (
+                              <div
+                                key={table.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 8px',
+                                  background: '#fff',
+                                  border: '1px solid #ddd',
+                                  borderRadius: '4px'
+                                }}
+                              >
+                                <span style={{ fontWeight: '600', color: '#2c3e50', fontSize: '0.85rem' }}>
+                                  {table.name}
+                                </span>
+                                <button
+                                  onClick={() => handleDeleteTable(table.id)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#e74c3c',
+                                    cursor: 'pointer',
+                                    padding: '0'
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                            {getTablesForSection(section.id).length === 0 && (
+                              <p style={{ color: '#7f8c8d', fontStyle: 'italic' }}>
+                                No tables in this section. Add one above!
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
