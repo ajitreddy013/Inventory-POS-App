@@ -1578,6 +1578,102 @@ function registerSectionHandlers() {
     }
   });
 
+  // Sync sections and tables from local SQLite to Firestore
+  ipcMain.handle('firebase:sync-sections-tables', async (event, { sections, tables }) => {
+    try {
+      const results = { sectionsCreated: 0, tablesCreated: 0, errors: [] };
+      
+      // Create a map of local section IDs to Firestore section IDs
+      const sectionIdMap = new Map();
+      
+      // Sync sections
+      if (sections && sections.length > 0) {
+        for (const section of sections) {
+          try {
+            // Check if section with this name exists
+            const existingSections = await queryCollection('sections', [
+              { field: 'name', operator: '==', value: section.name }
+            ]);
+            
+            if (existingSections && existingSections.length > 0) {
+              // Use existing section
+              sectionIdMap.set(section.id, existingSections[0].id);
+            } else {
+              // Create new section
+              const sectionId = `section_${section.id}_${Date.now()}`;
+              await setDocument('sections', sectionId, {
+                name: section.name,
+                localId: section.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              sectionIdMap.set(section.id, sectionId);
+              results.sectionsCreated++;
+            }
+          } catch (err) {
+            results.errors.push(`Section ${section.name}: ${err.message}`);
+          }
+        }
+      }
+      
+      // Sync tables
+      if (tables && tables.length > 0) {
+        for (const table of tables) {
+          try {
+            // Get the Firestore section ID for this table's local section ID
+            const firestoreSectionId = table.section_id ? sectionIdMap.get(table.section_id) : null;
+            
+            // Check if table with this name exists in the section
+            const tableQuery = firestoreSectionId 
+              ? await queryCollection('tables', [
+                  { field: 'name', operator: '==', value: table.name },
+                  { field: 'sectionId', operator: '==', value: firestoreSectionId }
+                ])
+              : await queryCollection('tables', [
+                  { field: 'name', operator: '==', value: table.name }
+                ]);
+            
+            if (tableQuery && tableQuery.length > 0) {
+              // Update existing table
+              await updateDocument('tables', tableQuery[0].id, {
+                name: table.name,
+                capacity: table.capacity,
+                sectionId: firestoreSectionId || null,
+                status: table.status || 'available',
+                localId: table.id,
+                updatedAt: new Date()
+              });
+            } else {
+              // Create new table
+              const tableId = `table_${table.id}_${Date.now()}`;
+              await setDocument('tables', tableId, {
+                name: table.name,
+                capacity: table.capacity,
+                sectionId: firestoreSectionId || null,
+                status: table.status || 'available',
+                localId: table.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              results.tablesCreated++;
+            }
+          } catch (err) {
+            results.errors.push(`Table ${table.name}: ${err.message}`);
+          }
+        }
+      }
+      
+      return { 
+        success: true, 
+        ...results,
+        message: `Synced ${results.sectionsCreated} sections and ${results.tablesCreated} tables`
+      };
+    } catch (error) {
+      console.error('Error syncing sections and tables:', error);
+      return { success: false, error: 'Failed to sync sections and tables' };
+    }
+  });
+
   // ============================================================================
   // TABLE CRUD OPERATIONS
   // ============================================================================

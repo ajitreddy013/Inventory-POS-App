@@ -468,7 +468,7 @@ const ProductManagement = () => {
         />
       )}
 
-      <style jsx>{`
+      <style>{`
         .notification {
           position: fixed;
           top: 20px;
