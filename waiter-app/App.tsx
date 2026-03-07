@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, BackHandler } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AuthScreen from './src/screens/AuthScreen';
 import TableSelectionScreen from './src/screens/TableSelectionScreen';
 import OrderEntryScreen from './src/screens/OrderEntryScreen';
 import TableOperationsScreen from './src/screens/TableOperationsScreen';
+import KOTHistoryScreen from './src/screens/KOTHistoryScreen';
 import { initializeSyncEngine } from './src/services/syncEngine';
 import { initializeDatabase } from './src/services/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type Screen = 'auth' | 'tables' | 'order' | 'tableOperation';
+type Screen = 'auth' | 'tables' | 'order' | 'tableOperation' | 'kot';
 type OperationType = 'merge' | 'split' | 'transfer';
 
 export default function App() {
@@ -20,6 +23,19 @@ export default function App() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | undefined>();
   const [operationType, setOperationType] = useState<OperationType>('merge');
   const [loading, setLoading] = useState(true);
+
+  // Android hardware back button support
+  useEffect(() => {
+    const onBackPress = () => {
+      if (currentScreen === 'order' || currentScreen === 'tableOperation' || currentScreen === 'kot') {
+        setCurrentScreen('tables');
+        return true; // Handled — prevent default (app exit)
+      }
+      return false; // Let Android handle it (exit app on auth/tables)
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [currentScreen]);
 
   useEffect(() => {
     initializeApp();
@@ -63,7 +79,9 @@ export default function App() {
     setCurrentScreen('tables');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('waiterId');
+    await AsyncStorage.removeItem('waiterName');
     setWaiterId('');
     setWaiterName('');
     setCurrentScreen('auth');
@@ -83,60 +101,82 @@ export default function App() {
     setCurrentScreen('tableOperation');
   };
 
+  const handleViewKOT = (tableId: string, tableName: string, orderId?: string) => {
+    if (!orderId) return; // no order yet, nothing to show
+    setSelectedTableId(tableId);
+    setSelectedTableName(tableName);
+    setSelectedOrderId(orderId);
+    setCurrentScreen('kot');
+  };
+
   const handleBackToTables = () => {
     setCurrentScreen('tables');
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#C0392B" />
-        <StatusBar style="auto" />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.container}>
+          <ActivityIndicator size="large" color="#C0392B" />
+          <StatusBar style="auto" />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {currentScreen === 'auth' && (
-        <AuthScreen onAuthSuccess={handleLogin} />
-      )}
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        {currentScreen === 'auth' && (
+          <AuthScreen onAuthSuccess={handleLogin} />
+        )}
 
-      {currentScreen === 'tables' && (
-        <TableSelectionScreen
-          waiterId={waiterId}
-          waiterName={waiterName}
-          onTableSelect={handleTableSelect}
-          onTableOperation={handleTableOperation}
-          onLogout={handleLogout}
-        />
-      )}
+        {currentScreen === 'tables' && (
+          <TableSelectionScreen
+            waiterId={waiterId}
+            waiterName={waiterName}
+            onTableSelect={handleTableSelect}
+            onViewKOT={handleViewKOT}
+            onTableOperation={handleTableOperation}
+            onLogout={handleLogout}
+          />
+        )}
 
-      {currentScreen === 'order' && (
-        <OrderEntryScreen
-          tableId={selectedTableId}
-          tableName={selectedTableName}
-          orderId={selectedOrderId}
-          waiterId={waiterId}
-          waiterName={waiterName}
-          onBack={handleBackToTables}
-        />
-      )}
+        {currentScreen === 'order' && (
+          <OrderEntryScreen
+            tableId={selectedTableId}
+            tableName={selectedTableName}
+            orderId={selectedOrderId}
+            waiterId={waiterId}
+            waiterName={waiterName}
+            onBack={handleBackToTables}
+          />
+        )}
 
-      {currentScreen === 'tableOperation' && (
-        <TableOperationsScreen
-          sourceTableId={selectedTableId}
-          sourceTableName={selectedTableName}
-          operationType={operationType}
-          waiterId={waiterId}
-          waiterName={waiterName}
-          onComplete={handleBackToTables}
-          onCancel={handleBackToTables}
-        />
-      )}
+        {currentScreen === 'tableOperation' && (
+          <TableOperationsScreen
+            sourceTableId={selectedTableId}
+            sourceTableName={selectedTableName}
+            operationType={operationType}
+            waiterId={waiterId}
+            waiterName={waiterName}
+            onComplete={handleBackToTables}
+            onCancel={handleBackToTables}
+          />
+        )}
 
-      <StatusBar style="auto" />
-    </View>
+        {currentScreen === 'kot' && selectedOrderId && (
+          <KOTHistoryScreen
+            tableId={selectedTableId}
+            tableName={selectedTableName}
+            orderId={selectedOrderId}
+            onBack={handleBackToTables}
+          />
+        )}
+
+        <StatusBar style="auto" />
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
