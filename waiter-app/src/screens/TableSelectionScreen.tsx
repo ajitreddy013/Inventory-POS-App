@@ -17,6 +17,7 @@ import {
   Animated,
   FlatList,
   ActivityIndicator,
+  Alert
 } from 'react-native';
 import { getAll, query as dbQuery } from '../services/databaseHelpers';
 import OfflineIndicator from '../components/OfflineIndicator';
@@ -150,7 +151,18 @@ export default function TableSelectionScreen({
   const getElapsedTime = (occupiedSince?: number): string | null => {
     if (!occupiedSince) return null;
     const elapsed = Math.floor((currentTime - occupiedSince) / 60000);
-    return `${elapsed}m`;
+    return `${elapsed} min`;
+  };
+
+  const getTableColor = (table: Table): string => {
+    if (table.status === 'available') return '#82E0AA'; // Green for free
+    return '#F4D03F'; // Yellow/Red for occupied
+  };
+
+  const shouldShowAlert = (table: Table): boolean => {
+    if (!table.occupied_since) return false;
+    const elapsed = (currentTime - table.occupied_since) / 60000;
+    return elapsed > 15; // Show alert if occupied for more than 15 minutes
   };
 
   const getStatusColor = (tableStatus: string): string => {
@@ -215,6 +227,37 @@ export default function TableSelectionScreen({
       </TouchableOpacity>
       <Text style={styles.headerTitle}>Tables</Text>
       <View style={styles.headerIcons}>
+        <TouchableOpacity 
+          style={styles.iconButton}
+          onPress={() => {
+            Alert.alert(
+              'Reset Database',
+              'Clear local cache and sync fresh data from server?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Reset',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const { resetDatabase } = await import('../services/databaseReset');
+                      await resetDatabase();
+                      Alert.alert(
+                        'Database Reset',
+                        'Please reload the app now (shake device → Reload)',
+                        [{ text: 'OK' }]
+                      );
+                    } catch (error) {
+                      Alert.alert('Error', 'Failed to reset database');
+                    }
+                  }
+                }
+              ]
+            );
+          }}
+        >
+          <Text style={styles.icon}>🔄</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.iconButton}>
           <Text style={styles.icon}>🔔</Text>
         </TouchableOpacity>
@@ -278,41 +321,34 @@ export default function TableSelectionScreen({
 
   // ─── Table Card ───────────────────────────────────────────────────────────────
   const renderTableCard = (table: Table) => {
-    const isOccupied = table.status !== 'available';
-    const statusColor = getStatusColor(table.status);
-    const cardBg = getCardBg(table.status);
+    const backgroundColor = getTableColor(table);
+    const showAlert = shouldShowAlert(table);
     const elapsedTime = getElapsedTime(table.occupied_since);
+    const isOccupied = table.status !== 'available';
 
     return (
       <TouchableOpacity
         key={table.id}
-        style={[styles.tableCard, { backgroundColor: cardBg }]}
+        style={[styles.tableCard, { backgroundColor }]}
         onPress={() => handleTablePress(table)}
         activeOpacity={0.7}
       >
-        {/* Status indicator bar at top */}
-        <View style={[styles.statusBar, { backgroundColor: statusColor }]} />
+        {/* Alert Ribbon */}
+        {showAlert && <View style={styles.alertRibbon} />}
 
-        {/* Centered content */}
+        {/* Three rows layout */}
         <View style={styles.cardContent}>
-          {/* Table number - large and bold */}
+          {/* Row 1: Elapsed Time (only if occupied) */}
+          {isOccupied && elapsedTime && (
+            <Text style={styles.elapsedTime}>{elapsedTime}</Text>
+          )}
+
+          {/* Row 2: Table Number (large, centered) */}
           <Text style={styles.tableId}>{table.name}</Text>
 
-          {/* Status text */}
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {table.status === 'available' ? 'Free' : table.status === 'occupied' ? 'Occupied' : 'Bill'}
-            </Text>
-          </View>
-
-          {/* Time or amount */}
-          {isOccupied && (
-            <>
-              {elapsedTime && <Text style={styles.elapsedTime}>{elapsedTime}</Text>}
-              {table.billAmount !== undefined && (
-                <Text style={styles.billAmount}>₹{table.billAmount.toFixed(0)}</Text>
-              )}
-            </>
+          {/* Row 3: Bill Amount (only if occupied and has bill amount) */}
+          {isOccupied && table.billAmount !== undefined && table.billAmount > 0 && (
+            <Text style={styles.billAmount}>₹{table.billAmount}</Text>
           )}
         </View>
       </TouchableOpacity>
@@ -529,14 +565,29 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  tabBar: { maxHeight: 52 },
-  tabBarContent: { paddingHorizontal: 12, alignItems: 'center' },
-  tab: { paddingVertical: 14, paddingHorizontal: 16, marginHorizontal: 2 },
-  tabActive: {},
-  tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.darkGray, fontWeight: '700' },
-  tabIndicatorContainer: { height: 3, backgroundColor: COLORS.white },
-  tabIndicator: { height: 3, backgroundColor: COLORS.primary, borderRadius: 2 },
+  tabBar: { 
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray
+  },
+  tabBarContent: { paddingHorizontal: 16, gap: 24 },
+  tab: { 
+    paddingVertical: 16, 
+    paddingHorizontal: 4
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.brandRed
+  },
+  tabText: { 
+    fontSize: 14, 
+    fontWeight: '500', 
+    color: COLORS.mutedGray 
+  },
+  tabTextActive: { 
+    color: COLORS.darkGray, 
+    fontWeight: '600' 
+  },
 
   // Grid
   gridContent: { padding: GRID_PADDING, paddingBottom: 80 },
@@ -545,21 +596,63 @@ const styles = StyleSheet.create({
   // Table Card
   tableCard: {
     width: cardWidth,
-    aspectRatio: 0.9,
-    borderRadius: 12,
-    overflow: 'hidden',
+    aspectRatio: 1,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    position: 'relative',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6
   },
-  statusBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 4 },
-  cardContent: { alignItems: 'center', justifyContent: 'center', paddingTop: 8, gap: 4 },
-  tableId: { fontSize: 28, fontWeight: '800', color: COLORS.darkGray, textAlign: 'center' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-  elapsedTime: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600', marginTop: 2 },
-  billAmount: { fontSize: 14, fontWeight: '700', color: COLORS.darkGray },
+  alertRibbon: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    borderStyle: 'solid',
+    borderTopWidth: 40,
+    borderRightWidth: 40,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderTopColor: COLORS.alertRed,
+    borderRightColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'transparent',
+    borderTopRightRadius: 16
+  },
+  cardContent: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    flex: 1,
+    width: '100%',
+    paddingVertical: 8
+  },
+  elapsedTime: { 
+    fontSize: 10, 
+    color: '#2C3E50', 
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  },
+  tableId: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    color: '#2C3E50', 
+    textAlign: 'center',
+    marginVertical: 4,
+    letterSpacing: 0.5
+  },
+  billAmount: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#2C3E50',
+    marginTop: 2,
+    letterSpacing: 0.3
+  },
 
   // Empty State
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
