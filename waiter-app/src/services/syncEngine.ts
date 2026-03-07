@@ -20,6 +20,7 @@ import { db } from './firebase';
 import {
   upsert,
   deleteRecord,
+  getAll,
   addToSyncQueue,
   getPendingSyncItems,
   markSynced,
@@ -74,8 +75,8 @@ export class FirestoreSyncEngine {
     }
 
     try {
-      // Enable Firestore offline persistence
-      await this.enableOfflinePersistence();
+      // Skip offline persistence to avoid "Target ID already exists" errors
+      console.log('Skipping offline persistence (using online-only mode)');
 
       // Set up network monitoring
       this.setupNetworkMonitoring();
@@ -163,26 +164,129 @@ export class FirestoreSyncEngine {
    * Subscribe to all Firestore collections
    */
   private async subscribeToCollections(): Promise<void> {
-    // Subscribe to waiters
-    this.subscribeToCollection('waiters', 'waiters');
+    // Do initial fetch
+    await this.initialFetchAll();
+    
+    // Set up polling to refresh data every 10 seconds
+    this.setupPolling();
+  }
 
-    // Subscribe to sections
-    this.subscribeToCollection('sections', 'sections');
+  /**
+   * Set up polling to refresh data periodically
+   */
+  private setupPolling(): void {
+    // Poll every 2 seconds for faster table status updates
+    const pollInterval = setInterval(async () => {
+      try {
+        await this.initialFetchAll();
+      } catch (error) {
+        console.error('Error during polling:', error);
+      }
+    }, 2000);
 
-    // Subscribe to tables
-    this.subscribeToCollection('tables', 'tables');
+    // Store interval for cleanup
+    (this as any).pollInterval = pollInterval;
+  }
 
-    // Subscribe to menu categories
-    this.subscribeToCollection('menuCategories', 'menu_categories');
+  /**
+   * Initial fetch of all data from Firestore using REST API
+   * This bypasses Firestore SDK caching issues
+   */
+  private async initialFetchAll(): Promise<void> {
+    const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+    const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
 
-    // Subscribe to menu items
-    this.subscribeToCollection('menuItems', 'menu_items');
+    if (!projectId || !apiKey) {
+      throw new Error('Firebase project ID or API key not configured');
+    }
 
-    // Subscribe to modifiers
-    this.subscribeToCollection('modifiers', 'modifiers');
+    // Helper to fetch a collection via REST API
+    const fetchCollection = async (collectionName: string) => {
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionName}?key=${apiKey}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${collectionName}: ${response.statusText}`);
+      }
 
-    // Subscribe to orders (only for current device/waiter)
-    await this.subscribeToOrders();
+      const data = await response.json();
+      const documents = data.documents || [];
+
+      // Convert Firestore REST API format to simple objects
+      return documents.map((doc: any) => {
+        const id = doc.name.split('/').pop();
+        const fields = doc.fields || {};
+        
+        // Convert Firestore field format to simple key-value pairs
+        const obj: Record<string, any> = { id };
+        for (const [key, value] of Object.entries(fields)) {
+          const fieldValue = value as any;
+          // Extract the actual value based on type
+          if (fieldValue.stringValue !== undefined) obj[key] = fieldValue.stringValue;
+          else if (fieldValue.integerValue !== undefined) obj[key] = parseInt(fieldValue.integerValue);
+          else if (fieldValue.doubleValue !== undefined) obj[key] = fieldValue.doubleValue;
+          else if (fieldValue.booleanValue !== undefined) obj[key] = fieldValue.booleanValue;
+          else if (fieldValue.timestampValue !== undefined) obj[key] = fieldValue.timestampValue;
+          else if (fieldValue.nullValue !== undefined) obj[key] = null;
+        }
+        
+        return obj;
+      });
+    };
+
+    try {
+      // Fetch sections
+      const sections = await fetchCollection('sections');
+      for (const doc of sections) {
+        const data = convertKeysToSnakeCase(doc);
+        await upsert('sections', data);
+      }
+      console.log(`✅ Synced ${sections.length} sections`);
+
+      // Fetch tables
+      const tables = await fetchCollection('tables');
+      for (const doc of tables) {
+        const data = convertKeysToSnakeCase(doc);
+        await upsert('tables', data);
+      }
+      console.log(`✅ Synced ${tables.length} tables`);
+
+      // Fetch waiters
+      const waiters = await fetchCollection('waiters');
+      for (const doc of waiters) {
+        const data = convertKeysToSnakeCase(doc);
+        await upsert('waiters', data);
+      }
+      console.log(`✅ Synced ${waiters.length} waiters`);
+
+      // Fetch menu categories
+      const categories = await fetchCollection('menuCategories');
+      for (const doc of categories) {
+        const data = convertKeysToSnakeCase(doc);
+        await upsert('menu_categories', data);
+      }
+      console.log(`✅ Synced ${categories.length} menu categories`);
+
+      // Fetch menu items
+      const items = await fetchCollection('menuItems');
+      for (const doc of items) {
+        const data = convertKeysToSnakeCase(doc);
+        await upsert('menu_items', data);
+      }
+      console.log(`✅ Synced ${items.length} menu items`);
+
+      // Fetch modifiers
+      const modifiers = await fetchCollection('modifiers');
+      for (const doc of modifiers) {
+        const data = convertKeysToSnakeCase(doc);
+        await upsert('modifiers', data);
+      }
+      console.log(`✅ Synced ${modifiers.length} modifiers`);
+
+    } catch (error) {
+      console.error('❌ Error fetching data:', error);
+      throw error;
+    }
   }
 
   /**
@@ -192,42 +296,30 @@ export class FirestoreSyncEngine {
     firestoreCollection: string,
     sqliteTable: string
   ): void {
-    // Check if we already have a subscription for this collection
-    if ((this as any)[`_subscription_${firestoreCollection}`]) {
-      console.log(`Already subscribed to ${firestoreCollection}, skipping...`);
-      return;
-    }
-
     const collectionRef = collection(db, firestoreCollection);
 
     const unsubscribe = onSnapshot(
       collectionRef,
       async (snapshot) => {
         try {
-          for (const change of snapshot.docChanges()) {
-            const firestoreData = change.doc.data();
-            const data = convertKeysToSnakeCase({ id: change.doc.id, ...firestoreData });
-
-            if (change.type === 'added' || change.type === 'modified') {
-              await upsert(sqliteTable, data);
-            } else if (change.type === 'removed') {
-              await deleteRecord(sqliteTable, change.doc.id);
-            }
+          // Process all documents in the snapshot
+          for (const doc of snapshot.docs) {
+            const firestoreData = doc.data();
+            const data = convertKeysToSnakeCase({ id: doc.id, ...firestoreData });
+            await upsert(sqliteTable, data);
           }
 
-          if (snapshot.docChanges().length > 0) {
-            console.log(`Synced ${snapshot.docChanges().length} changes to ${sqliteTable}`);
+          if (snapshot.docs.length > 0) {
+            console.log(`✅ Synced ${snapshot.docs.length} ${firestoreCollection} to ${sqliteTable}`);
           }
         } catch (error) {
-          console.error(`Error syncing ${firestoreCollection}:`, error);
+          console.error(`❌ Error syncing ${firestoreCollection}:`, error);
           this.config.onError?.(error as Error);
         }
       },
       (error) => {
-        // Ignore "Target ID already exists" errors - these occur during hot reloads
-        // and don't affect functionality
+        // Silently ignore "Target ID already exists" errors during development
         if (error.message && error.message.includes('Target ID already exists')) {
-          console.warn(`Hot reload detected for ${firestoreCollection} listener (this is normal in development)`);
           return;
         }
         
@@ -236,8 +328,6 @@ export class FirestoreSyncEngine {
       }
     );
 
-    // Mark this collection as subscribed
-    (this as any)[`_subscription_${firestoreCollection}`] = true;
     this.unsubscribers.push(unsubscribe);
   }
 
@@ -397,13 +487,15 @@ export class FirestoreSyncEngine {
    * Shutdown the sync engine
    */
   shutdown(): void {
+    // Clear polling interval
+    if ((this as any).pollInterval) {
+      clearInterval((this as any).pollInterval);
+      (this as any).pollInterval = null;
+    }
+
     // Unsubscribe from all Firestore listeners
     this.unsubscribers.forEach(unsubscribe => unsubscribe());
     this.unsubscribers = [];
-
-    // DON'T clear subscription markers - they persist across hot reloads
-    // to prevent duplicate listener creation
-    // Only clear them if explicitly requested (e.g., on logout)
 
     // Unsubscribe from network monitoring
     this.netInfoUnsubscribe?.();
@@ -430,55 +522,12 @@ export class FirestoreSyncEngine {
   }
 }
 
-// Singleton instance - stored outside the module to persist across hot reloads
-const SYNC_ENGINE_KEY = '__WAITERFLOW_SYNC_ENGINE__';
-
-// Store in global scope to survive hot reloads
-if (!(global as any)[SYNC_ENGINE_KEY]) {
-  (global as any)[SYNC_ENGINE_KEY] = {
-    instance: null as FirestoreSyncEngine | null,
-    isInitializing: false
-  };
-}
-
-const syncEngineGlobal = (global as any)[SYNC_ENGINE_KEY];
-
 /**
- * Get or create sync engine instance
- */
-export function getSyncEngine(config?: SyncEngineConfig): FirestoreSyncEngine {
-  if (!syncEngineGlobal.instance) {
-    syncEngineGlobal.instance = new FirestoreSyncEngine(config);
-  }
-  return syncEngineGlobal.instance;
-}
-
-/**
- * Initialize sync engine (singleton - only initializes once)
+ * Initialize sync engine - creates a new instance each time
  */
 export async function initializeSyncEngine(config?: SyncEngineConfig): Promise<FirestoreSyncEngine> {
-  // Prevent multiple simultaneous initializations
-  if (syncEngineGlobal.isInitializing) {
-    console.log('Sync engine initialization already in progress, waiting...');
-    // Wait for the current initialization to complete
-    while (syncEngineGlobal.isInitializing) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return syncEngineGlobal.instance!;
-  }
-
-  // If already initialized, return existing instance
-  if (syncEngineGlobal.instance?.['isInitialized']) {
-    console.log('Sync engine already initialized, returning existing instance');
-    return syncEngineGlobal.instance;
-  }
-
-  syncEngineGlobal.isInitializing = true;
-  try {
-    const engine = getSyncEngine(config);
-    await engine.initialize();
-    return engine;
-  } finally {
-    syncEngineGlobal.isInitializing = false;
-  }
+  console.log('Creating new sync engine instance...');
+  const engine = new FirestoreSyncEngine(config);
+  await engine.initialize();
+  return engine;
 }
