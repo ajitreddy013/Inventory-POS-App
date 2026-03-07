@@ -57,26 +57,30 @@ export function initializeFirebase(): { app: FirebaseApp; firestore: Firestore; 
     // Validate configuration before initialization
     validateFirebaseConfig();
 
-    // Check if Firebase is already initialized
-    if (getApps().length === 0) {
-      // Initialize Firebase app
-      app = initializeApp(firebaseConfig);
-      console.log('✅ Firebase app initialized');
-
-      // Initialize Firestore (offline persistence is enabled by default in React Native)
-      firestore = getFirestore(app);
-      console.log('✅ Firestore initialized with offline persistence');
-
-      // Initialize Auth
-      auth = getAuth(app);
-      console.log('✅ Firebase Auth initialized');
-    } else {
-      // Use existing Firebase app
-      app = getApps()[0];
-      firestore = getFirestore(app);
-      auth = getAuth(app);
-      console.log('✅ Using existing Firebase app');
+    // ALWAYS delete existing apps to force fresh initialization
+    const existingApps = getApps();
+    if (existingApps.length > 0) {
+      console.log('🔄 Deleting existing Firebase apps...');
+      existingApps.forEach(app => {
+        try {
+          app.delete();
+        } catch (e) {
+          // Ignore errors
+        }
+      });
     }
+
+    // Initialize Firebase app (fresh)
+    app = initializeApp(firebaseConfig);
+    console.log('✅ Firebase app initialized');
+
+    // Initialize Firestore WITHOUT offline persistence
+    firestore = getFirestore(app);
+    console.log('✅ Firestore initialized (online-only mode)');
+
+    // Initialize Auth
+    auth = getAuth(app);
+    console.log('✅ Firebase Auth initialized');
 
     return { app, firestore, auth };
   } catch (error) {
