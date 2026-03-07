@@ -50,6 +50,7 @@ export async function initializeDatabase(): Promise<void> {
       CREATE TABLE IF NOT EXISTS sections (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -62,7 +63,10 @@ export async function initializeDatabase(): Promise<void> {
         name TEXT NOT NULL,
         section_id TEXT NOT NULL,
         status TEXT NOT NULL CHECK (status IN ('available', 'occupied', 'pending_bill')),
+        capacity INTEGER DEFAULT 4,
+        is_active INTEGER DEFAULT 1,
         current_order_id TEXT,
+        occupied_since INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (section_id) REFERENCES sections(id)
@@ -70,6 +74,12 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_tables_section ON tables(section_id);
       CREATE INDEX IF NOT EXISTS idx_tables_status ON tables(status);
     `);
+
+    // Migration: Add missing columns to existing tables
+    await db.execAsync('ALTER TABLE sections ADD COLUMN is_active INTEGER DEFAULT 1;').catch(() => {});
+    await db.execAsync('ALTER TABLE tables ADD COLUMN capacity INTEGER DEFAULT 4;').catch(() => {});
+    await db.execAsync('ALTER TABLE tables ADD COLUMN is_active INTEGER DEFAULT 1;').catch(() => {});
+    await db.execAsync('ALTER TABLE tables ADD COLUMN occupied_since INTEGER;').catch(() => {});
 
     // Menu categories table
     await db.execAsync(`
