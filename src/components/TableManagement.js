@@ -29,10 +29,12 @@ const TableManagement = ({ onSelectTable }) => {
 
   const loadTables = useCallback(async () => {
     try {
-      const tableList = await window.electronAPI.getTables();
-      setTables(tableList);
+      const result = await window.electronAPI.invoke('firebase:get-tables');
+      if (result.success) {
+        setTables(result.tables || []);
+      }
     } catch (error) {
-      // Failed to load tables
+      console.error('Error loading tables:', error);
     }
   }, []);
 
@@ -64,8 +66,10 @@ const TableManagement = ({ onSelectTable }) => {
 
   const loadSections = useCallback(async () => {
     try {
-      const sectionsData = await window.electronAPI.getSections();
-      setSections(sectionsData);
+      const result = await window.electronAPI.invoke('firebase:get-sections');
+      if (result.success) {
+        setSections(result.sections || []);
+      }
     } catch (error) {
       console.error('Error loading sections:', error);
     }
@@ -408,7 +412,9 @@ const TableManagement = ({ onSelectTable }) => {
                 );
               })}
             </div>
-        )}
+          </div>
+          );
+        })}
 
         {/* Legacy Numbered Tables (T1-T12 without section) */}
         {numberedTables.length > 0 && (
