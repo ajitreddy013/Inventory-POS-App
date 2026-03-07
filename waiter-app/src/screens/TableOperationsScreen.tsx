@@ -326,7 +326,7 @@ export default function TableOperationsScreen({
             };
 
             await addDoc(collection(db, 'orders', newOrderId, 'items'), itemData);
-            await insert('order_items', { id: item.id, ...itemData });
+            await insert('order_items', itemData);
             await addToSyncQueue('order_items', item.id, 'update', itemData);
           }
         }
