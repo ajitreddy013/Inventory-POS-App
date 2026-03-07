@@ -1,596 +1,279 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Users, 
-  Coffee,
-  ShoppingCart,
-  Check,
-  X,
-  Clock,
-  DollarSign,
-  RefreshCw
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+
+const COLORS = {
+  background: '#F8F9FA',
+  white: '#FFFFFF',
+  darkGray: '#212529',
+  textSecondary: '#6C757D',
+  mutedGray: '#ADB5BD',
+  lightGray: '#DEE2E6',
+  primary: '#DC3545', 
+  primaryLight: '#FFEBEE',
+  greenAvailable: '#28A745',
+  greenLight: '#D4EDDA',
+  amberOccupied: '#FFC107',
+  amberLight: '#FFF3CD',
+  redPending: '#DC3545',
+  redLight: '#F8D7DA',
+  cardBorder: '#E9ECEF',
+};
+
+// Robust date parsing for Firestore Timestamp and strings
+function parseDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+  if (typeof val === 'number') return new Date(val);
+  if (typeof val === 'string') return new Date(val);
+  // Firestore Timestamp object { seconds, nanoseconds } or { _seconds, _nanoseconds }
+  if (val.seconds || val._seconds) {
+    return new Date((val.seconds || val._seconds) * 1000);
+  }
+  return null;
+}
+
+function formatElapsed(ms) {
+  if (!ms || ms <= 0) return null;
+  const minutes = Math.floor(ms / 60000);
+  return `${minutes} min`;
+}
 
 const TableManagement = ({ onSelectTable }) => {
   const [tables, setTables] = useState([]);
   const [sections, setSections] = useState([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingTable, setEditingTable] = useState(null);
-  const [newTable, setNewTable] = useState({
-    name: '',
-    capacity: 4,
-    section_id: '',
-    area: '', // 'restaurant' or 'bar'
-    status: 'available' // 'available', 'occupied', 'reserved'
-  });
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    // Refresh elapsed time every minute
+    const interval = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadTables = useCallback(async () => {
     try {
       const result = await window.electronAPI.invoke('firebase:get-tables');
-      if (result.success) {
-        setTables(result.tables || []);
-      }
-    } catch (error) {
-      console.error('Error loading tables:', error);
-    }
+      if (result.success) setTables(result.tables || []);
+    } catch (err) { console.error('Error loading tables:', err); }
   }, []);
-
-  const initializeDefaultTables = useCallback(async () => {
-    try {
-      const tableList = await window.electronAPI.getTables();
-      
-      // Check if we have tables T1-T12
-      const existingTableNames = tableList.map(table => table.name);
-      const requiredTables = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
-      
-      for (const tableName of requiredTables) {
-        if (!existingTableNames.includes(tableName)) {
-          await window.electronAPI.addTable({
-            name: tableName,
-            capacity: 4,
-            area: 'restaurant',
-            status: 'available'
-          });
-        }
-      }
-      
-      // Reload tables after initialization
-      loadTables();
-    } catch (error) {
-      // Failed to initialize default tables
-    }
-  }, [loadTables]);
 
   const loadSections = useCallback(async () => {
     try {
       const result = await window.electronAPI.invoke('firebase:get-sections');
-      if (result.success) {
-        setSections(result.sections || []);
-      }
-    } catch (error) {
-      console.error('Error loading sections:', error);
-    }
+      if (result.success) setSections(result.sections || []);
+    } catch (err) { console.error('Error loading sections:', err); }
   }, []);
 
   useEffect(() => {
     loadTables();
     loadSections();
+
+    // Set up real-time subscription for tables
+    let activeSubscription = null;
+    const setupSubscription = async () => {
+      try {
+        // Subscribe to tables collection
+        const result = await window.electronAPI.invoke('firebase:subscribe-tables');
+        if (result.success) {
+          // Listen for table updates from main process
+          activeSubscription = window.electronAPI.on('firebase:tables-changed', (changes) => {
+            if (changes && changes.length > 0) {
+              // Reload tables to get latest data
+              loadTables();
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to subscribe to tables:', err);
+      }
+    };
+
+    setupSubscription();
+
+    return () => {
+      if (activeSubscription) {
+        window.electronAPI.removeListener('firebase:tables-changed', activeSubscription);
+      }
+      window.electronAPI.invoke('firebase:unsubscribe-all');
+    };
   }, [loadTables, loadSections]);
 
-
-
-  const handleResetTables = async () => {
-    const userInput = prompt('To reset tables, type "reset app" exactly:');
-    
-    if (userInput !== 'reset app') {
-      alert('Reset cancelled. You must type "reset app" exactly to proceed.');
-      return;
-    }
-    
-    try {
-      const tableList = await window.electronAPI.getTables();
-      
-      // Find tables after T12 and delete them
-      const tablesToDelete = tableList.filter(table => {
-        const tableNumberMatch = table.name.match(/^T(\d+)$/);
-        return tableNumberMatch && parseInt(tableNumberMatch[1]) > 12;
-      });
-      
-      for (const table of tablesToDelete) {
-        await window.electronAPI.deleteTable(table.id);
-      }
-      
-      loadTables();
-      alert('Tables reset successfully!');
-    } catch (error) {
-      // Failed to reset tables
-      alert('Failed to reset tables. Please try again.');
-    }
-  };
-
-  const getNextTableNumber = (existingTables) => {
-    // Get all table numbers from existing tables that follow the T{number} pattern
-    const tableNumbers = existingTables
-      .map(table => table.name.match(/^T(\d+)$/)) // Match T followed by digits
-      .filter(match => match !== null) // Remove non-matches
-      .map(match => parseInt(match[1])) // Extract the number
-      .sort((a, b) => a - b); // Sort numerically
-    
-    // Find the first gap or return the next number after the highest
-    let nextNumber = 1;
-    for (const num of tableNumbers) {
-      if (num === nextNumber) {
-        nextNumber++;
-      } else {
-        break;
-      }
-    }
-    
-    return `T${nextNumber}`;
-  };
-
-  const handleAddTable = async () => {
-    try {
-      const tableName = newTable.name || getNextTableNumber(tables);
-      
-      const tableToAdd = {
-        name: tableName,
-        capacity: newTable.capacity || 4,
-        section_id: newTable.section_id || null,
-        area: '',
-        status: 'available'
-      };
-      
-      await window.electronAPI.addTable(tableToAdd);
-      setShowAddForm(false);
-      setNewTable({
-        name: '',
-        capacity: 4,
-        section_id: '',
-        area: '',
-        status: 'available'
-      });
-      loadTables();
-    } catch (error) {
-      // Failed to add table
-      alert('Failed to add table. Please try again.');
-    }
-  };
-
-  const handleUpdateTable = async (tableId, updates) => {
-    try {
-      await window.electronAPI.updateTable(tableId, updates);
-      setEditingTable(null);
-      loadTables();
-    } catch (error) {
-      // Failed to update table
-      alert('Failed to update table. Please try again.');
-    }
-  };
-
-  const handleDeleteTable = async (tableId) => {
-    if (window.confirm('Are you sure you want to delete this table?')) {
-      try {
-        await window.electronAPI.deleteTable(tableId);
-        loadTables();
-      } catch (error) {
-        // Failed to delete table
-        alert('Failed to delete table. Please try again.');
-      }
-    }
-  };
-
-  const getTableStatusColor = (status, hasOrder) => {
-    if (hasOrder) {
-      return 'table-occupied'; // Green for ongoing orders
-    }
-    switch (status) {
-      case 'available':
-        return 'table-available'; // Red for empty tables
-      case 'occupied':
-        return 'table-occupied'; // Green for occupied tables
-      case 'reserved':
-        return 'table-reserved'; // Yellow for reserved tables
-      default:
-        return 'table-available';
-    }
-  };
-
-  const getTableStatusIcon = (status, hasOrder) => {
-    if (hasOrder) {
-      return <ShoppingCart size={16} />;
-    }
-    switch (status) {
-      case 'available':
-        return <Check size={16} />;
-      case 'occupied':
-        return <Users size={16} />;
-      case 'reserved':
-        return <Clock size={16} />;
-      default:
-        return <Check size={16} />;
-    }
-  };
-
-  // Group tables by section
   const tablesBySection = {};
-  
-  // First, add sections as keys with empty arrays
-  sections.forEach(section => {
-    tablesBySection[section.id] = [];
-  });
-  
-  // Then, group tables by their section_id
-  tables.forEach(table => {
-    const sectionId = table.section_id || 'unassigned';
-    if (!tablesBySection[sectionId]) {
-      tablesBySection[sectionId] = [];
+  sections.forEach(s => { tablesBySection[s.id] = []; });
+  tables.forEach(t => {
+    const sid = t.sectionId || t.section_id;
+    if (sid) {
+      if (!tablesBySection[sid]) tablesBySection[sid] = [];
+      tablesBySection[sid].push(t);
     }
-    tablesBySection[sectionId].push(table);
   });
-  
-  // Sort tables within each section by name
-  Object.keys(tablesBySection).forEach(sectionId => {
-    tablesBySection[sectionId].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  });
-  
-  // Legacy tables (no section) - for backward compatibility
-  const numberedTables = tables
-    .filter(table => /^T\d+$/.test(table.name) && !table.section_id)
-    .sort((a, b) => {
-      const numA = parseInt(a.name.substring(1));
-      const numB = parseInt(b.name.substring(1));
-      return numA - numB;
-    });
 
-  // Calculate how many rows we need (4 columns per row)
-  const totalNumberedTables = numberedTables.length;
-  const rowsNeeded = Math.ceil(totalNumberedTables / 4);
-  const gridSize = rowsNeeded * 4;
+  const unassigned = tables.filter(t => !t.sectionId && !t.section_id);
 
-  // Create the grid with numbered tables, filling empty slots with null
-  const gridTables = [];
-  for (let i = 0; i < gridSize; i++) {
-    gridTables.push(numberedTables[i] || null);
-  }
+  const getTableState = (table) => {
+    const amount = table.currentBillAmount || table.current_bill_amount || table.billAmount || 0;
+    const status = table.status || 'available';
+    if (status === 'pending_bill' || status === 'paid' || status === 'paid_bill' || status === 'Pending Bill' || status === 'Printed') return 'pending_bill';
+    if (amount > 0 || status === 'occupied' || status === 'Running' || status === 'Occupied') return 'occupied';
+    return 'available';
+  };
 
-  // Other tables (non-numbered like Bar-A, Counter-1, etc.) without section
-  const otherTables = tables.filter(table => !/^T\d+$/.test(table.name) && !table.section_id);
+  const getCardBg = (state) => {
+    switch (state) {
+      case 'available': return COLORS.greenLight;
+      case 'occupied': return COLORS.amberLight;
+      case 'pending_bill': return COLORS.redLight;
+      default: return COLORS.white;
+    }
+  };
+
+  const renderTable = (table) => {
+    const state = getTableState(table);
+    const backgroundColor = getCardBg(state);
+    const amount = table.currentBillAmount || table.current_bill_amount || table.billAmount || 0;
+    const occupiedAtVal = table.occupiedAt || table.occupied_at || table.occupied_since;
+    const occupiedAtDate = parseDate(occupiedAtVal);
+    const elapsedTime = occupiedAtDate ? formatElapsed(now - occupiedAtDate.getTime()) : null;
+    const isOccupied = state !== 'available';
+
+    return (
+      <div
+        key={table.id}
+        onClick={() => onSelectTable(table)}
+        style={{
+          width: 100,
+          aspectRatio: 1,
+          backgroundColor,
+          borderRadius: 16,
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 8,
+          position: 'relative',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          border: `1px solid ${COLORS.cardBorder}`,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+          userSelect: 'none',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'scale(1.03)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, width: '100%' }}>
+          {/* Row 1: Elapsed Time - Always rendered to maintain layout, but empty if not occupied */}
+          <div style={{ 
+            fontSize: 10, 
+            color: '#2C3E50', 
+            fontWeight: '600', 
+            marginBottom: 4, 
+            height: 12,
+            opacity: isOccupied ? 1 : 0 
+          }}>
+            {elapsedTime || (isOccupied ? '0 min' : '')}
+          </div>
+
+          {/* Row 2: Table Name */}
+          <div style={{ 
+            fontSize: 26, 
+            fontWeight: '800', 
+            color: '#2C3E50', 
+            textAlign: 'center', 
+            margin: '4px 0',
+            letterSpacing: 0.5
+          }}>
+            {table.name}
+          </div>
+
+          {/* Row 3: Bill Amount */}
+          <div style={{ 
+            fontSize: 14, 
+            fontWeight: '700', 
+            color: '#2C3E50', 
+            marginTop: 4, 
+            height: 16,
+            opacity: isOccupied ? 1 : 0
+          }}>
+            {amount > 0 ? `₹${amount}` : (isOccupied ? '₹0' : '')}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSection = (sectionName, sectionTables) => (
+    <div key={sectionName} style={{ marginBottom: 32 }}>
+      <div style={{ fontSize: 16, fontWeight: '700', color: COLORS.darkGray, marginBottom: 16, paddingLeft: 4 }}>
+        {sectionName}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+        {sectionTables.map(renderTable)}
+      </div>
+    </div>
+  );
+
+  const noSections = sections.length === 0 && unassigned.length === 0;
 
   return (
-    <div className="table-management">
-      <div className="table-header">
-        <h1>Table Management</h1>
-        <div className="header-actions">
+    <div style={{ backgroundColor: COLORS.background, minHeight: '100vh', padding: '24px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: '700', color: COLORS.darkGray, margin: 0 }}>Tables</h1>
+        <div style={{ display: 'flex', gap: 12 }}>
           <button 
-            className="btn btn-secondary"
-            onClick={loadTables}
+            onClick={() => { loadTables(); loadSections(); }}
+            style={{ 
+              backgroundColor: COLORS.white, 
+              border: `1px solid ${COLORS.lightGray}`, 
+              borderRadius: 8, 
+              padding: '8px 16px', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 14,
+              fontWeight: '600',
+              color: COLORS.primary,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+            }}
           >
-            <RefreshCw size={20} />
-            Refresh
-          </button>
-          <button 
-            className="btn btn-warning"
-            onClick={handleResetTables}
-            title="Reset tables (removes tables after T12)"
-          >
-            <RefreshCw size={20} />
-            Reset Tables
-          </button>
-          <button 
-            className="btn btn-primary"
-            onClick={() => setShowAddForm(true)}
-          >
-            <Plus size={20} />
-            Add Table
+            <RefreshCw size={18} /> Refresh
           </button>
         </div>
       </div>
 
-      {showAddForm && (
-        <div className="add-table-form">
-          <h3>Add New Table</h3>
-          <div className="next-table-info">
-            <p>Next table number will be: <strong>{getNextTableNumber(tables)}</strong></p>
-            <p><em>Leave name empty to auto-generate, or enter custom name</em></p>
+      {/* Main content */}
+      <div>
+        {noSections && (
+          <div style={{ textAlign: 'center', padding: '100px 20px', color: COLORS.textSecondary }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>🪑</div>
+            <h2 style={{ fontSize: 20, fontWeight: '600', color: COLORS.darkGray }}>No tables found</h2>
+            <p>Go to Settings to add sections and tables</p>
           </div>
-          <div className="form-row">
-            <input
-              type="text"
-              placeholder={`Table Name (auto: ${getNextTableNumber(tables)} or custom name)`}
-              value={newTable.name}
-              onChange={(e) => setNewTable({...newTable, name: e.target.value})}
-              className="form-input"
-            />
-            <input
-              type="number"
-              placeholder="Capacity"
-              value={newTable.capacity}
-              onChange={(e) => setNewTable({...newTable, capacity: parseInt(e.target.value)})}
-              className="form-input"
-              min="1"
-              max="20"
-            />
-          </div>
-          <div className="form-row">
-            <select
-              value={newTable.section_id}
-              onChange={(e) => setNewTable({...newTable, section_id: e.target.value})}
-              className="form-input"
-            >
-              <option value="">Select Section (optional)</option>
-              {sections.map(section => (
-                <option key={section.id} value={section.id}>{section.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-actions">
-            <button 
-              className="btn btn-primary"
-              onClick={handleAddTable}
-            >
-              Add Table
-            </button>
-            <button 
-              className="btn btn-secondary"
-              onClick={() => setShowAddForm(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
-      <div className="tables-sections">
-        {/* Sections with Tables - Same as mobile app */}
-        {sections.map(section => {
-          const sectionTables = tablesBySection[section.id] || [];
+        {/* Sections */}
+        {sections.map(s => {
+          const sectionTables = tablesBySection[s.id] || [];
           if (sectionTables.length === 0) return null;
-          
-          return (
-            <div key={section.id} className="table-section">
-              <h2>
-                <Coffee size={24} />
-                {section.name} ({sectionTables.length})
-              </h2>
-              <div className="tables-grid">
-                {sectionTables.map(table => {
-                  const hasOrder = table.current_bill_amount > 0;
-                  return (
-                    <div 
-                      key={table.id} 
-                      className={`table-card ${getTableStatusColor(table.status, hasOrder)}`}
-                      onClick={() => onSelectTable(table)}
-                    >
-                      <div className="table-header">
-                        <h3>{table.name}</h3>
-                        <div className="table-actions">
-                          <button 
-                            className="action-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingTable(table);
-                            }}
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button 
-                            className="action-btn delete"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTable(table.id);
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    <div className="table-info">
-                      <div className="table-capacity">
-                        <Users size={16} />
-                        <span>{table.capacity} seats</span>
-                      </div>
-                      <div className={`table-status ${getTableStatusColor(table.status, hasOrder)}`}>
-                        {getTableStatusIcon(table.status, hasOrder)}
-                        <span>{table.status}</span>
-                      </div>
-                    </div>
-                    {table.current_bill_amount > 0 && (
-                      <div className="table-bill">
-                        <DollarSign size={16} />
-                        <span>₹{table.current_bill_amount.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="table-action">
-                      <ShoppingCart size={16} />
-                      <span>Open POS</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          );
+          return renderSection(s.name, sectionTables);
         })}
 
-        {/* Legacy Numbered Tables (T1-T12 without section) */}
-        {numberedTables.length > 0 && (
-          <div className="table-section">
-            <h2>
-              <Coffee size={24} />
-              Restaurant Tables
-            </h2>
-            <div className="tables-main-grid">
-              {gridTables.map((table, index) => {
-                const hasOrder = table && table.current_bill_amount > 0;
-                const expectedTableNumber = index + 1;
-                const expectedTableName = `T${expectedTableNumber}`;
-                
-                return (
-                  <div 
-                    key={table ? table.id : `empty-${index}`} 
-                    className={`table-square ${table ? getTableStatusColor(table.status, hasOrder) : 'table-empty'}`}
-                    onClick={table ? () => onSelectTable(table) : undefined}
-                  >
-                    <div className="table-number">
-                      {table ? table.name : expectedTableName}
-                    </div>
-                    {table ? (
-                      <>
-                        <div className="table-status-icon">
-                          {getTableStatusIcon(table.status, hasOrder)}
-                        </div>
-                        {table.current_bill_amount > 0 && (
-                          <div className="table-amount">
-                            ₹{table.current_bill_amount.toFixed(0)}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="table-status-icon">
-                        <X size={16} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Other Tables (without section) */}
-        {otherTables.length > 0 && (
-          <div className="table-section">
-            <h2>
-              <Coffee size={24} />
-              Other Tables ({otherTables.length})
-            </h2>
-            <div className="tables-grid">
-              {otherTables.map(table => {
-                const hasOrder = table.current_bill_amount > 0;
-                return (
-                  <div 
-                    key={table.id} 
-                    className={`table-card ${getTableStatusColor(table.status, hasOrder)}`}
-                    onClick={() => onSelectTable(table)}
-                  >
-                    <div className="table-header">
-                      <h3>{table.name}</h3>
-                      <div className="table-actions">
-                        <button 
-                          className="action-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTable(table);
-                          }}
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button 
-                          className="action-btn delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteTable(table.id);
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="table-info">
-                      <span className="table-capacity">
-                        <Users size={14} /> {table.capacity} seats
-                      </span>
-                      <span className={`table-status status-${table.status}`}>
-                        {table.status}
-                      </span>
-                    </div>
-                    {table.current_bill_amount > 0 && (
-                      <div className="table-bill">
-                        <span>Current Bill:</span>
-                        <span>₹{table.current_bill_amount.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="table-action">
-                      <ShoppingCart size={16} />
-                      <span>Open POS</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Other */}
+        {unassigned.length > 0 && renderSection('Other', unassigned)}
       </div>
-
-      {/* Edit Table Modal */}
-      {editingTable && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Edit Table</h3>
-            <div className="form-row">
-              <input
-                type="text"
-                placeholder="Table Name"
-                value={editingTable.name}
-                onChange={(e) => setEditingTable({...editingTable, name: e.target.value})}
-                className="form-input"
-              />
-              <input
-                type="number"
-                placeholder="Capacity"
-                value={editingTable.capacity}
-                onChange={(e) => setEditingTable({...editingTable, capacity: parseInt(e.target.value)})}
-                className="form-input"
-                min="1"
-                max="20"
-              />
-            </div>
-            <div className="form-row">
-              <select
-                value={editingTable.area}
-                onChange={(e) => setEditingTable({...editingTable, area: e.target.value})}
-                className="form-input"
-              >
-                <option value="restaurant">Restaurant</option>
-                <option value="bar">Bar</option>
-              </select>
-              <select
-                value={editingTable.status}
-                onChange={(e) => setEditingTable({...editingTable, status: e.target.value})}
-                className="form-input"
-              >
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="reserved">Reserved</option>
-              </select>
-            </div>
-            <div className="form-actions">
-              <button 
-                className="btn btn-primary"
-                onClick={() => handleUpdateTable(editingTable.id, editingTable)}
-              >
-                Save Changes
-              </button>
-              <button 
-                className="btn btn-secondary"
-                onClick={() => setEditingTable(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 TableManagement.propTypes = {
-  onSelectTable: PropTypes.func.isRequired
+  onSelectTable: PropTypes.func.isRequired,
 };
 
 export default TableManagement;
