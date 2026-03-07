@@ -9,6 +9,9 @@ import TableOperationsScreen from './src/screens/TableOperationsScreen';
 import KOTHistoryScreen from './src/screens/KOTHistoryScreen';
 import { initializeSyncEngine } from './src/services/syncEngine';
 import { initializeDatabase } from './src/services/database';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from './src/services/firebase';
+import { getAll, deleteRecord } from './src/services/databaseHelpers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Screen = 'auth' | 'tables' | 'order' | 'tableOperation' | 'kot';
@@ -29,9 +32,9 @@ export default function App() {
     const onBackPress = () => {
       if (currentScreen === 'order' || currentScreen === 'tableOperation' || currentScreen === 'kot') {
         setCurrentScreen('tables');
-        return true; // Handled — prevent default (app exit)
+        return true;
       }
-      return false; // Let Android handle it (exit app on auth/tables)
+      return false;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
@@ -43,12 +46,10 @@ export default function App() {
 
   const initializeApp = async () => {
     try {
-      // Initialize database first
       console.log('Initializing database...');
       await initializeDatabase();
       console.log('Database initialized');
 
-      // Then initialize sync engine
       console.log('Initializing sync engine...');
       await initializeSyncEngine({
         onStatusChange: (status) => {
@@ -58,7 +59,6 @@ export default function App() {
           console.log('Sync complete');
         },
         onError: (error) => {
-          // Ignore hot reload errors in development
           if (error.message && error.message.includes('Target ID already exists')) {
             return;
           }
@@ -66,10 +66,35 @@ export default function App() {
         }
       });
       console.log('Sync engine initialized');
+
+      // Reconcile local SQLite with Firestore to purge stale records
+      await reconcileLocalData();
+      console.log('Reconciliation complete');
     } catch (error) {
       console.error('Error initializing app:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const reconcileLocalData = async () => {
+    try {
+      for (const { firestoreCol, sqliteTable } of [
+        { firestoreCol: 'sections', sqliteTable: 'sections' },
+        { firestoreCol: 'tables',   sqliteTable: 'tables'   },
+      ]) {
+        const snap = await getDocs(collection(db, firestoreCol));
+        const remoteIds = new Set(snap.docs.map(d => d.id));
+        const localRows = await getAll<{ id: string }>(sqliteTable);
+        for (const row of localRows) {
+          if (!remoteIds.has(row.id)) {
+            await deleteRecord(sqliteTable, row.id);
+            console.log(`Removed stale ${sqliteTable}: ${row.id}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Reconciliation error (non-fatal):', err);
     }
   };
 
@@ -102,7 +127,7 @@ export default function App() {
   };
 
   const handleViewKOT = (tableId: string, tableName: string, orderId?: string) => {
-    if (!orderId) return; // no order yet, nothing to show
+    if (!orderId) return;
     setSelectedTableId(tableId);
     setSelectedTableName(tableName);
     setSelectedOrderId(orderId);

@@ -1,7 +1,7 @@
 /**
  * Table Selection Screen - Restaurant Table Management Dashboard
  * 
- * Modern dashboard with horizontal section tabs (red underline) and table grid
+ * Modern dashboard with section tabs, table cards, and action bottom sheet
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -13,32 +13,24 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
-  RefreshControl,
-  Animated,
   Dimensions,
-  ActivityIndicator,
-  FlatList
+  Animated
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getAll, query as dbQuery } from '../services/databaseHelpers';
+import { getAll } from '../services/databaseHelpers';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 
 // Theme Colors
 const COLORS = {
-  background: '#f8f5f5',
+  background: '#F5F5F5',
   white: '#FFFFFF',
-  darkGray: '#1e293b',
-  textSecondary: '#64748b',
-  mutedGray: '#94a3b8',
-  lightGray: '#e2e8f0',
-  iconBg: 'transparent', // Header icons are transparent in design
-  primary: '#f20d0d', // Stitch primary red
-  greenAvailable: '#10b981',
-  yellowOccupied: '#f59e0b',
-  cardAvailableBg: 'rgba(16, 185, 129, 0.1)', // 10% opacity green
-  cardOccupiedBg: 'rgba(245, 158, 11, 0.1)', // 10% opacity yellow
-  cardShadow: '#000000'
+  darkGray: '#2C3E50',
+  mutedGray: '#95A5A6',
+  lightGray: '#E8E8E8',
+  brandRed: '#C0392B',
+  yellow: '#F4D03F',
+  green: '#82E0AA',
+  alertRed: '#E74C3C'
 };
 
 interface Section {
@@ -53,14 +45,12 @@ interface Table {
   status: 'available' | 'occupied' | 'pending_bill';
   current_order_id?: string;
   occupied_since?: number;
-  billAmount?: number;
 }
 
 interface TableSelectionScreenProps {
   waiterId: string;
   waiterName: string;
   onTableSelect: (tableId: string, tableName: string, orderId?: string) => void;
-  onViewKOT: (tableId: string, tableName: string, orderId?: string) => void;
   onTableOperation: (tableId: string, tableName: string, operation: 'merge' | 'split' | 'transfer') => void;
   onLogout: () => void;
 }
@@ -69,39 +59,28 @@ export default function TableSelectionScreen({
   waiterId,
   waiterName,
   onTableSelect,
-  onViewKOT,
   onTableOperation,
   onLogout
 }: TableSelectionScreenProps) {
   const [sections, setSections] = useState<Section[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('all');
+  const [selectedSection, setSelectedSection] = useState<string>('all');
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [isLoading, setIsLoading] = useState(true);
   const { status, pendingSyncCount } = useSyncStatus();
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
-  
-  // For tab indicator animation
-  const [tabIndicatorPosition, setTabIndicatorPosition] = useState(0);
-  const [tabWidth, setTabWidth] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const tabRefs = useRef<{ [key: string]: View }>({});
 
   useEffect(() => {
-    const initLoad = async () => {
-      await Promise.all([loadSections(), loadTables()]);
-      setIsLoading(false);
-    };
-    initLoad();
+    loadSections();
+    loadTables();
     
+    // Update tables every 5 seconds
     const tableInterval = setInterval(() => {
       loadTables();
     }, 5000);
 
+    // Update time every minute for elapsed time display
     const timeInterval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 60000);
@@ -112,17 +91,13 @@ export default function TableSelectionScreen({
     };
   }, []);
 
-  useEffect(() => {
-    // Set initial section to first one if available
-    if (sections.length > 0 && selectedSectionId === 'all') {
-      setSelectedSectionId(sections[0].id);
-    }
-  }, [sections]);
-
   const loadSections = async () => {
     try {
       const sectionsData = await getAll<Section>('sections', 'name ASC');
       setSections(sectionsData);
+      if (sectionsData.length > 0) {
+        setSelectedSection(sectionsData[0].id);
+      }
     } catch (error) {
       console.error('Error loading sections:', error);
     }
@@ -131,93 +106,46 @@ export default function TableSelectionScreen({
   const loadTables = async () => {
     try {
       const tablesData = await getAll<Table>('tables', 'name ASC');
-
-      const tablesWithBills = await Promise.all(
-        tablesData.map(async (table) => {
-          if (table.current_order_id && table.status !== 'available') {
-            try {
-              const items = await dbQuery<any>(
-                'order_items',
-                'order_id = ? AND sent_to_kitchen = 1',
-                [table.current_order_id]
-              );
-              const totalAmount = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
-              return { ...table, billAmount: totalAmount };
-            } catch (err) {
-              console.error(`Error loading bill for table ${table.id}:`, err);
-              return table;
-            }
-          }
-          return table;
-        })
-      );
-
-      setTables(tablesWithBills);
+      setTables(tablesData);
     } catch (error) {
       console.error('Error loading tables:', error);
     }
   };
 
-  const getElapsedTime = (occupiedSince?: number): string | null => {
-    if (!occupiedSince) return null;
-    const elapsed = Math.floor((currentTime - occupiedSince) / 60000);
+  const getFilteredTables = () => {
+    if (selectedSection === 'all') {
+      return tables;
+    }
+    return tables.filter(table => table.section_id === selectedSection);
+  };
+
+  const getElapsedTime = (occupiedSince?: number): string => {
+    if (!occupiedSince) return '';
+    const elapsed = Math.floor((currentTime - occupiedSince) / 60000); // minutes
     return `${elapsed} min`;
   };
 
-  const getTableStatusColor = (tableStatus: string): string => {
-    switch (tableStatus) {
-      case 'available':
-        return COLORS.greenAvailable;
-      case 'occupied':
-        return COLORS.yellowOccupied;
-      case 'pending_bill':
-        return COLORS.primary;
-      default:
-        return COLORS.greenAvailable;
-    }
+  const getTableColor = (table: Table): string => {
+    if (table.status === 'available') return COLORS.lightGray;
+    if (table.status === 'pending_bill') return COLORS.yellow;
+    return COLORS.green;
   };
 
-  const getStatusText = (tableStatus: string): string => {
-    switch (tableStatus) {
-      case 'available':
-        return 'Available';
-      case 'occupied':
-        return 'Occupied';
-      case 'pending_bill':
-        return 'Bill Pending';
-      default:
-        return '';
-    }
-  };
-
-  const getCardStyle = (table: Table) => {
-    if (table.status === 'available') {
-      return {
-        backgroundColor: COLORS.cardAvailableBg,
-        borderColor: COLORS.greenAvailable,
-      };
-    }
-    return {
-      backgroundColor: COLORS.cardOccupiedBg,
-      borderColor: COLORS.yellowOccupied,
-    };
-  };
-
-  const hasAlertRibbon = (table: Table): boolean => {
-    return false; // Placeholder, implement actual logic if needed
+  const shouldShowAlert = (table: Table): boolean => {
+    if (!table.occupied_since) return false;
+    const elapsed = (currentTime - table.occupied_since) / 60000;
+    return elapsed > 15; // Show alert if occupied for more than 15 minutes
   };
 
   const handleTablePress = (table: Table) => {
     if (table.status === 'available') {
+      // Directly open order entry for empty tables
       onTableSelect(table.id, table.name);
     } else {
+      // Show bottom sheet for occupied tables
       setSelectedTable(table);
       openBottomSheet();
     }
-  };
-
-  const handleSectionPress = (sectionId: string) => {
-    setSelectedSectionId(sectionId);
   };
 
   const openBottomSheet = () => {
@@ -241,131 +169,100 @@ export default function TableSelectionScreen({
     });
   };
 
-  const filteredTables = selectedSectionId === 'all' 
-    ? tables 
-    : tables.filter(t => t.section_id === selectedSectionId);
-
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => console.log('Menu Tapped')} style={styles.menuButton}>
-        <Text style={styles.menuIcon}>≡</Text>
+      <TouchableOpacity onPress={onLogout}>
+        <Text style={styles.menuIcon}>☰</Text>
       </TouchableOpacity>
-      <Text style={[styles.headerTitle, { textAlign: 'center' }]}>Table Selection</Text>
+      <Text style={styles.headerTitle}>All Tables</Text>
       <View style={styles.headerIcons}>
         <TouchableOpacity style={styles.iconButton}>
           <Text style={styles.icon}>🔔</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.iconButton}
-          onPress={() => setShowProfilePopup(!showProfilePopup)}
-        >
-          <Text style={styles.dotsIcon}>⋮</Text>
+        <TouchableOpacity style={styles.iconButton}>
+          <Text style={styles.icon}>⚙</Text>
         </TouchableOpacity>
       </View>
-      
-      {/* Profile Popup Menu */}
-      {showProfilePopup && (
-        <View style={styles.profilePopup}>
-          <View style={styles.profilePopupHeader}>
-            <Text style={styles.profilePopupName}>{waiterName || 'John Doe'}</Text>
-            <Text style={styles.profilePopupRole}>Waiter</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.profilePopupAction}
-            onPress={() => {
-              setShowProfilePopup(false);
-              setShowLogoutConfirm(true);
-            }}
-          >
-            <Text style={styles.profilePopupActionText}>Logout</Text>
-            <Text style={styles.profilePopupActionIcon}>➜</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 
   const renderSectionTabs = () => (
-    <View style={styles.tabContainer}>
-      <ScrollView 
-        ref={scrollViewRef}
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabBar}
-        contentContainerStyle={styles.tabBarContent}
+    <ScrollView 
+      horizontal 
+      showsHorizontalScrollIndicator={false}
+      style={styles.tabBar}
+      contentContainerStyle={styles.tabBarContent}
+    >
+      <TouchableOpacity
+        style={[styles.tab, selectedSection === 'all' && styles.tabActive]}
+        onPress={() => setSelectedSection('all')}
       >
-        {sections.map((section, index) => {
-          const isActive = selectedSectionId === section.id;
-          return (
-            <TouchableOpacity
-              key={section.id}
-              style={[styles.tab, isActive && styles.tabActive]}
-              onPress={() => handleSectionPress(section.id)}
-            >
-              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                {section.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
+        <Text style={[styles.tabText, selectedSection === 'all' && styles.tabTextActive]}>
+          All Tables
+        </Text>
+      </TouchableOpacity>
+      {sections.map(section => (
+        <TouchableOpacity
+          key={section.id}
+          style={[styles.tab, selectedSection === section.id && styles.tabActive]}
+          onPress={() => setSelectedSection(section.id)}
+        >
+          <Text style={[styles.tabText, selectedSection === section.id && styles.tabTextActive]}>
+            {section.name}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
   );
 
   const renderTableCard = (table: Table) => {
-    const isOccupied = table.status !== 'available';
-    const cardStyle = getCardStyle(table);
+    const backgroundColor = getTableColor(table);
+    const showAlert = shouldShowAlert(table);
     const elapsedTime = getElapsedTime(table.occupied_since);
-    const showRibbon = hasAlertRibbon(table);
 
     return (
       <TouchableOpacity
         key={table.id}
-        style={[styles.tableCardContainer, cardStyle]}
+        style={[styles.tableCard, { backgroundColor }]}
         onPress={() => handleTablePress(table)}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
-        {/* Folded Ribbon */}
-        {showRibbon && (
-          <View style={styles.alertRibbon} />
+        {/* Alert Ribbon */}
+        {showAlert && <View style={styles.alertRibbon} />}
+
+        {/* Elapsed Time */}
+        {table.status !== 'available' && elapsedTime && (
+          <Text style={styles.elapsedTime}>{elapsedTime}</Text>
         )}
 
-        {/* Card Content Wrapper */}
-        <View style={styles.cardContent}>
-          {/* Elapsed Time / Order ID Top */}
-          {isOccupied ? (
-            <Text style={styles.elapsedTime}>{elapsedTime || '0 min'}</Text>
-          ) : (
-            <Text style={[styles.elapsedTime, { color: COLORS.greenAvailable, opacity: 0 }]}>0 min</Text>
-          )}
+        {/* Table ID */}
+        <Text style={styles.tableId}>{table.name}</Text>
 
-          {/* Table Name */}
-          <Text style={styles.tableId}>
-            {table.name}
-          </Text>
-
-          {/* Order/Bill ID */}
-          {table.current_order_id && table.billAmount !== undefined ? (
-            <Text style={styles.billAmount}>₹{table.billAmount.toFixed(2)}</Text>
-          ) : null}
-        </View>
+        {/* Bill Amount / Order ID */}
+        {table.current_order_id && (
+          <Text style={styles.billAmount}>#{table.current_order_id.slice(0, 6)}</Text>
+        )}
       </TouchableOpacity>
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      {isLoading ? (
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      ) : (
-        <>
-          <Text style={styles.emptyIcon}>🪑</Text>
-          <Text style={styles.emptyText}>No tables available</Text>
-          <Text style={styles.emptySubtext}>Tables will appear here once added</Text>
-        </>
-      )}
-    </View>
-  );
+  const renderTableGrid = () => {
+    const filteredTables = getFilteredTables();
+    
+    if (filteredTables.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>No tables in this section</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.tableGrid}>
+        {filteredTables.map(table => renderTableCard(table))}
+      </View>
+    );
+  };
 
   const renderBottomSheet = () => {
     if (!showBottomSheet || !selectedTable) return null;
@@ -374,8 +271,6 @@ export default function TableSelectionScreen({
       inputRange: [0, 1],
       outputRange: [600, 0]
     });
-
-    const statusColor = getTableStatusColor(selectedTable.status);
 
     return (
       <Modal
@@ -389,26 +284,27 @@ export default function TableSelectionScreen({
             style={[styles.bottomSheet, { transform: [{ translateY }] }]}
             onStartShouldSetResponder={() => true}
           >
+            {/* Handle Bar */}
             <View style={styles.handleBar} />
+
+            {/* Header */}
             <Text style={styles.bottomSheetTitle}>
               Table No: {selectedTable.name}
             </Text>
-            <View style={[styles.statusInfo, { backgroundColor: statusColor + '15' }]}>
-              <Text style={[styles.statusInfoText, { color: statusColor }]}>
-                {getStatusText(selectedTable.status)}
-              </Text>
-            </View>
+
+            {/* Action Buttons */}
             <View style={styles.actionGrid}>
               <TouchableOpacity
                 style={styles.actionCard}
                 onPress={() => {
                   closeBottomSheet();
-                  onViewKOT(selectedTable.id, selectedTable.name, selectedTable.current_order_id);
+                  onTableSelect(selectedTable.id, selectedTable.name, selectedTable.current_order_id);
                 }}
               >
-                <Text style={styles.actionIcon}>🧾</Text>
-                <Text style={styles.actionLabel}>View KOT</Text>
+                <Text style={styles.actionIcon}>📋</Text>
+                <Text style={styles.actionLabel}>View KOT(s)</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.actionCard}
                 onPress={() => {
@@ -417,8 +313,9 @@ export default function TableSelectionScreen({
                 }}
               >
                 <Text style={styles.actionIcon}>↔️</Text>
-                <Text style={styles.actionLabel}>Transfer</Text>
+                <Text style={styles.actionLabel}>Move Table</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.actionCard}
                 onPress={() => {
@@ -427,8 +324,9 @@ export default function TableSelectionScreen({
                 }}
               >
                 <Text style={styles.actionIcon}>🔗</Text>
-                <Text style={styles.actionLabel}>Merge</Text>
+                <Text style={styles.actionLabel}>Merge Table</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.actionCard}
                 onPress={() => {
@@ -437,7 +335,7 @@ export default function TableSelectionScreen({
                 }}
               >
                 <Text style={styles.actionIcon}>✂️</Text>
-                <Text style={styles.actionLabel}>Split</Text>
+                <Text style={styles.actionLabel}>Split Bill</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -448,63 +346,14 @@ export default function TableSelectionScreen({
 
   return (
     <View style={styles.container}>
-      {/* Full-screen transparent backdrop — closes popup when tapping anywhere */}
-      {showProfilePopup && (
-        <Pressable
-          style={[StyleSheet.absoluteFillObject, { zIndex: 10 }]}
-          onPress={() => setShowProfilePopup(false)}
-        />
-      )}
-
-      {/* Logout Confirmation Modal */}
-      <Modal
-        visible={showLogoutConfirm}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowLogoutConfirm(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.logoutModalContainer}>
-            <Text style={styles.logoutModalTitle}>Logout</Text>
-            <Text style={styles.logoutModalBody}>
-              Are you sure you want to logout? Please confirm you wish to sign out of your session.
-            </Text>
-            <View style={styles.logoutModalActions}>
-              <TouchableOpacity
-                style={styles.logoutModalCancel}
-                onPress={() => setShowLogoutConfirm(false)}
-              >
-                <Text style={styles.logoutModalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.logoutModalConfirm}
-                onPress={() => {
-                  setShowLogoutConfirm(false);
-                  onLogout();
-                }}
-              >
-                <Text style={styles.logoutModalConfirmText}>Logout</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Synchronizer Offline Indicator */}
       <OfflineIndicator status={status} pendingSyncCount={pendingSyncCount} />
+      
       {renderHeader()}
       {renderSectionTabs()}
-
-      <FlatList
-        data={filteredTables}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => renderTableCard(item)}
-        numColumns={3}
-        contentContainerStyle={[styles.gridContent, isLoading && { flex: 1, justifyContent: 'center' }]}
-        columnWrapperStyle={styles.gridRow}
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-      />
+      
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {renderTableGrid()}
+      </ScrollView>
 
       {renderBottomSheet()}
     </View>
@@ -512,8 +361,7 @@ export default function TableSelectionScreen({
 }
 
 const { width } = Dimensions.get('window');
-const cardSpacing = 12;
-const cardWidth = Math.floor((width - 32 - (cardSpacing * 2)) / 3);
+const cardWidth = (width - 48) / 2; // 2 columns with 16px padding on sides and 16px gap
 
 const styles = StyleSheet.create({
   container: {
@@ -525,296 +373,131 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
+    paddingTop: 48,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
-  },
-  menuButton: {
-    padding: 4,
+    borderBottomColor: COLORS.lightGray
   },
   menuIcon: {
-    fontSize: 28,
-    color: COLORS.darkGray,
-    fontWeight: '300'
+    fontSize: 24,
+    color: COLORS.darkGray
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.darkGray,
-    flex: 1,
-    // marginLeft: 8, // Removed as textAlign: 'center' is used
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.darkGray
   },
   headerIcons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
+    gap: 12
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 4
   },
   icon: {
-    fontSize: 20,
-    color: COLORS.textSecondary
-  },
-  dotsIcon: {
-    fontSize: 24,
-    color: COLORS.textSecondary,
-  },
-  tabContainer: {
-    backgroundColor: COLORS.white,
-    // shadowColor: '#000', // Removed shadow
-    // shadowOffset: { width: 0, height: 2 },
-    // shadowOpacity: 0.08,
-    // shadowRadius: 4,
-    // elevation: 2,
+    fontSize: 20
   },
   tabBar: {
     backgroundColor: COLORS.white,
-    maxHeight: 55,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0'
+    borderBottomColor: COLORS.lightGray,
+    marginBottom: 0
   },
   tabBarContent: {
-    paddingHorizontal: 8,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 24
   },
   tab: {
     paddingVertical: 16,
-    paddingHorizontal: 12,
-    marginRight: 16,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
+    paddingHorizontal: 4
   },
   tabActive: {
-    borderBottomColor: COLORS.primary
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.brandRed
   },
   tabText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    fontWeight: '700',
-    // textTransform: 'uppercase', // Removed textTransform
-    // letterSpacing: 0.5, // Removed letterSpacing
+    color: COLORS.mutedGray,
+    fontWeight: '500'
   },
   tabTextActive: {
-    color: '#0f172a', /* Dark slate for active tab text in standard mode */
+    color: COLORS.darkGray,
+    fontWeight: '600'
   },
-  // tabIndicatorContainer: { // Removed
-  //   height: 3,
-  //   backgroundColor: COLORS.white,
-  // },
-  // tabIndicator: { // Removed
-  //   height: 3,
-  //   backgroundColor: COLORS.brandRed,
-  //   borderRadius: 2,
-  // },
-  gridContent: {
+  content: {
+    flex: 1
+  },
+  contentContainer: {
     padding: 16,
-    paddingBottom: 100,
+    paddingTop: 0,
+    flexGrow: 0
   },
-  gridRow: {
-    justifyContent: 'space-between',
-    marginBottom: cardSpacing,
+  tableGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 16
   },
-  tableCardContainer: {
+  tableCard: {
     width: cardWidth,
     aspectRatio: 1,
-    marginBottom: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden', // For the ribbon
+    padding: 12,
     justifyContent: 'center',
-    padding: 16,
+    alignItems: 'center',
+    position: 'relative',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4
   },
   alertRibbon: {
     position: 'absolute',
-    top: -1,
-    right: -1,
+    top: 0,
+    right: 0,
     width: 0,
     height: 0,
-    backgroundColor: 'transparent',
     borderStyle: 'solid',
-    borderRightWidth: 30,
-    borderTopWidth: 30,
+    borderTopWidth: 40,
+    borderRightWidth: 40,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderTopColor: COLORS.alertRed,
     borderRightColor: 'transparent',
-    borderTopColor: COLORS.primary, // Red color for the ribbon
-    transform: [{ rotate: '90deg' }],
-    zIndex: 1,
-  },
-  cardContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tableId: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.darkGray,
-    marginBottom: 4,
-    textAlign: 'center',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'transparent',
+    borderTopRightRadius: 12
   },
   elapsedTime: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
     fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-    marginBottom: 4,
-    textAlign: 'center',
+    color: COLORS.darkGray,
+    fontWeight: '400'
+  },
+  tableId: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: COLORS.darkGray,
+    marginBottom: 8
   },
   billAmount: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.darkGray,
-    textAlign: 'center',
-  },
-  // Profile Popup Styling
-  profilePopup: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    width: 200,
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.lightGray,
-    shadowColor: COLORS.cardShadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-    zIndex: 100,
-    overflow: 'hidden',
-  },
-  profilePopupHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
-  },
-  profilePopupName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.darkGray,
+    fontWeight: '500',
+    color: COLORS.darkGray
   },
-  profilePopupRole: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  profilePopupAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: COLORS.white,
-  },
-  profilePopupActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  profilePopupActionIcon: {
-    fontSize: 18,
-    color: COLORS.primary,
-  },
-  
-  // Logout Modal Styling
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  logoutModalContainer: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  logoutModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.darkGray,
-    marginBottom: 8,
-  },
-  logoutModalBody: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    paddingHorizontal: 8,
-  },
-  logoutModalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    gap: 12,
-  },
-  logoutModalCancel: {
-    flex: 1,
-    height: 48,
-    backgroundColor: COLORS.lightGray,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoutModalCancelText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.darkGray,
-  },
-  logoutModalConfirm: {
-    flex: 1,
-    height: 48,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoutModalConfirmText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
-  //   fontWeight: '700',
-  //   textTransform: 'uppercase',
-  //   letterSpacing: 0.5,
-  // },
-  // orderId: { // Removed
-  //   fontSize: 11,
-  //   color: COLORS.mutedGray,
-  //   fontWeight: '600',
-  //   marginTop: 2,
-  // },
-  emptyContainer: {
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 60,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
+    paddingVertical: 60
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.darkGray,
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: COLORS.mutedGray,
+    color: COLORS.mutedGray
   },
   bottomSheetOverlay: {
     flex: 1,
@@ -828,7 +511,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 40,
     paddingTop: 12,
-    minHeight: 350 // Adjusted minHeight
+    minHeight: 300
   },
   handleBar: {
     width: 40,
@@ -839,53 +522,41 @@ const styles = StyleSheet.create({
     marginBottom: 20
   },
   bottomSheetTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '500',
     color: COLORS.darkGray,
     textAlign: 'center',
-    marginBottom: 12
-  },
-  statusInfo: {
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 20,
-  },
-  statusInfoText: {
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    marginBottom: 24
   },
   actionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12
+    gap: 16
   },
   actionCard: {
     width: (width - 64) / 2,
-    aspectRatio: 1.4,
+    aspectRatio: 1.5,
     backgroundColor: COLORS.white,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.lightGray,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3
+    shadowOpacity: 0.05,
+    shadowRadius: 2
   },
   actionIcon: {
-    fontSize: 28,
+    fontSize: 32,
     marginBottom: 8
   },
   actionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.darkGray,
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.brandRed,
     textAlign: 'center'
   }
 });
