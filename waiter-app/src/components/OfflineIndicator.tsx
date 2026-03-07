@@ -17,53 +17,18 @@ interface OfflineIndicatorProps {
 }
 
 export default function OfflineIndicator({ status, pendingSyncCount = 0 }: OfflineIndicatorProps) {
-  if (status === 'online' && pendingSyncCount === 0) {
-    return null; // Don't show anything when fully online and synced
+  // Only show when there's an actual error, hide for offline/syncing
+  if (status === 'error') {
+    return (
+      <View style={[styles.container, { backgroundColor: BRAND_RED }]}>
+        <Text style={styles.icon}>⚠️</Text>
+        <Text style={styles.text}>Sync error - Please check connection</Text>
+      </View>
+    );
   }
-
-  const getStatusConfig = () => {
-    switch (status) {
-      case 'offline':
-        return {
-          backgroundColor: BRAND_RED,
-          text: 'Offline - Changes will sync when connected',
-          icon: '📡'
-        };
-      case 'syncing':
-        return {
-          backgroundColor: YELLOW,
-          text: `Syncing ${pendingSyncCount} changes...`,
-          icon: '🔄'
-        };
-      case 'error':
-        return {
-          backgroundColor: BRAND_RED,
-          text: 'Sync error - Please check connection',
-          icon: '⚠️'
-        };
-      case 'online':
-        return {
-          backgroundColor: GREEN,
-          text: `Connected - ${pendingSyncCount} pending`,
-          icon: '✓'
-        };
-      default:
-        return {
-          backgroundColor: BRAND_RED,
-          text: 'Unknown status',
-          icon: '?'
-        };
-    }
-  };
-
-  const config = getStatusConfig();
-
-  return (
-    <View style={[styles.container, { backgroundColor: config.backgroundColor }]}>
-      <Text style={styles.icon}>{config.icon}</Text>
-      <Text style={styles.text}>{config.text}</Text>
-    </View>
-  );
+  
+  // Don't show anything for online, offline, or syncing states
+  return null;
 }
 
 const styles = StyleSheet.create({
