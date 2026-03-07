@@ -246,8 +246,10 @@ export default function TableOperationsScreen({
 
         // Update table status
         const tableData = {
-          status: 'available',
+          status: 'available' as const,
           current_order_id: null,
+          current_bill_amount: 0,
+          occupied_since: null,
           updated_at: Date.now()
         };
 
@@ -375,8 +377,9 @@ export default function TableOperationsScreen({
 
       // Update source table
       const sourceTableData = {
-        status: 'available',
+        status: 'available' as const,
         current_order_id: null,
+        current_bill_amount: 0,
         updated_at: Date.now()
       };
 
@@ -385,9 +388,14 @@ export default function TableOperationsScreen({
       await addToSyncQueue('tables', sourceTableId, 'update', sourceTableData);
 
       // Update destination table
+      const destinationOrder = await getById<Order>('orders', sourceTable.current_order_id);
+      const destinationItems = await dbQuery<OrderItem>('order_items', 'order_id = ?', [sourceTable.current_order_id]);
+      const destTotal = destinationItems.reduce((sum, item) => sum + item.total_price, 0);
+
       const destTableData = {
-        status: 'occupied',
+        status: 'occupied' as const,
         current_order_id: sourceTable.current_order_id,
+        current_bill_amount: destTotal,
         occupied_since: Date.now(),
         updated_at: Date.now()
       };

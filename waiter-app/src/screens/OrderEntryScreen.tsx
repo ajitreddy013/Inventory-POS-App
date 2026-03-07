@@ -285,9 +285,12 @@ export default function OrderEntryScreen({
       }
 
       // Update table status
+      const totalAmount = calculateOrderTotal();
       await updateDoc(doc(db, 'tables', tableId), {
         status: 'occupied',
         current_order_id: orderIdToUse,
+        current_bill_amount: totalAmount,
+        occupied_since: Date.now(),
         updated_at: Date.now()
       });
 
