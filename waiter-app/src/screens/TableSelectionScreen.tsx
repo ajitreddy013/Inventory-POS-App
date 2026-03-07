@@ -68,6 +68,7 @@ interface TableSelectionScreenProps {
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 10;
+const ACTION_CARD_WIDTH = (width - 64) / 2;
 const GRID_PADDING = 16;
 const cardWidth = Math.floor((width - GRID_PADDING * 2 - CARD_GAP * 2) / 3);
 
@@ -676,7 +677,7 @@ const styles = StyleSheet.create({
   statusInfoText: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   actionCard: {
-    width: (width - 64) / 2,
+    width: ACTION_CARD_WIDTH,
     aspectRatio: 1.5,
     borderRadius: 14,
     borderWidth: 1,
