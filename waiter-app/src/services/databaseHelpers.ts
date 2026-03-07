@@ -279,7 +279,11 @@ export async function getDeviceInfo(key: string): Promise<string | null> {
 }
 
 export async function setDeviceInfo(key: string, value: string): Promise<void> {
-  await upsert('device_info', { key, value });
+  const db = await openDatabase();
+  await db.runAsync(
+    'INSERT OR REPLACE INTO device_info (key, value) VALUES (?, ?)',
+    [key, value]
+  );
 }
 
 /**

@@ -9,11 +9,16 @@ import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'waiterflow.db';
 
+let dbInstance: SQLite.SQLiteDatabase | null = null;
+
 /**
  * Initialize and return the SQLite database instance
  */
 export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
-  return await SQLite.openDatabaseAsync(DB_NAME);
+  if (!dbInstance) {
+    dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+  }
+  return dbInstance;
 }
 
 /**
