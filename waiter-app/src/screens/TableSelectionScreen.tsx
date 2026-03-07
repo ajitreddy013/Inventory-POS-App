@@ -134,7 +134,12 @@ export default function TableSelectionScreen({
                 'order_id = ? AND sent_to_kitchen = 1',
                 [table.current_order_id]
               );
-              const totalAmount = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
+              const itemsTotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
+              // Use the server's current_bill_amount if available, otherwise fallback to local items total
+              const totalAmount = (table as any).current_bill_amount !== undefined && (table as any).current_bill_amount !== null
+                ? (table as any).current_bill_amount
+                : itemsTotal;
+
               return { ...table, billAmount: totalAmount };
             } catch (err) {
               return table;
@@ -158,12 +163,6 @@ export default function TableSelectionScreen({
   const getTableColor = (table: Table): string => {
     if (table.status === 'available') return '#82E0AA'; // Green for free
     return '#F4D03F'; // Yellow/Red for occupied
-  };
-
-  const shouldShowAlert = (table: Table): boolean => {
-    if (!table.occupied_since) return false;
-    const elapsed = (currentTime - table.occupied_since) / 60000;
-    return elapsed > 15; // Show alert if occupied for more than 15 minutes
   };
 
   const getStatusColor = (tableStatus: string): string => {
@@ -313,17 +312,12 @@ export default function TableSelectionScreen({
           </TouchableOpacity>
         ))}
       </ScrollView>
-      {/* Red underline indicator */}
-      <View style={styles.tabIndicatorContainer}>
-        <View style={styles.tabIndicator} />
-      </View>
     </View>
   );
 
   // ─── Table Card ───────────────────────────────────────────────────────────────
   const renderTableCard = (table: Table) => {
     const backgroundColor = getTableColor(table);
-    const showAlert = shouldShowAlert(table);
     const elapsedTime = getElapsedTime(table.occupied_since);
     const isOccupied = table.status !== 'available';
 
@@ -334,9 +328,6 @@ export default function TableSelectionScreen({
         onPress={() => handleTablePress(table)}
         activeOpacity={0.7}
       >
-        {/* Alert Ribbon */}
-        {showAlert && <View style={styles.alertRibbon} />}
-
         {/* Three rows layout */}
         <View style={styles.cardContent}>
           {/* Row 1: Elapsed Time (only if occupied) */}
@@ -578,7 +569,7 @@ const styles = StyleSheet.create({
   },
   tabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: COLORS.brandRed
+    borderBottomColor: '#E74C3C'
   },
   tabText: { 
     fontSize: 14, 
@@ -608,18 +599,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6
   },
-  alertRibbon: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 0,
-    height: 0,
-    borderStyle: 'solid',
-    borderTopWidth: 40,
+  // Removed alertRibbon style
     borderRightWidth: 40,
     borderBottomWidth: 0,
     borderLeftWidth: 0,
-    borderTopColor: COLORS.alertRed,
+    borderTopColor: '#E74C3C',
     borderRightColor: 'transparent',
     borderBottomColor: 'transparent',
     borderLeftColor: 'transparent',
