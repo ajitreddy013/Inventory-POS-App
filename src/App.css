@@ -4209,3 +4209,34 @@ td:nth-child(7) { /* Profit column */
     font-size: 11px;
   }
 }
+
+/* View Selector Buttons */
+.view-selector {
+  display: flex;
+  gap: 4px;
+  background: #f1f3f4;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.view-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #5f6368;
+}
+
+.view-btn:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.view-btn.active {
+  background: #dc3545;
+  color: white;
+  box-shadow: 0 2px 4px rgba(220,53,69,0.3);
+}
