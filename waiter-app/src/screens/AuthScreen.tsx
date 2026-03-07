@@ -21,9 +21,11 @@ import { setDeviceInfo } from '../services/databaseHelpers';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 
-const BRAND_RED = '#C0392B';
-const DARK_GRAY = '#2C3E50';
-const LIGHT_GRAY = '#F5F6FA';
+const BRAND_RED = '#f20d0d'; // Stitch primary
+const DARK_GRAY = '#1e293b'; // slate-800
+const LIGHT_GRAY = '#f8f5f5'; // Stitch background-light
+const WHITE = '#FFFFFF';
+const SLATE_300 = '#cbd5e1';
 
 interface AuthScreenProps {
   onAuthSuccess: (waiterId: string, waiterName: string) => void;
@@ -182,6 +184,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               <TouchableOpacity
                 key={key}
                 style={styles.keypadButton}
+                activeOpacity={0.5}
+                delayPressIn={0}
                 onPress={() => {
                   if (key === 'C') {
                     handleClear();
@@ -207,35 +211,40 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       {/* Offline Indicator */}
       <OfflineIndicator status={status} pendingSyncCount={pendingSyncCount} />
       
-      <View style={styles.header}>
-        <Text style={styles.title}>WaiterFlow</Text>
-        <Text style={styles.subtitle}>Enter your PIN to continue</Text>
+      <View style={styles.contentWrapper}>
+        <View style={styles.header}>
+          <Text style={styles.title}>WaiterFlow</Text>
+          <Text style={styles.subtitle}>Enter your PIN to access POS</Text>
+        </View>
+
+        {renderPinDots()}
+
+        {error ? (
+          <Text style={styles.errorText}>{error}</Text>
+        ) : <View style={{ height: 35 }} />}
+
+        {renderKeypad()}
+
+        <View style={styles.loginActionContainer}>
+          <TouchableOpacity
+            style={[styles.loginButton, (!validatePinFormat(pin) || loading) && styles.loginButtonDisabled]}
+            activeOpacity={0.7}
+            delayPressIn={0}
+            onPress={() => handleLogin(pin)}
+            disabled={!validatePinFormat(pin) || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.spacer} />
+        
+        <Text style={styles.versionText}>Version 1.0.0</Text>
       </View>
-
-      {renderPinDots()}
-
-      {error ? (
-        <Text style={styles.errorText}>{error}</Text>
-      ) : null}
-
-      {renderKeypad()}
-
-      <TouchableOpacity
-        style={[
-          styles.loginButton,
-          (!validatePinFormat(pin) || loading) && styles.loginButtonDisabled
-        ]}
-        onPress={handleLogin}
-        disabled={!validatePinFormat(pin) || loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.loginButtonText}>Login</Text>
-        )}
-      </TouchableOpacity>
-
-      <Text style={styles.versionText}>Version 1.0.0</Text>
     </View>
   );
 }
@@ -243,94 +252,131 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-    justifyContent: 'center'
+    backgroundColor: LIGHT_GRAY,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contentWrapper: {
+    width: '100%',
+    maxWidth: 390,
+    backgroundColor: LIGHT_GRAY,
+    flex: 1,
+    paddingTop: 40, // Push content higher up
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48
+    paddingTop: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: BRAND_RED,
-    marginBottom: 8
+    fontSize: 36,
+    fontWeight: '800',
+    color: DARK_GRAY,
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: DARK_GRAY
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b', // slate-500
   },
   pinDotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginBottom: 24,
-    gap: 16
+    paddingHorizontal: 16,
+    gap: 16,
   },
   pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 2,
-    borderColor: DARK_GRAY,
-    backgroundColor: '#FFFFFF'
+    borderColor: SLATE_300,
+    backgroundColor: 'transparent',
   },
   pinDotFilled: {
     backgroundColor: BRAND_RED,
-    borderColor: BRAND_RED
+    borderColor: BRAND_RED,
+    shadowColor: BRAND_RED,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   errorText: {
     color: BRAND_RED,
     textAlign: 'center',
     marginBottom: 16,
-    fontSize: 14
+    fontSize: 14,
+    fontWeight: '600',
+    height: 19,
   },
   keypad: {
-    marginBottom: 24
+    paddingHorizontal: 40,
+    paddingBottom: 16,
   },
   keypadRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 12,
-    gap: 12
+    marginBottom: 16,
+    gap: 24,
   },
   keypadButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: LIGHT_GRAY,
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: WHITE,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   keypadButtonText: {
     fontSize: 24,
-    fontWeight: '600',
-    color: DARK_GRAY
+    fontWeight: '500',
+    color: DARK_GRAY,
+  },
+  loginActionContainer: {
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    paddingBottom: 32,
   },
   loginButton: {
     backgroundColor: BRAND_RED,
-    height: 56,
-    borderRadius: 8,
+    height: 52,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24
+    shadowColor: BRAND_RED,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   loginButtonDisabled: {
-    backgroundColor: '#CCCCCC'
+    backgroundColor: '#cbd5e1', // slate-300
+    shadowOpacity: 0,
+    elevation: 0,
   },
   loginButtonText: {
-    color: '#FFFFFF',
+    color: WHITE,
     fontSize: 18,
-    fontWeight: '600'
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  spacer: {
+    flex: 1,
   },
   versionText: {
     textAlign: 'center',
-    color: '#999999',
-    fontSize: 12
+    color: '#94a3b8', // slate-400
+    fontSize: 12,
+    fontWeight: '500',
+    paddingBottom: 32,
   }
 });
