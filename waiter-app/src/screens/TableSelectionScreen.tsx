@@ -638,7 +638,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 2,
   },
-  },
   tableId: { 
     fontSize: 28, 
     fontWeight: '800', 
