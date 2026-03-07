@@ -13,10 +13,7 @@ import {
   Unsubscribe,
   enableIndexedDbPersistence,
   enableNetwork,
-  disableNetwork,
-  getDocs,
-  clearIndexedDbPersistence,
-  terminate
+  disableNetwork
 } from 'firebase/firestore';
 import NetInfo from '@react-native-community/netinfo';
 import { db } from './firebase';
@@ -178,87 +175,113 @@ export class FirestoreSyncEngine {
    * Set up polling to refresh data periodically
    */
   private setupPolling(): void {
-    // Poll every 10 seconds
+    // Poll every 2 seconds for faster table status updates
     const pollInterval = setInterval(async () => {
       try {
         await this.initialFetchAll();
       } catch (error) {
         console.error('Error during polling:', error);
       }
-    }, 10000);
+    }, 2000);
 
     // Store interval for cleanup
     (this as any).pollInterval = pollInterval;
   }
 
   /**
-   * Initial fetch of all data from Firestore
+   * Initial fetch of all data from Firestore using REST API
+   * This bypasses Firestore SDK caching issues
    */
   private async initialFetchAll(): Promise<void> {
-    // Helper to safely fetch a collection
-    const safeGetDocs = async (collectionName: string) => {
-      try {
-        return await getDocs(collection(db, collectionName));
-      } catch (error: any) {
-        // Handle "Target ID already exists" errors
-        if (error.message && error.message.includes('Target ID already exists')) {
-          console.warn(`⚠️ Target ID error for ${collectionName}, retrying...`);
-          // Retry once after a short delay
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return await getDocs(collection(db, collectionName));
-        }
-        throw error;
+    const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+    const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+
+    if (!projectId || !apiKey) {
+      throw new Error('Firebase project ID or API key not configured');
+    }
+
+    // Helper to fetch a collection via REST API
+    const fetchCollection = async (collectionName: string) => {
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionName}?key=${apiKey}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${collectionName}: ${response.statusText}`);
       }
+
+      const data = await response.json();
+      const documents = data.documents || [];
+
+      // Convert Firestore REST API format to simple objects
+      return documents.map((doc: any) => {
+        const id = doc.name.split('/').pop();
+        const fields = doc.fields || {};
+        
+        // Convert Firestore field format to simple key-value pairs
+        const obj: Record<string, any> = { id };
+        for (const [key, value] of Object.entries(fields)) {
+          const fieldValue = value as any;
+          // Extract the actual value based on type
+          if (fieldValue.stringValue !== undefined) obj[key] = fieldValue.stringValue;
+          else if (fieldValue.integerValue !== undefined) obj[key] = parseInt(fieldValue.integerValue);
+          else if (fieldValue.doubleValue !== undefined) obj[key] = fieldValue.doubleValue;
+          else if (fieldValue.booleanValue !== undefined) obj[key] = fieldValue.booleanValue;
+          else if (fieldValue.timestampValue !== undefined) obj[key] = fieldValue.timestampValue;
+          else if (fieldValue.nullValue !== undefined) obj[key] = null;
+        }
+        
+        return obj;
+      });
     };
 
     try {
       // Fetch sections
-      const sectionsSnap = await safeGetDocs('sections');
-      for (const doc of sectionsSnap.docs) {
-        const data = convertKeysToSnakeCase({ id: doc.id, ...doc.data() });
+      const sections = await fetchCollection('sections');
+      for (const doc of sections) {
+        const data = convertKeysToSnakeCase(doc);
         await upsert('sections', data);
       }
-      console.log(`✅ Synced ${sectionsSnap.size} sections`);
+      console.log(`✅ Synced ${sections.length} sections`);
 
       // Fetch tables
-      const tablesSnap = await safeGetDocs('tables');
-      for (const doc of tablesSnap.docs) {
-        const data = convertKeysToSnakeCase({ id: doc.id, ...doc.data() });
+      const tables = await fetchCollection('tables');
+      for (const doc of tables) {
+        const data = convertKeysToSnakeCase(doc);
         await upsert('tables', data);
       }
-      console.log(`✅ Synced ${tablesSnap.size} tables`);
+      console.log(`✅ Synced ${tables.length} tables`);
 
       // Fetch waiters
-      const waitersSnap = await safeGetDocs('waiters');
-      for (const doc of waitersSnap.docs) {
-        const data = convertKeysToSnakeCase({ id: doc.id, ...doc.data() });
+      const waiters = await fetchCollection('waiters');
+      for (const doc of waiters) {
+        const data = convertKeysToSnakeCase(doc);
         await upsert('waiters', data);
       }
-      console.log(`✅ Synced ${waitersSnap.size} waiters`);
+      console.log(`✅ Synced ${waiters.length} waiters`);
 
       // Fetch menu categories
-      const categoriesSnap = await safeGetDocs('menuCategories');
-      for (const doc of categoriesSnap.docs) {
-        const data = convertKeysToSnakeCase({ id: doc.id, ...doc.data() });
+      const categories = await fetchCollection('menuCategories');
+      for (const doc of categories) {
+        const data = convertKeysToSnakeCase(doc);
         await upsert('menu_categories', data);
       }
-      console.log(`✅ Synced ${categoriesSnap.size} menu categories`);
+      console.log(`✅ Synced ${categories.length} menu categories`);
 
       // Fetch menu items
-      const itemsSnap = await safeGetDocs('menuItems');
-      for (const doc of itemsSnap.docs) {
-        const data = convertKeysToSnakeCase({ id: doc.id, ...doc.data() });
+      const items = await fetchCollection('menuItems');
+      for (const doc of items) {
+        const data = convertKeysToSnakeCase(doc);
         await upsert('menu_items', data);
       }
-      console.log(`✅ Synced ${itemsSnap.size} menu items`);
+      console.log(`✅ Synced ${items.length} menu items`);
 
       // Fetch modifiers
-      const modifiersSnap = await safeGetDocs('modifiers');
-      for (const doc of modifiersSnap.docs) {
-        const data = convertKeysToSnakeCase({ id: doc.id, ...doc.data() });
+      const modifiers = await fetchCollection('modifiers');
+      for (const doc of modifiers) {
+        const data = convertKeysToSnakeCase(doc);
         await upsert('modifiers', data);
       }
-      console.log(`✅ Synced ${modifiersSnap.size} modifiers`);
+      console.log(`✅ Synced ${modifiers.length} modifiers`);
 
     } catch (error) {
       console.error('❌ Error fetching data:', error);
