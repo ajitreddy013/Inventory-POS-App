@@ -33,7 +33,8 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const isDev = require("electron-is-dev");
+
+const isDev = (typeof app !== 'undefined' && app ? !app.isPackaged : process.env.NODE_ENV !== 'production');
 
 // Task scheduling for automated reports
 const cron = require("node-cron");
@@ -46,7 +47,11 @@ const ReportService = require("./services/reportService"); // Business report ge
 const DailyReportService = require("./services/dailyReportService"); // Daily summary reports
 const EmailService = require("./email-service");           // Email automation
 const { initializeSampleData } = require("./init-sample-data"); // Sample data for testing
-const { initializeFirebaseAdmin } = require("./firebase/electronIntegration"); // Firebase Admin SDK
+const { 
+  initializeFirebaseAdmin, 
+  syncTableToFirestore,
+  clearTableInFirestore 
+} = require("./firebase/electronIntegration"); // Firebase Admin SDK
 
 // Date utility functions for consistent date handling
 const { 
@@ -110,11 +115,9 @@ function createWindow() {
     ? "http://localhost:3000"                                    // Development server
     : `file://${path.join(__dirname, "../build/index.html")}`; // Production build
 
-  // IMPORTANT: Currently forced to use production build for stability
-  // This ensures consistent behavior regardless of environment
-  const forcedUrl = `file://${path.join(__dirname, "../build/index.html")}`;
-  console.log('Loading URL:', forcedUrl);
-  mainWindow.loadURL(forcedUrl);
+  // Use the correct URL depending on environment
+  console.log('Loading URL:', startUrl);
+  mainWindow.loadURL(startUrl);
 
   // Open developer tools in development mode for debugging
   if (isDev) {
@@ -429,7 +432,34 @@ ipcMain.handle("get-products", async () => {
 ipcMain.handle("add-product", async (event, product) => {
   try {
     validateObject(product, ['name', 'sku', 'price', 'cost']);
-    return await database.addProduct(product);
+    const result = await database.addProduct(product);
+    
+    // Sync to Firestore for real-time mobile updates
+    try {
+      const { setDocument } = require('./firebase/electronIntegration');
+      const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const category = product.category?.toLowerCase() || 'food';
+      const itemCategory = ['beer', 'wine', 'spirits', 'drink'].some(c => category.includes(c)) ? 'drink' : 'food';
+      
+      await setDocument('menuItems', itemId, {
+        name: product.name,
+        price: parseFloat(product.price) || 0,
+        description: product.description || '',
+        itemCategory: itemCategory,
+        foodType: itemCategory === 'drink' ? 'beverage' : 'main',
+        available: true,
+        sku: product.sku || '',
+        barcode: product.barcode || '',
+        category: category,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      console.log(`Synced product ${product.name} to Firestore as ${itemId}`);
+    } catch (firestoreError) {
+      console.error('Error syncing product to Firestore:', firestoreError);
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error in add-product:', error);
     throw error;
@@ -440,7 +470,35 @@ ipcMain.handle("update-product", async (event, id, product) => {
   try {
     const validId = validateId(id);
     validateObject(product, ['name', 'sku', 'price', 'cost']);
-    return await database.updateProduct(validId, product);
+    const result = await database.updateProduct(validId, product);
+    
+    // Sync update to Firestore for real-time mobile updates
+    try {
+      const { queryCollection } = require('./firebase/electronIntegration');
+      const items = await queryCollection('menuItems', [
+        { field: 'sku', operator: '==', value: product.sku }
+      ], { limitBy: 1 });
+      
+      if (items && items.length > 0) {
+        const { updateDocument } = require('./firebase/electronIntegration');
+        const category = product.category?.toLowerCase() || 'food';
+        const itemCategory = ['beer', 'wine', 'spirits', 'drink'].some(c => category.includes(c)) ? 'drink' : 'food';
+        
+        await updateDocument('menuItems', items[0].id, {
+          name: product.name,
+          price: parseFloat(product.price) || 0,
+          description: product.description || '',
+          itemCategory: itemCategory,
+          category: category,
+          updated_at: new Date().toISOString()
+        });
+        console.log(`Synced product update to Firestore: ${product.name}`);
+      }
+    } catch (firestoreError) {
+      console.error('Error syncing product update to Firestore:', firestoreError);
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error in update-product:', error);
     throw error;
@@ -450,7 +508,31 @@ ipcMain.handle("update-product", async (event, id, product) => {
 ipcMain.handle("delete-product", async (event, id) => {
   try {
     const validId = validateId(id);
-    return await database.deleteProduct(validId);
+    
+    // Get product info before deleting for Firestore sync
+    const products = await database.getProducts();
+    const product = products.find(p => p.id === validId);
+    
+    const result = await database.deleteProduct(validId);
+    
+    // Sync delete to Firestore for real-time mobile updates
+    if (product) {
+      try {
+        const { queryCollection, deleteDocument } = require('./firebase/electronIntegration');
+        const items = await queryCollection('menuItems', [
+          { field: 'sku', operator: '==', value: product.sku }
+        ], { limitBy: 1 });
+        
+        if (items && items.length > 0) {
+          await deleteDocument('menuItems', items[0].id);
+          console.log(`Synced product delete to Firestore: ${product.name}`);
+        }
+      } catch (firestoreError) {
+        console.error('Error syncing product delete to Firestore:', firestoreError);
+      }
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error in delete-product:', error);
     throw error;
@@ -597,7 +679,29 @@ ipcMain.handle("get-sections", async () => {
 });
 
 ipcMain.handle("add-section", async (event, section) => {
-  return await database.addSection(section);
+  const result = await database.addSection(section);
+  // Auto-sync completely by triggering the same sync flow the settings page uses
+  try {
+    const sections = await database.getSections();
+    const tables = await database.getTables();
+    
+    // Instead of calling a missing function, we can just trigger the existing handler directly 
+    // by abstracting out the sync logic or re-importing the handlers
+    const { queryCollection, setDocument } = require('./firebase/electronIntegration');
+    
+    if (queryCollection && setDocument) {
+      // Create a new section with a stable ID
+      const sectionId = `section_${result.id}`;
+      await setDocument('sections', sectionId, {
+        name: section.name,
+        localId: result.id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      console.log(`Auto-synced new section ${section.name} to Firestore`);
+    }
+  } catch (err) { console.error('Error auto-syncing sections:', err); }
+  return result;
 });
 
 ipcMain.handle("update-section", async (event, id, section) => {
@@ -605,6 +709,30 @@ ipcMain.handle("update-section", async (event, id, section) => {
 });
 
 ipcMain.handle("delete-section", async (event, id) => {
+  const sections = await database.getSections();
+  const section = sections.find(s => s.id === id);
+  if (section) {
+    try {
+      const { queryCollection, deleteDocument } = require('./firebase/electronIntegration');
+      if (queryCollection && deleteDocument) {
+        const sectionQuery = await queryCollection('sections', [
+          { field: 'name', operator: '==', value: section.name }
+        ]);
+        if (sectionQuery && sectionQuery.length > 0) {
+          await deleteDocument('sections', sectionQuery[0].id);
+          console.log(`Deleted section ${section.name} from Firestore (via name query)`);
+        }
+        // Also try deleting by stable ID format
+        try {
+          await deleteDocument('sections', `section_${id}`);
+        } catch (e) {
+          // Might not exist with this ID format yet
+        }
+      }
+    } catch (e) {
+      console.error('Error deleting section from Firestore:', e);
+    }
+  }
   return await database.deleteSection(id);
 });
 
@@ -699,6 +827,72 @@ ipcMain.handle("firebase:sync-sections-tables", async (event, data) => {
   }
 });
 
+// Sync menu/products to Firebase
+ipcMain.handle("firebase:sync-menu", async (event) => {
+  const admin = require('firebase-admin');
+  const serviceAccount = require('../firebase-admin-key.json');
+  
+  try {
+    // Initialize Firebase Admin if not already
+    if (!admin.apps.length) {
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    }
+    const firestore = admin.firestore();
+    
+    const products = await database.getProducts();
+    
+    // Get existing menu items from Firestore
+    const existingSnapshot = await firestore.collection('menuItems').get();
+    const existingItems = existingSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const existingSkus = new Set(existingItems.filter(i => i.sku).map(i => i.sku));
+    
+    // Track what we synced
+    let synced = 0;
+    let deleted = 0;
+    
+    // Sync each product to Firestore
+    for (const product of products) {
+      const category = (product.category || '').toLowerCase();
+      const itemCategory = ['beer', 'wine', 'spirits', 'drink'].some(c => category.includes(c)) ? 'drink' : 'food';
+      
+      // Create or update menu item in Firestore - use SKU-based ID to avoid duplicates
+      const itemId = product.sku ? `item_sku_${product.sku}` : `item_local_${product.id}`;
+      
+      await firestore.collection('menuItems').doc(itemId).set({
+        name: product.name,
+        price: parseFloat(product.price) || 0,
+        description: product.description || '',
+        itemCategory: itemCategory,
+        foodType: itemCategory === 'drink' ? 'beverage' : 'main',
+        available: true,
+        sku: product.sku || '',
+        barcode: product.barcode || '',
+        category: category,
+        localId: product.id,
+        created_at: product.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      
+      synced++;
+    }
+    
+    // Delete items in Firestore that don't exist locally anymore
+    const localSkus = new Set(products.filter(p => p.sku).map(p => p.sku));
+    for (const item of existingItems) {
+      if (item.sku && !localSkus.has(item.sku) && item.id.startsWith('item_sku_')) {
+        await firestore.collection('menuItems').doc(item.id).delete();
+        deleted++;
+      }
+    }
+    
+    console.log(\`Synced \${synced} menu items to Firebase, deleted \${deleted}\`);
+    return { success: true, message: \`Synced \${synced} items, removed \${deleted} items\` };
+  } catch (error) {
+    console.error('Error syncing menu to Firebase:', error);
+    return { success: false, error: 'Failed to sync menu: ' + error.message };
+  }
+});
+
 // Firebase get sections from Firestore
 ipcMain.handle("firebase:get-sections", async (event) => {
   const { queryCollection } = require("./firebase/electronIntegration");
@@ -733,14 +927,59 @@ ipcMain.handle("get-tables", async () => {
 });
 
 ipcMain.handle("add-table", async (event, table) => {
-  return await database.addTable(table);
+  // ensure occupied_since is set if occupied
+  if (table.status === 'occupied' && !table.occupied_since) {
+    table.occupied_since = Date.now();
+  }
+  const result = await database.addTable(table);
+  try {
+    const { syncTableToFirestore } = require('./firebase/electronIntegration');
+    const tables = await database.getTables();
+    const createdTable = tables.find(t => t.id === result.id);
+    if (syncTableToFirestore && createdTable) await syncTableToFirestore(result.id, createdTable);
+  } catch (err) { console.error('Error sync add-table:', err); }
+  return result;
 });
 
 ipcMain.handle("update-table", async (event, id, table) => {
-  return await database.updateTable(id, table);
+  if (table.status === 'occupied' && !table.occupied_since) {
+    table.occupied_since = Date.now();
+  }
+  const result = await database.updateTable(id, table);
+  if (result) {
+    // Sync to Firestore for real-time mobile updates
+    try {
+      const tables = await database.getTables();
+      const updatedTable = tables.find(t => t.id === id);
+      if (updatedTable) {
+        await syncTableToFirestore(id, updatedTable);
+      }
+    } catch (error) {
+      console.error('Error syncing table to Firestore:', error);
+    }
+  }
+  return result;
 });
 
 ipcMain.handle("delete-table", async (event, id) => {
+  const Objecttables = await database.getTables();
+  const table = Objecttables.find(t => t.id === id);
+  if (table) {
+    try {
+      const { queryCollection, deleteDocument } = require('./firebase/electronIntegration');
+      if (queryCollection && deleteDocument) {
+        const tableQuery = await queryCollection('tables', [
+          { field: 'name', operator: '==', value: table.name }
+        ]);
+        if (tableQuery && tableQuery.length > 0) {
+          await deleteDocument('tables', tableQuery[0].id);
+          console.log(`Deleted table ${table.name} from Firestore`);
+        }
+      }
+    } catch (e) {
+      console.error('Error deleting table from Firestore:', e);
+    }
+  }
   return await database.deleteTable(id);
 });
 
@@ -750,11 +989,38 @@ ipcMain.handle("get-table-order", async (event, tableId) => {
 });
 
 ipcMain.handle("save-table-order", async (event, orderData) => {
-  return await database.saveTableOrder(orderData);
+  const result = await database.saveTableOrder(orderData);
+  if (result && orderData.table_id) {
+    try {
+      const { syncTableToFirestore } = require('./firebase/electronIntegration');
+      const tables = await database.getTables();
+      // Use loose equality (==) because table_id might be a string from renderer
+      const table = tables.find(t => t.id == orderData.table_id);
+      
+      if (syncTableToFirestore && table) {
+        console.log(`Syncing table ${orderData.table_id} to Firestore after order save. Amount: ${table.current_bill_amount}`);
+        await syncTableToFirestore(orderData.table_id, table);
+      } else {
+        console.warn(`Could not find table ${orderData.table_id} for Firestore sync after saving order.`);
+      }
+    } catch (error) {
+      console.error('Error syncing saved order to Firestore:', error);
+    }
+  }
+  return result;
 });
 
 ipcMain.handle("clear-table-order", async (event, tableId) => {
-  return await database.clearTableOrder(tableId);
+  const result = await database.clearTableOrder(tableId);
+  if (result) {
+    // Sync to Firestore for real-time mobile updates
+    try {
+      await clearTableInFirestore(tableId);
+    } catch (error) {
+      console.error('Error clearing table in Firestore:', error);
+    }
+  }
+  return result;
 });
 
 
