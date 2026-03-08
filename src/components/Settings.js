@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, Plus, Trash2, Layers } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, Plus, Trash2, Layers, RefreshCw } from 'lucide-react';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
@@ -31,7 +31,7 @@ const Settings = () => {
   const [sections, setSections] = useState([]);
   const [tables, setTables] = useState([]);
   const [newSectionName, setNewSectionName] = useState('');
-  const [newTableName, setNewTableName] = useState('');
+  const [sectionTableNames, setSectionTableNames] = useState({}); // Key: sectionId, Value: tableName
   const [selectedSectionId, setSelectedSectionId] = useState(null);
   const [sectionLoading, setSectionLoading] = useState(false);
   
@@ -115,27 +115,25 @@ const Settings = () => {
   };
 
   const handleAddTable = async () => {
-    if (!newTableName.trim()) {
+    const tableName = sectionTableNames[selectedSectionId] || '';
+    if (!tableName.trim()) {
       alert('Please enter a table name');
-      return;
-    }
-    if (!selectedSectionId) {
-      alert('Please select a section first');
       return;
     }
     try {
       setSectionLoading(true);
-      console.log('Adding table:', newTableName.trim(), 'to section:', selectedSectionId);
+      console.log('Adding table:', tableName.trim(), 'to section:', selectedSectionId);
       
       await window.electronAPI.addTable({
-        name: newTableName.trim(),
+        name: tableName.trim(),
         capacity: 4,
         section_id: selectedSectionId,
         area: '',
         status: 'available'
       });
       
-      setNewTableName('');
+      // Clear ONLY THIS section's input
+      setSectionTableNames(prev => ({ ...prev, [selectedSectionId]: '' }));
       await loadTables();
       
       // Try to sync but don't fail if it doesn't work
@@ -665,13 +663,57 @@ const Settings = () => {
             borderBottom: '1px solid #e9ecef',
             background: '#ebf5fb'
           }}>
-            <h2 style={{ margin: 0, color: '#2c3e50' }}>
-              <Layers size={20} style={{ marginRight: '10px' }} />
-              Section & Table Management
-            </h2>
-            <span style={{ color: '#7f8c8d', fontSize: '0.9rem' }}>
-              Create sections (AC, Garden) and add tables to sync with mobile app
-            </span>
+            <div>
+              <h2 style={{ margin: 0, color: '#2c3e50', display: 'flex', alignItems: 'center' }}>
+                <Layers size={20} style={{ marginRight: '10px' }} />
+                Section & Table Management
+              </h2>
+              <span style={{ color: '#7f8c8d', fontSize: '0.9rem', display: 'block', marginTop: '5px' }}>
+                Create sections (AC, Garden) and add tables to sync with mobile app
+              </span>
+            </div>
+            <button 
+              className="action-btn"
+              onClick={syncToFirebase}
+              style={{
+                background: '#2ecc71',
+                padding: '8px 15px',
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <RefreshCw size={16} />
+              Sync Tables to Mobile
+            </button>
+            <button 
+              className="action-btn"
+              onClick={async () => {
+                try {
+                  const result = await window.electronAPI.syncMenu();
+                  if (result.success) {
+                    alert('Menu synced to mobile app: ' + result.message);
+                  } else {
+                    alert('Failed to sync menu: ' + result.error);
+                  }
+                } catch (error) {
+                  alert('Error syncing menu: ' + error.message);
+                }
+              }}
+              style={{
+                background: '#3498db',
+                padding: '8px 15px',
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginLeft: '10px'
+              }}
+            >
+              <RefreshCw size={16} />
+              Sync Menu to Mobile
+            </button>
           </div>
 
           <div style={{ padding: '20px' }}>
@@ -784,8 +826,8 @@ const Settings = () => {
                             <input
                               type="text"
                               placeholder="Table name"
-                              value={newTableName}
-                              onChange={(e) => setNewTableName(e.target.value)}
+                              value={sectionTableNames[section.id] || ''}
+                              onChange={(e) => setSectionTableNames(prev => ({ ...prev, [section.id]: e.target.value }))}
                               onKeyPress={(e) => e.key === 'Enter' && handleAddTable()}
                               style={{
                                 flex: 1,
