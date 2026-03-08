@@ -91,6 +91,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Firebase sync operations
   syncSectionsTables: (data) => ipcRenderer.invoke("firebase:sync-sections-tables", data),
+  syncMenu: () => ipcRenderer.invoke("firebase:sync-menu"),
   getFirebaseSections: () => ipcRenderer.invoke("firebase:get-sections"),
   getFirebaseTables: () => ipcRenderer.invoke("firebase:get-tables"),
 
