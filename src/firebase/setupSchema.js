@@ -223,27 +223,36 @@ async function setupMenuItems(categoryIds, modifierIds) {
     // Starters
     {
       name: 'Paneer Tikka',
+      shortCode: 'PT',
       price: 280,
       categoryId: categoryIds[0],
+      subCategory: 'North Indian',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
       name: 'Chicken Tikka',
+      shortCode: 'CT',
       price: 320,
       categoryId: categoryIds[0],
+      subCategory: 'North Indian',
       itemCategory: 'food',
+      foodType: 'non-veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
       name: 'Veg Spring Rolls',
+      shortCode: 'VSR',
       price: 180,
       categoryId: categoryIds[0],
+      subCategory: 'Chinese',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: []
@@ -251,36 +260,48 @@ async function setupMenuItems(categoryIds, modifierIds) {
     // Main Course
     {
       name: 'Chicken Biryani',
+      shortCode: 'CB',
       price: 380,
       categoryId: categoryIds[1],
+      subCategory: 'North Indian',
       itemCategory: 'food',
+      foodType: 'non-veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
       name: 'Veg Biryani',
+      shortCode: 'VB',
       price: 280,
       categoryId: categoryIds[1],
+      subCategory: 'North Indian',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
       name: 'Butter Chicken',
+      shortCode: 'BC',
       price: 420,
       categoryId: categoryIds[1],
+      subCategory: 'North Indian',
       itemCategory: 'food',
+      foodType: 'non-veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
       name: 'Dal Makhani',
+      shortCode: 'DM',
       price: 280,
       categoryId: categoryIds[1],
+      subCategory: 'North Indian',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
@@ -288,18 +309,24 @@ async function setupMenuItems(categoryIds, modifierIds) {
     // Breads
     {
       name: 'Butter Naan',
+      shortCode: 'BN',
       price: 50,
       categoryId: categoryIds[2],
+      subCategory: 'Indian Breads',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[4]]
     },
     {
       name: 'Garlic Naan',
+      shortCode: 'GN',
       price: 60,
       categoryId: categoryIds[2],
+      subCategory: 'Indian Breads',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: [modifierIds[4]]
@@ -307,9 +334,12 @@ async function setupMenuItems(categoryIds, modifierIds) {
     // Desserts
     {
       name: 'Gulab Jamun',
+      shortCode: 'GJ',
       price: 80,
       categoryId: categoryIds[4],
+      subCategory: 'Indian Sweets',
       itemCategory: 'food',
+      foodType: 'veg',
       isBarItem: false,
       isOutOfStock: false,
       availableModifierIds: []
@@ -318,90 +348,120 @@ async function setupMenuItems(categoryIds, modifierIds) {
     // 10 Bar Menu Items (Drinks)
     {
       name: 'Kingfisher Beer',
+      shortCode: 'KFB',
       price: 180,
       categoryId: categoryIds[5],
+      subCategory: 'Beer',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Bira White',
+      shortCode: 'BW',
       price: 200,
       categoryId: categoryIds[5],
+      subCategory: 'Beer',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Corona Extra',
+      shortCode: 'CE',
       price: 280,
       categoryId: categoryIds[5],
+      subCategory: 'Beer',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Whisky Peg (30ml)',
+      shortCode: 'WP',
       price: 250,
       categoryId: categoryIds[5],
+      subCategory: 'Spirits',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Vodka Peg (30ml)',
+      shortCode: 'VP',
       price: 220,
       categoryId: categoryIds[5],
+      subCategory: 'Spirits',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Rum Peg (30ml)',
+      shortCode: 'RP',
       price: 200,
       categoryId: categoryIds[5],
+      subCategory: 'Spirits',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Red Wine Glass',
+      shortCode: 'RWG',
       price: 350,
       categoryId: categoryIds[5],
+      subCategory: 'Wine',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'White Wine Glass',
+      shortCode: 'WWG',
       price: 350,
       categoryId: categoryIds[5],
+      subCategory: 'Wine',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Mojito',
+      shortCode: 'MOJ',
       price: 180,
       categoryId: categoryIds[5],
+      subCategory: 'Cocktails',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
       name: 'Long Island Iced Tea',
+      shortCode: 'LIIT',
       price: 320,
       categoryId: categoryIds[5],
+      subCategory: 'Cocktails',
       itemCategory: 'drink',
+      foodType: 'none',
       isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
