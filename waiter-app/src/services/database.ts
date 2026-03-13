@@ -111,6 +111,9 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_menu_items_stock ON menu_items(is_out_of_stock);
     `);
 
+    // Migration: Add category column for Firestore compatibility
+    await db.execAsync('ALTER TABLE menu_items ADD COLUMN category TEXT;').catch(() => {});
+
     // Modifiers table
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS modifiers (
