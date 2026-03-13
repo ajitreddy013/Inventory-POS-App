@@ -8,7 +8,6 @@ const MenuManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [showModal, setShowModal] = useState(false);
-  const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState('disconnected'); // 'connected', 'syncing', 'disconnected'
@@ -136,12 +135,6 @@ const MenuManagement = () => {
 
   const handleAddItem = () => {
     setEditingItem(null);
-    setShowTypeSelector(true);
-  };
-
-  const handleSelectProductType = (isBarItem) => {
-    setShowTypeSelector(false);
-    setEditingItem({ isBarItem });
     setShowModal(true);
   };
 
@@ -360,40 +353,6 @@ const MenuManagement = () => {
         </div>
       )}
 
-      {showTypeSelector && (
-        <div className="modal-overlay">
-          <div className="modal type-selector-modal">
-            <div className="modal-header">
-              <h3>
-                <Package size={24} />
-                Select Product Type
-              </h3>
-              <button className="close-btn" onClick={() => setShowTypeSelector(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="type-selector-buttons">
-                <button 
-                  className="type-btn restaurant-btn"
-                  onClick={() => handleSelectProductType(false)}
-                >
-                  <Package size={48} />
-                  <h4>Restaurant</h4>
-                  <p>Food items, starters, main course, desserts</p>
-                </button>
-                <button 
-                  className="type-btn bar-btn"
-                  onClick={() => handleSelectProductType(true)}
-                >
-                  <Package size={48} />
-                  <h4>Bar</h4>
-                  <p>Alcoholic beverages, cocktails, spirits</p>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showModal && (
         <MenuItemModal
           item={editingItem}
@@ -407,14 +366,22 @@ const MenuManagement = () => {
 };
 
 const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
+  const isEditing = item && item.id;
+  
+  const [productType, setProductType] = useState(item?.isBarItem ? 'bar' : 'restaurant');
   const [formData, setFormData] = useState({
     name: item?.name || '',
+    shortCode: item?.shortCode || '',
     category: item?.category || '',
+    subCategory: item?.subCategory || '',
     price: item?.price || '',
+    foodType: item?.foodType || 'veg',
     description: item?.description || ''
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isBarItem = productType === 'bar';
 
   const validateForm = () => {
     const newErrors = {};
@@ -423,8 +390,16 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
       newErrors.name = 'Item name is required';
     }
     
+    if (!formData.shortCode.trim()) {
+      newErrors.shortCode = 'Short code is required';
+    }
+    
     if (!formData.category.trim()) {
       newErrors.category = 'Category is required';
+    }
+    
+    if (!formData.subCategory.trim()) {
+      newErrors.subCategory = 'Sub-category is required';
     }
     
     if (!formData.price || formData.price <= 0) {
@@ -448,9 +423,15 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
     
     try {
       await onSave({
+        ...item,
         name: formData.name.trim(),
+        shortCode: formData.shortCode.trim().toUpperCase(),
         category: formData.category.trim(),
+        subCategory: formData.subCategory.trim(),
         price: parseFloat(formData.price),
+        foodType: isBarItem ? 'none' : formData.foodType,
+        isBarItem: isBarItem,
+        itemCategory: isBarItem ? 'drink' : 'food',
         description: formData.description.trim()
       });
     } catch (error) {
@@ -470,7 +451,7 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal large-modal">
         <div className="modal-header">
           <h3>
             <Package size={24} />
@@ -487,58 +468,144 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
               <div className="error-message">{errors.submit}</div>
             )}
 
-            <div className="form-group">
-              <label htmlFor="name">
-                Item Name <span className="required">*</span>
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className={errors.name ? 'error' : ''}
-                placeholder="Enter item name"
-              />
-              {errors.name && <span className="error-text">{errors.name}</span>}
+            {!isEditing && (
+              <div className="form-group">
+                <label>Product Type <span className="required">*</span></label>
+                <div className="type-selector-buttons">
+                  <button
+                    type="button"
+                    className={`type-btn restaurant-btn ${productType === 'restaurant' ? 'active' : ''}`}
+                    onClick={() => setProductType('restaurant')}
+                    style={{
+                      borderColor: productType === 'restaurant' ? '#10b981' : '#e5e7eb',
+                      background: productType === 'restaurant' ? '#ecfdf5' : '#f9fafb'
+                    }}
+                  >
+                    <h4>🍽️ Restaurant</h4>
+                    <p>Food items with veg/non-veg options</p>
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-btn bar-btn ${productType === 'bar' ? 'active' : ''}`}
+                    onClick={() => setProductType('bar')}
+                    style={{
+                      borderColor: productType === 'bar' ? '#f59e0b' : '#e5e7eb',
+                      background: productType === 'bar' ? '#fffbeb' : '#f9fafb'
+                    }}
+                  >
+                    <h4>🍺 Bar</h4>
+                    <p>Alcoholic and non-alcoholic beverages</p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="name">
+                  Item Name <span className="required">*</span>
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  className={errors.name ? 'error' : ''}
+                  placeholder="Enter item name"
+                />
+                {errors.name && <span className="error-text">{errors.name}</span>}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="shortCode">
+                  Short Code <span className="required">*</span>
+                </label>
+                <input
+                  id="shortCode"
+                  type="text"
+                  value={formData.shortCode}
+                  onChange={(e) => handleInputChange('shortCode', e.target.value.toUpperCase())}
+                  className={errors.shortCode ? 'error' : ''}
+                  placeholder="e.g., PT, CB"
+                  maxLength="10"
+                />
+                {errors.shortCode && <span className="error-text">{errors.shortCode}</span>}
+              </div>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="category">
-                Category <span className="required">*</span>
-              </label>
-              <input
-                id="category"
-                type="text"
-                list="categories"
-                value={formData.category}
-                onChange={(e) => handleInputChange('category', e.target.value)}
-                className={errors.category ? 'error' : ''}
-                placeholder="Enter or select category"
-              />
-              <datalist id="categories">
-                {existingCategories.map(cat => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
-              {errors.category && <span className="error-text">{errors.category}</span>}
-              <small className="help-text">Type a new category or select from existing ones</small>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="category">
+                  Category <span className="required">*</span>
+                </label>
+                <input
+                  id="category"
+                  type="text"
+                  list="categories"
+                  value={formData.category}
+                  onChange={(e) => handleInputChange('category', e.target.value)}
+                  className={errors.category ? 'error' : ''}
+                  placeholder="Enter or select category"
+                />
+                <datalist id="categories">
+                  {existingCategories.map(cat => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+                {errors.category && <span className="error-text">{errors.category}</span>}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="subCategory">
+                  Sub-Category <span className="required">*</span>
+                </label>
+                <input
+                  id="subCategory"
+                  type="text"
+                  value={formData.subCategory}
+                  onChange={(e) => handleInputChange('subCategory', e.target.value)}
+                  className={errors.subCategory ? 'error' : ''}
+                  placeholder="e.g., North Indian, Beer"
+                />
+                {errors.subCategory && <span className="error-text">{errors.subCategory}</span>}
+              </div>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="price">
-                Price (₹) <span className="required">*</span>
-              </label>
-              <input
-                id="price"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.price}
-                onChange={(e) => handleInputChange('price', e.target.value)}
-                className={errors.price ? 'error' : ''}
-                placeholder="Enter price"
-              />
-              {errors.price && <span className="error-text">{errors.price}</span>}
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="price">
+                  Price (₹) <span className="required">*</span>
+                </label>
+                <input
+                  id="price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.price}
+                  onChange={(e) => handleInputChange('price', e.target.value)}
+                  className={errors.price ? 'error' : ''}
+                  placeholder="Enter price"
+                />
+                {errors.price && <span className="error-text">{errors.price}</span>}
+              </div>
+
+              {!isBarItem && (
+                <div className="form-group">
+                  <label htmlFor="foodType">
+                    Food Type <span className="required">*</span>
+                  </label>
+                  <select
+                    id="foodType"
+                    value={formData.foodType}
+                    onChange={(e) => handleInputChange('foodType', e.target.value)}
+                    className={errors.foodType ? 'error' : ''}
+                  >
+                    <option value="veg">🟢 Vegetarian</option>
+                    <option value="non-veg">🔴 Non-Vegetarian</option>
+                  </select>
+                  {errors.foodType && <span className="error-text">{errors.foodType}</span>}
+                </div>
+              )}
             </div>
 
             <div className="form-group">

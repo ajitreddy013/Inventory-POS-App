@@ -559,6 +559,12 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
+.type-btn.active {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-weight: 600;
+}
+
 .type-btn h4 {
   margin: 0;
   font-size: 1.25rem;

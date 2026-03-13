@@ -406,26 +406,39 @@ function registerMenuHandlers() {
   ipcMain.handle('firebase:create-menu-item', async (event, itemData) => {
     try {
       // Validate required fields
-      const { name, category, price } = itemData;
+      const { name, category, price, shortCode, subCategory, isBarItem, itemCategory, foodType } = itemData;
       
       if (!name || !name.trim()) {
         return { success: false, error: 'Menu item name is required' };
+      }
+      
+      if (!shortCode || !shortCode.trim()) {
+        return { success: false, error: 'Short code is required' };
       }
       
       if (!category || !category.trim()) {
         return { success: false, error: 'Category is required' };
       }
       
+      if (!subCategory || !subCategory.trim()) {
+        return { success: false, error: 'Sub-category is required' };
+      }
+      
       if (price === undefined || price === null || price <= 0) {
         return { success: false, error: 'Price must be a positive number' };
       }
       
-      // Create menu item with defaults
+      // Create menu item with all fields
       const itemId = `item_${Date.now()}`;
       await setDocument('menuItems', itemId, {
         name: name.trim(),
+        shortCode: shortCode.trim().toUpperCase(),
         category: category.trim(),
+        subCategory: subCategory.trim(),
         price: parseFloat(price),
+        foodType: foodType || 'none',
+        isBarItem: isBarItem || false,
+        itemCategory: itemCategory || (isBarItem ? 'drink' : 'food'),
         description: itemData.description?.trim() || '',
         isOutOfStock: false,
         isActive: true,
@@ -460,6 +473,13 @@ function registerMenuHandlers() {
         updateData.name = updates.name.trim();
       }
       
+      if (updates.shortCode !== undefined) {
+        if (!updates.shortCode.trim()) {
+          return { success: false, error: 'Short code cannot be empty' };
+        }
+        updateData.shortCode = updates.shortCode.trim().toUpperCase();
+      }
+      
       if (updates.category !== undefined) {
         if (!updates.category.trim()) {
           return { success: false, error: 'Category cannot be empty' };
@@ -467,11 +487,30 @@ function registerMenuHandlers() {
         updateData.category = updates.category.trim();
       }
       
+      if (updates.subCategory !== undefined) {
+        if (!updates.subCategory.trim()) {
+          return { success: false, error: 'Sub-category cannot be empty' };
+        }
+        updateData.subCategory = updates.subCategory.trim();
+      }
+      
       if (updates.price !== undefined) {
         if (updates.price <= 0) {
           return { success: false, error: 'Price must be a positive number' };
         }
         updateData.price = parseFloat(updates.price);
+      }
+      
+      if (updates.foodType !== undefined) {
+        updateData.foodType = updates.foodType;
+      }
+      
+      if (updates.isBarItem !== undefined) {
+        updateData.isBarItem = updates.isBarItem;
+      }
+      
+      if (updates.itemCategory !== undefined) {
+        updateData.itemCategory = updates.itemCategory;
       }
       
       if (updates.description !== undefined) {
