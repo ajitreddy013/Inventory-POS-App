@@ -60,6 +60,7 @@ export class FirestoreSyncEngine {
   private config: SyncEngineConfig;
   private isInitialized = false;
   private netInfoUnsubscribe?: () => void;
+  private isSyncing = false; // Prevent overlapping syncs
 
   constructor(config: SyncEngineConfig = {}) {
     this.config = config;
@@ -175,14 +176,22 @@ export class FirestoreSyncEngine {
    * Set up polling to refresh data periodically
    */
   private setupPolling(): void {
-    // Poll every 2 seconds for faster table status updates
+    // Poll every 10 seconds (reduced from 2 seconds to save battery and network)
     const pollInterval = setInterval(async () => {
+      // Skip if already syncing
+      if (this.isSyncing) {
+        return;
+      }
+      
       try {
+        this.isSyncing = true;
         await this.initialFetchAll();
       } catch (error) {
         console.error('Error during polling:', error);
+      } finally {
+        this.isSyncing = false;
       }
-    }, 2000);
+    }, 10000); // Changed from 2000ms to 10000ms
 
     // Store interval for cleanup
     (this as any).pollInterval = pollInterval;
@@ -241,7 +250,6 @@ export class FirestoreSyncEngine {
         const data = convertKeysToSnakeCase(doc);
         await upsert('sections', data);
       }
-      console.log(`✅ Synced ${sections.length} sections`);
 
       // Fetch tables
       const tables = await fetchCollection('tables');
@@ -249,7 +257,6 @@ export class FirestoreSyncEngine {
         const data = convertKeysToSnakeCase(doc);
         await upsert('tables', data);
       }
-      console.log(`✅ Synced ${tables.length} tables`);
 
       // Fetch waiters
       const waiters = await fetchCollection('waiters');
@@ -257,7 +264,6 @@ export class FirestoreSyncEngine {
         const data = convertKeysToSnakeCase(doc);
         await upsert('waiters', data);
       }
-      console.log(`✅ Synced ${waiters.length} waiters`);
 
       // Fetch menu categories
       const categories = await fetchCollection('menuCategories');
@@ -265,7 +271,6 @@ export class FirestoreSyncEngine {
         const data = convertKeysToSnakeCase(doc);
         await upsert('menu_categories', data);
       }
-      console.log(`✅ Synced ${categories.length} menu categories`);
 
       // Fetch menu items
       const items = await fetchCollection('menuItems');
@@ -273,7 +278,6 @@ export class FirestoreSyncEngine {
         const data = convertKeysToSnakeCase(doc);
         await upsert('menu_items', data);
       }
-      console.log(`✅ Synced ${items.length} menu items`);
 
       // Fetch modifiers
       const modifiers = await fetchCollection('modifiers');
@@ -281,7 +285,9 @@ export class FirestoreSyncEngine {
         const data = convertKeysToSnakeCase(doc);
         await upsert('modifiers', data);
       }
-      console.log(`✅ Synced ${modifiers.length} modifiers`);
+      
+      // Log summary only (reduced verbosity)
+      console.log(`🔄 Sync complete: ${sections.length} sections, ${tables.length} tables, ${waiters.length} waiters, ${categories.length} categories, ${items.length} items, ${modifiers.length} modifiers`);
 
     } catch (error) {
       console.error('❌ Error fetching data:', error);
