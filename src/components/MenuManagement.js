@@ -134,8 +134,10 @@ const MenuManagement = () => {
   });
 
   const handleAddItem = () => {
+    console.log('Add Product button clicked');
     setEditingItem(null);
     setShowModal(true);
+    console.log('showModal set to true');
   };
 
   const handleEditItem = (item) => {
@@ -365,7 +367,8 @@ const MenuManagement = () => {
   );
 };
 
-const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
+const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
+  console.log('MenuItemModal rendering', { item, existingCategories });
   const isEditing = item && item.id;
   
   const [productType, setProductType] = useState(item?.isBarItem ? 'bar' : 'restaurant');
@@ -449,6 +452,11 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
     }
   };
 
+  const handleProductTypeChange = (type) => {
+    console.log('Product type changed to:', type);
+    setProductType(type);
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal large-modal">
@@ -458,7 +466,7 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
             {item ? 'Edit Menu Item' : 'Add New Menu Item'}
           </h3>
           <button onClick={onClose} className="close-btn" type="button">
-            ×
+            &times;
           </button>
         </div>
 
@@ -475,25 +483,25 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
                   <button
                     type="button"
                     className={`type-btn restaurant-btn ${productType === 'restaurant' ? 'active' : ''}`}
-                    onClick={() => setProductType('restaurant')}
+                    onClick={() => handleProductTypeChange('restaurant')}
                     style={{
                       borderColor: productType === 'restaurant' ? '#10b981' : '#e5e7eb',
                       background: productType === 'restaurant' ? '#ecfdf5' : '#f9fafb'
                     }}
                   >
-                    <h4>🍽️ Restaurant</h4>
+                    <h4>Restaurant</h4>
                     <p>Food items with veg/non-veg options</p>
                   </button>
                   <button
                     type="button"
                     className={`type-btn bar-btn ${productType === 'bar' ? 'active' : ''}`}
-                    onClick={() => setProductType('bar')}
+                    onClick={() => handleProductTypeChange('bar')}
                     style={{
                       borderColor: productType === 'bar' ? '#f59e0b' : '#e5e7eb',
                       background: productType === 'bar' ? '#fffbeb' : '#f9fafb'
                     }}
                   >
-                    <h4>🍺 Bar</h4>
+                    <h4>Bar</h4>
                     <p>Alcoholic and non-alcoholic beverages</p>
                   </button>
                 </div>
@@ -574,7 +582,7 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="price">
-                  Price (₹) <span className="required">*</span>
+                  Price (Rs) <span className="required">*</span>
                 </label>
                 <input
                   id="price"
@@ -600,8 +608,8 @@ const MenuItemModal = ({ item, existingCategories, onClose, onSave }) => {
                     onChange={(e) => handleInputChange('foodType', e.target.value)}
                     className={errors.foodType ? 'error' : ''}
                   >
-                    <option value="veg">🟢 Vegetarian</option>
-                    <option value="non-veg">🔴 Non-Vegetarian</option>
+                    <option value="veg">Vegetarian</option>
+                    <option value="non-veg">Non-Vegetarian</option>
                   </select>
                   {errors.foodType && <span className="error-text">{errors.foodType}</span>}
                 </div>

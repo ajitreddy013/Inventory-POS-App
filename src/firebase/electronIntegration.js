@@ -654,6 +654,19 @@ function registerMenuHandlers() {
       return { success: false, error: 'Failed to get categories' };
     }
   });
+
+  // Get menu categories with IDs (from menuCategories collection)
+  ipcMain.handle('firebase:get-menu-categories-with-ids', async () => {
+    try {
+      const categories = await queryCollection('menuCategories', [], {
+        orderBy: { field: 'displayOrder', direction: 'asc' }
+      });
+      return { success: true, categories };
+    } catch (error) {
+      console.error('Error getting menu categories with IDs:', error);
+      return { success: false, error: 'Failed to get categories' };
+    }
+  });
 }
 
 /**

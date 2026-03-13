@@ -2,9 +2,213 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Package, Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
 
+const ProductModal = ({ product, categories, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: product?.name || '',
+    shortCode: product?.shortCode || '',
+    category: product?.category || '',
+    subCategory: product?.subCategory || '',
+    price: product?.price || '',
+    foodType: product?.foodType || 'veg',
+    description: product?.description || ''
+  });
+  const [productType, setProductType] = useState(product?.isBarItem ? 'bar' : 'restaurant');
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isBarItem = productType === 'bar';
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.name.trim()) newErrors.name = 'Item name is required';
+    if (!formData.shortCode.trim()) newErrors.shortCode = 'Short code is required';
+    if (!formData.category.trim()) newErrors.category = 'Category is required';
+    if (!formData.subCategory.trim()) newErrors.subCategory = 'Sub-category is required';
+    if (!formData.price || formData.price <= 0) newErrors.price = 'Valid price is required';
+    return newErrors;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setIsSubmitting(true);
+    setErrors({});
+    try {
+      await onSave({
+        name: formData.name.trim(),
+        shortCode: formData.shortCode.trim().toUpperCase(),
+        category: formData.category.trim(),
+        subCategory: formData.subCategory.trim(),
+        price: parseFloat(formData.price),
+        foodType: isBarItem ? 'none' : formData.foodType,
+        isBarItem,
+        itemCategory: isBarItem ? 'drink' : 'food',
+        description: formData.description.trim()
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to save menu item:', error);
+      setErrors({ submit: 'Failed to save menu item. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-header">
+          <h3>
+            <Package size={24} />
+            {product ? 'Edit Menu Item' : 'Add New Menu Item'}
+          </h3>
+          <button onClick={onClose} className="close-btn" type="button">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-content">
+            {errors.submit && (
+              <div className="form-error" style={{ marginBottom: '16px', padding: '12px', background: '#fee', borderRadius: '8px' }}>
+                {errors.submit}
+              </div>
+            )}
+
+            {!product && (
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label>Product Type</label>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setProductType('restaurant')}
+                    style={{
+                      flex: 1, padding: '12px', border: `2px solid ${productType === 'restaurant' ? '#10b981' : '#e5e7eb'}`,
+                      borderRadius: '8px', background: productType === 'restaurant' ? '#ecfdf5' : '#f9fafb',
+                      cursor: 'pointer', fontWeight: productType === 'restaurant' ? '600' : '400'
+                    }}
+                  >
+                    Restaurant
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Food items</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProductType('bar')}
+                    style={{
+                      flex: 1, padding: '12px', border: `2px solid ${productType === 'bar' ? '#f59e0b' : '#e5e7eb'}`,
+                      borderRadius: '8px', background: productType === 'bar' ? '#fffbeb' : '#f9fafb',
+                      cursor: 'pointer', fontWeight: productType === 'bar' ? '600' : '400'
+                    }}
+                  >
+                    Bar
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Beverages</div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="form-section">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="required">Item Name</label>
+                  <input type="text" value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className={`form-input ${errors.name ? 'error' : ''}`}
+                    placeholder="e.g., Chicken Biryani" />
+                  {errors.name && <div className="form-error">{errors.name}</div>}
+                </div>
+                <div className="form-group">
+                  <label className="required">Short Code</label>
+                  <input type="text" value={formData.shortCode}
+                    onChange={(e) => handleInputChange('shortCode', e.target.value.toUpperCase())}
+                    className={`form-input ${errors.shortCode ? 'error' : ''}`}
+                    placeholder="e.g., CB, PT" maxLength="10" />
+                  {errors.shortCode && <div className="form-error">{errors.shortCode}</div>}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="required">Category</label>
+                  <input type="text" value={formData.category}
+                    onChange={(e) => handleInputChange('category', e.target.value)}
+                    className={`form-input ${errors.category ? 'error' : ''}`}
+                    placeholder="e.g., Main Course" list="category-suggestions" />
+                  <datalist id="category-suggestions">
+                    {categories.map(cat => <option key={cat} value={cat} />)}
+                  </datalist>
+                  {errors.category && <div className="form-error">{errors.category}</div>}
+                </div>
+                <div className="form-group">
+                  <label className="required">Sub-Category</label>
+                  <input type="text" value={formData.subCategory}
+                    onChange={(e) => handleInputChange('subCategory', e.target.value)}
+                    className={`form-input ${errors.subCategory ? 'error' : ''}`}
+                    placeholder="e.g., North Indian, Beer" />
+                  {errors.subCategory && <div className="form-error">{errors.subCategory}</div>}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: isBarItem ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="required">Price (Rs)</label>
+                  <input type="number" value={formData.price}
+                    onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || '')}
+                    className={`form-input ${errors.price ? 'error' : ''}`}
+                    min="0" step="0.01" placeholder="0.00" />
+                  {errors.price && <div className="form-error">{errors.price}</div>}
+                </div>
+                {!isBarItem && (
+                  <div className="form-group">
+                    <label className="required">Food Type</label>
+                    <select value={formData.foodType}
+                      onChange={(e) => handleInputChange('foodType', e.target.value)}
+                      className="form-input">
+                      <option value="veg">Vegetarian</option>
+                      <option value="non-veg">Non-Vegetarian</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Description (Optional)</label>
+                <textarea value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  className="form-input" rows="2"
+                  placeholder="Brief description of the menu item" />
+              </div>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button type="submit" className={`btn btn-primary ${isSubmitting ? 'loading' : ''}`} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : (product ? 'Update Item' : 'Add Item')}
+            </button>
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+ProductModal.propTypes = {
+  product: PropTypes.object,
+  categories: PropTypes.array.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onSave: PropTypes.func.isRequired,
+};
+
 const ProductManagement = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [categoryObjects, setCategoryObjects] = useState([]); // full objects with id+name
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -45,10 +249,15 @@ const ProductManagement = () => {
 
   const loadCategories = async () => {
     try {
-      const result = await window.electronAPI.invoke('firebase:get-menu-categories');
-      
-      if (result.success) {
-        setCategories(result.categories || []);
+      // Load categories with IDs for mobile app compatibility
+      const result = await window.electronAPI.invoke('firebase:get-menu-categories-with-ids');
+      if (result.success && result.categories.length > 0) {
+        setCategoryObjects(result.categories);
+        setCategories(result.categories.map(c => c.name));
+      } else {
+        // Fallback to name-only categories
+        const fallback = await window.electronAPI.invoke('firebase:get-menu-categories');
+        if (fallback.success) setCategories(fallback.categories);
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -66,174 +275,22 @@ const ProductManagement = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const ProductModal = ({ product, onClose, onSave }) => {
-    const [formData, setFormData] = useState({
-      name: product?.name || '',
-      category: product?.category || '',
-      price: product?.price || '',
-      description: product?.description || ''
-    });
-    const [errors, setErrors] = useState({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const validateForm = () => {
-      const newErrors = {};
-      if (!formData.name.trim()) newErrors.name = 'Menu item name is required';
-      if (!formData.category.trim()) newErrors.category = 'Category is required';
-      if (!formData.price || formData.price <= 0) newErrors.price = 'Valid price is required';
-      return newErrors;
-    };
-
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      const validationErrors = validateForm();
-      
-      if (Object.keys(validationErrors).length > 0) {
-        setErrors(validationErrors);
-        return;
-      }
-      
-      setIsSubmitting(true);
-      setErrors({});
-      
-      try {
-        await onSave(formData);
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to save menu item:', error);
-        setErrors({ submit: 'Failed to save menu item. Please try again.' });
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
-
-    const handleInputChange = (field, value) => {
-      setFormData(prev => ({ ...prev, [field]: value }));
-      // Clear error when user starts typing
-      if (errors[field]) {
-        setErrors(prev => ({ ...prev, [field]: '' }));
-      }
-    };
-
-    return (
-      <div className="modal-overlay">
-        <div className="modal">
-          <div className="modal-header">
-            <h3>
-              <Package size={24} />
-              {product ? 'Edit Menu Item' : 'Add New Menu Item'}
-            </h3>
-            <button onClick={onClose} className="close-btn" type="button">
-              ×
-            </button>
-          </div>
-          <form onSubmit={handleSubmit}>
-            <div className="modal-content">
-              {errors.submit && (
-                <div className="form-error" style={{ marginBottom: '20px', padding: '12px', background: '#fee', borderRadius: '8px' }}>
-                  {errors.submit}
-                </div>
-              )}
-              
-              <div className="form-section">
-                <div className="form-section-title">
-                  Menu Item Information
-                </div>
-                
-                <div className="form-group">
-                  <label className="required">Item Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className={`form-input ${errors.name ? 'error' : ''}`}
-                    placeholder="e.g., Chicken Biryani, Masala Dosa"
-                    required
-                  />
-                  {errors.name && <div className="form-error">{errors.name}</div>}
-                </div>
-                
-                <div className="form-grid two-columns">
-                  <div className="form-group">
-                    <label className="required">Category</label>
-                    <input
-                      type="text"
-                      value={formData.category}
-                      onChange={(e) => handleInputChange('category', e.target.value)}
-                      className={`form-input ${errors.category ? 'error' : ''}`}
-                      placeholder="e.g., Main Course, Appetizer, Dessert"
-                      list="category-suggestions"
-                      required
-                    />
-                    <datalist id="category-suggestions">
-                      {categories.map(cat => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
-                    {errors.category && <div className="form-error">{errors.category}</div>}
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="required">Price (₹)</label>
-                    <input
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || '')}
-                      className={`form-input ${errors.price ? 'error' : ''}`}
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      required
-                    />
-                    {errors.price && <div className="form-error">{errors.price}</div>}
-                  </div>
-                </div>
-                
-                <div className="form-group">
-                  <label>Description (Optional)</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    className="form-input"
-                    rows="3"
-                    placeholder="Brief description of the menu item"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button 
-                type="submit" 
-                className={`btn btn-primary ${isSubmitting ? 'loading' : ''}`}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Saving...' : (product ? 'Update Item' : 'Add Item')}
-              </button>
-              <button type="button" onClick={onClose} className="btn btn-secondary">
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  ProductModal.propTypes = {
-    product: PropTypes.object,
-    onClose: PropTypes.func.isRequired,
-    onSave: PropTypes.func.isRequired,
-  };
-
   const handleSaveProduct = async (productData) => {
     try {
       setLoading(true);
       
+      // Look up categoryId from categoryObjects
+      const categoryObj = categoryObjects.find(c => c.name === productData.category);
+      const enrichedData = {
+        ...productData,
+        categoryId: categoryObj ? categoryObj.id : null
+      };
+      
       let result;
       if (editingProduct) {
-        result = await window.electronAPI.invoke('firebase:update-menu-item', editingProduct.id, productData);
+        result = await window.electronAPI.invoke('firebase:update-menu-item', editingProduct.id, enrichedData);
       } else {
-        result = await window.electronAPI.invoke('firebase:create-menu-item', productData);
+        result = await window.electronAPI.invoke('firebase:create-menu-item', enrichedData);
       }
       
       if (result.success) {
@@ -460,6 +517,8 @@ const ProductManagement = () => {
       {showModal && (
         <ProductModal
           product={editingProduct}
+          categories={categories}
+          categoryObjects={categoryObjects}
           onClose={() => {
             setShowModal(false);
             setEditingProduct(null);
