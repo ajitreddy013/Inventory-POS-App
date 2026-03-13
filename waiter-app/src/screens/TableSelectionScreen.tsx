@@ -599,16 +599,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6
   },
-  // Removed alertRibbon style
-    borderRightWidth: 40,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderTopColor: '#E74C3C',
-    borderRightColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: 'transparent',
-    borderTopRightRadius: 16
-  },
   cardContent: { 
     alignItems: 'center', 
     justifyContent: 'center', 
