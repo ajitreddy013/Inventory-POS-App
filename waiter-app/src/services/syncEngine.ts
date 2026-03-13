@@ -165,36 +165,11 @@ export class FirestoreSyncEngine {
    * Subscribe to all Firestore collections
    */
   private async subscribeToCollections(): Promise<void> {
-    // Do initial fetch
+    // Do initial fetch only on app start
     await this.initialFetchAll();
     
-    // Set up polling to refresh data every 10 seconds
-    this.setupPolling();
-  }
-
-  /**
-   * Set up polling to refresh data periodically
-   */
-  private setupPolling(): void {
-    // Poll every 10 seconds (reduced from 2 seconds to save battery and network)
-    const pollInterval = setInterval(async () => {
-      // Skip if already syncing
-      if (this.isSyncing) {
-        return;
-      }
-      
-      try {
-        this.isSyncing = true;
-        await this.initialFetchAll();
-      } catch (error) {
-        console.error('Error during polling:', error);
-      } finally {
-        this.isSyncing = false;
-      }
-    }, 10000); // Changed from 2000ms to 10000ms
-
-    // Store interval for cleanup
-    (this as any).pollInterval = pollInterval;
+    // Polling disabled - sync only happens on app start
+    // If you need to refresh data, restart the app or add a manual refresh button
   }
 
   /**
