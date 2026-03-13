@@ -411,6 +411,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
   for (const item of menuItemsData) {
     const docRef = await addDoc(collection(db, 'menuItems'), {
       ...item,
+      isActive: true, // Add isActive field for filtering
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
