@@ -568,9 +568,7 @@ function registerMenuHandlers() {
       }
       
       const items = await queryCollection('menuItems', queryFilters, {
-        orderBy: [
-          { field: 'name', direction: 'asc' }
-        ]
+        orderBy: { field: 'name', direction: 'asc' }
       });
       
       return { success: true, items };
