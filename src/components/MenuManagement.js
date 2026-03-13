@@ -8,6 +8,7 @@ const MenuManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState('disconnected'); // 'connected', 'syncing', 'disconnected'
@@ -135,6 +136,12 @@ const MenuManagement = () => {
 
   const handleAddItem = () => {
     setEditingItem(null);
+    setShowTypeSelector(true);
+  };
+
+  const handleSelectProductType = (isBarItem) => {
+    setShowTypeSelector(false);
+    setEditingItem({ isBarItem });
     setShowModal(true);
   };
 
@@ -238,7 +245,7 @@ const MenuManagement = () => {
           </div>
           <button className="btn-primary" onClick={handleAddItem}>
             <Plus size={20} />
-            Add Menu Item
+            Add Product
           </button>
         </div>
       </div>
@@ -350,6 +357,40 @@ const MenuManagement = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showTypeSelector && (
+        <div className="modal-overlay">
+          <div className="modal type-selector-modal">
+            <div className="modal-header">
+              <h3>
+                <Package size={24} />
+                Select Product Type
+              </h3>
+              <button className="close-btn" onClick={() => setShowTypeSelector(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="type-selector-buttons">
+                <button 
+                  className="type-btn restaurant-btn"
+                  onClick={() => handleSelectProductType(false)}
+                >
+                  <Package size={48} />
+                  <h4>Restaurant</h4>
+                  <p>Food items, starters, main course, desserts</p>
+                </button>
+                <button 
+                  className="type-btn bar-btn"
+                  onClick={() => handleSelectProductType(true)}
+                >
+                  <Package size={48} />
+                  <h4>Bar</h4>
+                  <p>Alcoholic beverages, cocktails, spirits</p>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
