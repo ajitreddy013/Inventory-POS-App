@@ -158,7 +158,8 @@ async function setupMenuCategories() {
     { name: 'Main Course', displayOrder: 2 },
     { name: 'Breads', displayOrder: 3 },
     { name: 'Beverages', displayOrder: 4 },
-    { name: 'Desserts', displayOrder: 5 }
+    { name: 'Desserts', displayOrder: 5 },
+    { name: 'Bar', displayOrder: 6 }
   ];
 
   const categoryIds = [];
@@ -318,7 +319,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Kingfisher Beer',
       price: 180,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -327,7 +328,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Bira White',
       price: 200,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -336,7 +337,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Corona Extra',
       price: 280,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -345,7 +346,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Whisky Peg (30ml)',
       price: 250,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -354,7 +355,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Vodka Peg (30ml)',
       price: 220,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -363,7 +364,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Rum Peg (30ml)',
       price: 200,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -372,7 +373,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Red Wine Glass',
       price: 350,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -381,7 +382,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'White Wine Glass',
       price: 350,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -390,7 +391,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Mojito',
       price: 180,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
@@ -399,7 +400,7 @@ async function setupMenuItems(categoryIds, modifierIds) {
     {
       name: 'Long Island Iced Tea',
       price: 320,
-      categoryId: categoryIds[3],
+      categoryId: categoryIds[5],
       itemCategory: 'drink',
       isBarItem: true,
       isOutOfStock: false,
