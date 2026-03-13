@@ -14,6 +14,8 @@ const {
   doc, 
   setDoc, 
   addDoc,
+  getDocs,
+  deleteDoc,
   serverTimestamp,
   Timestamp
 } = require('firebase/firestore');
@@ -207,10 +209,20 @@ async function setupModifiers() {
 async function setupMenuItems(categoryIds, modifierIds) {
   console.log('\n🍽️ Setting up menuItems collection...');
   
+  // Delete all existing menu items first
+  console.log('  🗑️ Deleting existing menu items...');
+  const existingItems = await getDocs(collection(db, 'menuItems'));
+  for (const doc of existingItems.docs) {
+    await deleteDoc(doc.ref);
+  }
+  console.log(`  ✓ Deleted ${existingItems.size} existing items`);
+  
+  // 10 Restaurant Menu Items (Food)
   const menuItemsData = [
+    // Starters
     {
       name: 'Paneer Tikka',
-      price: 250,
+      price: 280,
       categoryId: categoryIds[0],
       itemCategory: 'food',
       isBarItem: false,
@@ -218,8 +230,27 @@ async function setupMenuItems(categoryIds, modifierIds) {
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
+      name: 'Chicken Tikka',
+      price: 320,
+      categoryId: categoryIds[0],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
+    },
+    {
+      name: 'Veg Spring Rolls',
+      price: 180,
+      categoryId: categoryIds[0],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    // Main Course
+    {
       name: 'Chicken Biryani',
-      price: 350,
+      price: 380,
       categoryId: categoryIds[1],
       itemCategory: 'food',
       isBarItem: false,
@@ -227,8 +258,36 @@ async function setupMenuItems(categoryIds, modifierIds) {
       availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
     },
     {
+      name: 'Veg Biryani',
+      price: 280,
+      categoryId: categoryIds[1],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
+    },
+    {
+      name: 'Butter Chicken',
+      price: 420,
+      categoryId: categoryIds[1],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
+    },
+    {
+      name: 'Dal Makhani',
+      price: 280,
+      categoryId: categoryIds[1],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: [modifierIds[0], modifierIds[1], modifierIds[2]]
+    },
+    // Breads
+    {
       name: 'Butter Naan',
-      price: 40,
+      price: 50,
       categoryId: categoryIds[2],
       itemCategory: 'food',
       isBarItem: false,
@@ -236,8 +295,29 @@ async function setupMenuItems(categoryIds, modifierIds) {
       availableModifierIds: [modifierIds[4]]
     },
     {
+      name: 'Garlic Naan',
+      price: 60,
+      categoryId: categoryIds[2],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: [modifierIds[4]]
+    },
+    // Desserts
+    {
+      name: 'Gulab Jamun',
+      price: 80,
+      categoryId: categoryIds[4],
+      itemCategory: 'food',
+      isBarItem: false,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    
+    // 10 Bar Menu Items (Drinks)
+    {
       name: 'Kingfisher Beer',
-      price: 150,
+      price: 180,
       categoryId: categoryIds[3],
       itemCategory: 'drink',
       isBarItem: true,
@@ -245,20 +325,83 @@ async function setupMenuItems(categoryIds, modifierIds) {
       availableModifierIds: []
     },
     {
-      name: 'Mango Lassi',
-      price: 80,
+      name: 'Bira White',
+      price: 200,
       categoryId: categoryIds[3],
       itemCategory: 'drink',
-      isBarItem: false,
+      isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     },
     {
-      name: 'Gulab Jamun',
-      price: 60,
-      categoryId: categoryIds[4],
-      itemCategory: 'food',
-      isBarItem: false,
+      name: 'Corona Extra',
+      price: 280,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'Whisky Peg (30ml)',
+      price: 250,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'Vodka Peg (30ml)',
+      price: 220,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'Rum Peg (30ml)',
+      price: 200,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'Red Wine Glass',
+      price: 350,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'White Wine Glass',
+      price: 350,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'Mojito',
+      price: 180,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
+      isOutOfStock: false,
+      availableModifierIds: []
+    },
+    {
+      name: 'Long Island Iced Tea',
+      price: 320,
+      categoryId: categoryIds[3],
+      itemCategory: 'drink',
+      isBarItem: true,
       isOutOfStock: false,
       availableModifierIds: []
     }
@@ -272,9 +415,10 @@ async function setupMenuItems(categoryIds, modifierIds) {
       updatedAt: serverTimestamp()
     });
     menuItemIds.push(docRef.id);
-    console.log(`  ✓ Created menu item: ${item.name} (${item.itemCategory})`);
+    console.log(`  ✓ Created menu item: ${item.name} (${item.itemCategory}${item.isBarItem ? ' - BAR' : ''})`);
   }
   
+  console.log(`\n  📊 Total: ${menuItemsData.length} items (10 restaurant + 10 bar)`);
   return menuItemIds;
 }
 
