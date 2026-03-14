@@ -4,7 +4,7 @@
  * Allows waiters to add items to orders, apply modifiers, and submit to kitchen
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,18 +15,18 @@ import {
   Pressable,
   Alert
 } from 'react-native';
-import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query as fsQuery, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import {
   getById,
   query as dbQuery,
   insert,
   update,
-  addToSyncQueue
 } from '../services/databaseHelpers';
 import MenuBrowser from '../components/MenuBrowser';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
+import KOTHistoryScreen from './KOTHistoryScreen';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -85,35 +85,38 @@ export default function OrderEntryScreen({
   const [availableModifiers, setAvailableModifiers] = useState<Modifier[]>([]);
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [showKOTHistory, setShowKOTHistory] = useState(false);
   const { status, pendingSyncCount } = useSyncStatus();
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Subscribe to real-time order items from Firestore
+  const subscribeToOrderItems = (oid: string) => {
+    if (unsubscribeRef.current) unsubscribeRef.current();
+    const q = fsQuery(collection(db, 'orders', oid, 'items'), orderBy('created_at', 'asc'));
+    unsubscribeRef.current = onSnapshot(q, snapshot => {
+      const items: OrderItem[] = snapshot.docs.map(d => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          menu_item_id: data.menu_item_id || data.menuItemId || d.id,
+          menu_item_name: data.menu_item_name || data.menuItemName || '',
+          quantity: data.quantity ?? data.currentQty ?? 0,
+          base_price: data.base_price ?? data.unitPrice ?? 0,
+          total_price: (data.quantity ?? data.currentQty ?? 0) * (data.base_price ?? data.unitPrice ?? 0),
+          sent_to_kitchen: !!(data.sent_to_kitchen || data.sentQty > 0),
+          modifiers: typeof data.modifiers === 'string' ? JSON.parse(data.modifiers || '[]') : (data.modifiers || []),
+          category: data.category || 'food',
+        };
+      });
+      setOrderItems(items);
+    });
+  };
 
   useEffect(() => {
-    if (orderId) {
-      loadExistingOrder();
-    }
+    if (orderId) subscribeToOrderItems(orderId);
+    return () => { if (unsubscribeRef.current) unsubscribeRef.current(); };
   }, [orderId]);
 
-  const loadExistingOrder = async () => {
-    try {
-      const items = await dbQuery<any>('order_items', 'order_id = ?', [orderId!]);
-      
-      const orderItems: OrderItem[] = items.map(item => ({
-        id: item.id,
-        menu_item_id: item.menu_item_id,
-        menu_item_name: item.menu_item_name,
-        quantity: item.quantity,
-        base_price: item.base_price,
-        total_price: item.total_price,
-        sent_to_kitchen: item.sent_to_kitchen === 1,
-        modifiers: item.modifiers ? JSON.parse(item.modifiers) : [],
-        category: item.category
-      }));
-
-      setOrderItems(orderItems);
-    } catch (error) {
-      console.error('Error loading order:', error);
-    }
-  };
 
   const handleMenuItemSelect = async (menuItem: MenuItem) => {
     setSelectedMenuItem(menuItem);
@@ -236,27 +239,22 @@ export default function OrderEntryScreen({
           updated_at: Date.now()
         };
 
-        // Save to Firestore
+        // Save to Firestore (primary)
         const orderRef = await addDoc(collection(db, 'orders'), orderData);
         orderIdToUse = orderRef.id;
         setCurrentOrderId(orderIdToUse);
+        subscribeToOrderItems(orderIdToUse);
 
-        // Save to local SQLite
-        await insert('orders', { id: orderIdToUse, ...orderData });
-        
-        // Add to sync queue
-        await addToSyncQueue('orders', orderIdToUse, 'insert', orderData);
+        // Save to local SQLite (non-fatal)
+        try {
+          await insert('orders', { id: orderIdToUse, ...orderData });
+        } catch (e) {
+          console.warn('SQLite order insert failed (non-fatal):', e);
+        }
       }
 
-      // Mark unsent items as sent to kitchen
-      const updatedItems = orderItems.map(item => {
-        if (!item.sent_to_kitchen) {
-          return { ...item, sent_to_kitchen: true };
-        }
-        return item;
-      });
-
-      setOrderItems(updatedItems);
+      // Mark all unsent items as sent
+      setOrderItems(orderItems.map(item => ({ ...item, sent_to_kitchen: true })));
 
       // Save order items to Firestore and SQLite
       for (const item of unsentItems) {
@@ -274,25 +272,34 @@ export default function OrderEntryScreen({
           updated_at: Date.now()
         };
 
-        // Save to Firestore
-        await addDoc(collection(db, 'orders', orderIdToUse, 'items'), itemData);
+        // Save to Firestore (primary)
+        await addDoc(collection(db, 'orders', orderIdToUse!, 'items'), itemData);
 
-        // Save to local SQLite
-        await insert('order_items', { id: item.id, ...itemData });
-
-        // Add to sync queue
-        await addToSyncQueue('order_items', item.id, 'insert', itemData);
+        // Save to local SQLite (non-fatal)
+        try {
+          await insert('order_items', { id: item.id, ...itemData });
+        } catch (e) {
+          console.warn('SQLite order_item insert failed (non-fatal):', e);
+        }
       }
 
-      // Update table status
-      const totalAmount = calculateOrderTotal();
-      await updateDoc(doc(db, 'tables', tableId), {
-        status: 'occupied',
-        current_order_id: orderIdToUse,
-        current_bill_amount: totalAmount,
-        occupied_since: Date.now(),
-        updated_at: Date.now()
-      });
+      // Update table status in Firestore
+      try {
+        const totalAmount = calculateOrderTotal();
+        await updateDoc(doc(db, 'tables', tableId), {
+          status: 'occupied',
+          currentOrderId: orderIdToUse,
+          current_order_id: orderIdToUse,
+          currentBillAmount: totalAmount,
+          current_bill_amount: totalAmount,
+          occupiedSince: Date.now(),
+          occupied_since: Date.now(),
+          updatedAt: Date.now(),
+          updated_at: Date.now()
+        });
+      } catch (e) {
+        console.warn('Table status update failed (non-fatal):', e);
+      }
 
       Alert.alert('Success', 'Order sent to kitchen!', [
         { text: 'OK', onPress: () => onBack() }
@@ -440,12 +447,27 @@ export default function OrderEntryScreen({
 
   return (
     <View style={styles.container}>
+      {/* KOT History overlay */}
+      {showKOTHistory && currentOrderId && (
+        <KOTHistoryScreen
+          tableId={tableId}
+          tableName={tableName}
+          orderId={currentOrderId}
+          onBack={() => setShowKOTHistory(false)}
+        />
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack}>
           <Text style={styles.backButton}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order for table: {tableName}</Text>
+        {currentOrderId && (
+          <TouchableOpacity onPress={() => setShowKOTHistory(true)} style={styles.kotHistoryBtn}>
+            <Text style={styles.kotHistoryBtnText}>KOT History</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Offline Indicator */}
@@ -507,7 +529,19 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFFFFF'
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  kotHistoryBtn: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  kotHistoryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   menuSection: {
     flex: 1

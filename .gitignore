@@ -104,3 +104,7 @@ firebase-service-account-*.json
 
 # Kiro IDE files
 .kiro/
+
+# OpenClaw workspace (may contain API keys)
+.openclaw-workspace/
+.openclaw/

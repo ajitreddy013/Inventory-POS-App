@@ -54,6 +54,7 @@ async function initializeFirebaseAdmin() {
     registerWaiterReportingHandlers();
     registerKOTRouterStub();
     registerRealtimeListeners();
+    registerTableOrderHandlers();
     
     console.log('Firebase IPC handlers registered');
   } catch (error) {
@@ -434,6 +435,7 @@ function registerMenuHandlers() {
         name: name.trim(),
         shortCode: shortCode.trim().toUpperCase(),
         category: category.trim(),
+        categoryId: itemData.categoryId || null,
         subCategory: subCategory.trim(),
         price: parseFloat(price),
         foodType: foodType || 'none',
@@ -511,6 +513,10 @@ function registerMenuHandlers() {
       
       if (updates.itemCategory !== undefined) {
         updateData.itemCategory = updates.itemCategory;
+      }
+      
+      if (updates.categoryId !== undefined) {
+        updateData.categoryId = updates.categoryId;
       }
       
       if (updates.description !== undefined) {
@@ -2477,6 +2483,20 @@ function registerBillingHandlers() {
         completedAt: new Date(),
         updatedAt: new Date()
       });
+
+      // Clear table status so mobile sees it as available
+      if (order.tableId) {
+        await updateDocument('tables', order.tableId, {
+          status: 'available',
+          currentOrderId: null,
+          current_order_id: null,
+          currentBillAmount: 0,
+          current_bill_amount: 0,
+          occupiedSince: null,
+          occupied_since: null,
+          updatedAt: new Date()
+        });
+      }
       
       return {
         success: true,
@@ -3073,6 +3093,166 @@ function registerKOTRouterStub() {
         success: false,
         error: error.message
       };
+    }
+  });
+}
+
+/**
+ * TABLE ORDER ENTRY HANDLERS
+ * Supports the desktop Table Order Entry screen.
+ */
+function registerTableOrderHandlers() {
+  // Remove any stale handlers from previous registrations to avoid duplicate-handler errors
+  ['firebase:get-order-items', 'firebase:upsert-order-item', 'firebase:delete-order-item', 'firebase:send-kot', 'firebase:subscribe-order-items', 'firebase:unsubscribe-order-items'].forEach(ch => {
+    try { ipcMain.removeHandler(ch); } catch (_) {}
+  });
+
+  // Subscribe to real-time order items updates — pushes normalized items to renderer
+  const orderItemsListeners = new Map(); // orderId -> unsubscribe fn
+  ipcMain.handle('firebase:subscribe-order-items', async (event, { orderId }) => {
+    try {
+      if (orderItemsListeners.has(orderId)) return { success: true }; // already subscribed
+      const firestore = getAdminFirestore();
+      const unsubscribe = firestore
+        .collection('orders').doc(orderId).collection('items')
+        .onSnapshot(snapshot => {
+          const items = snapshot.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              menuItemId: d.menuItemId || d.menu_item_id || doc.id,
+              menuItemName: d.menuItemName || d.menu_item_name || '',
+              unitPrice: d.unitPrice ?? d.base_price ?? 0,
+              currentQty: d.currentQty ?? d.quantity ?? 0,
+              sentQty: d.sentQty ?? (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
+              category: d.category || '',
+              created_at: d.created_at || d.updatedAt?.toMillis?.() || Date.now(),
+            };
+          });
+          event.sender.send(`order-items-update:${orderId}`, items);
+        });
+      orderItemsListeners.set(orderId, unsubscribe);
+      return { success: true };
+    } catch (error) {
+      console.error('Error subscribing to order items:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('firebase:unsubscribe-order-items', async (event, { orderId }) => {
+    const unsub = orderItemsListeners.get(orderId);
+    if (unsub) { unsub(); orderItemsListeners.delete(orderId); }
+    return { success: true };
+  });
+
+
+  ipcMain.handle('firebase:get-order-items', async (event, { orderId }) => {
+    try {
+      const firestore = getAdminFirestore();
+      const snapshot = await firestore.collection('orders').doc(orderId).collection('items').get();
+      const items = snapshot.docs.map(doc => {
+        const d = doc.data();
+        // Normalize: mobile uses quantity/menu_item_name/base_price/sent_to_kitchen
+        //            desktop uses currentQty/menuItemName/unitPrice/sentQty
+        return {
+          id: doc.id,
+          menuItemId: d.menuItemId || d.menu_item_id || doc.id,
+          menuItemName: d.menuItemName || d.menu_item_name || '',
+          unitPrice: d.unitPrice ?? d.base_price ?? 0,
+          currentQty: d.currentQty ?? d.quantity ?? 0,
+          sentQty: d.sentQty ?? (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
+          category: d.category || '',
+        };
+      });
+      return { success: true, items };
+    } catch (error) {
+      console.error('Error getting order items:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Add or update a single item in orders/{orderId}/items/{menuItemId}
+  ipcMain.handle('firebase:upsert-order-item', async (event, { orderId, item }) => {
+    try {
+      const firestore = getAdminFirestore();
+      const itemRef = firestore.collection('orders').doc(orderId).collection('items').doc(item.menuItemId);
+      const now = new Date();
+      await itemRef.set({
+        menuItemId: item.menuItemId,
+        menuItemName: item.menuItemName,
+        unitPrice: item.unitPrice,
+        currentQty: item.currentQty,
+        sentQty: item.sentQty ?? 0,
+        category: item.category || '',
+        updatedAt: now,
+      }, { merge: true });
+      // Set created_at only on first write (don't overwrite)
+      const snap = await itemRef.get();
+      if (snap.exists && !snap.data().created_at) {
+        await itemRef.update({ created_at: Date.now() });
+      }
+      // Also update table's currentBillAmount
+      if (item.tableId && item.subtotal !== undefined) {
+        await firestore.collection('tables').doc(item.tableId).update({
+          currentBillAmount: item.subtotal,
+          current_bill_amount: item.subtotal,
+          updatedAt: new Date(),
+        });
+      }
+      return { success: true, itemId: item.menuItemId };
+    } catch (error) {
+      console.error('Error upserting order item:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Delete an item from orders/{orderId}/items
+  ipcMain.handle('firebase:delete-order-item', async (event, { orderId, menuItemId }) => {
+    try {
+      const firestore = getAdminFirestore();
+      await firestore.collection('orders').doc(orderId).collection('items').doc(menuItemId).delete();
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting order item:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Send KOT: mark dispatched items as sent, update order + table status
+  ipcMain.handle('firebase:send-kot', async (event, { orderId, tableId, tableName, kotItems }) => {
+    try {
+      if (!kotItems || kotItems.length === 0) {
+        return { success: false, error: 'No items to send' };
+      }
+      const firestore = getAdminFirestore();
+      const batch = firestore.batch();
+
+      // For each KOT item, set sentQty = currentQty
+      for (const kotItem of kotItems) {
+        const itemRef = firestore.collection('orders').doc(orderId).collection('items').doc(kotItem.menuItemId);
+        batch.update(itemRef, { sentQty: kotItem.currentQty, updatedAt: new Date() });
+      }
+
+      // Update order status
+      const orderRef = firestore.collection('orders').doc(orderId);
+      batch.update(orderRef, { status: 'submitted', updatedAt: new Date() });
+
+      // Update table status
+      const tableRef = firestore.collection('tables').doc(tableId);
+      batch.update(tableRef, {
+        status: 'occupied',
+        currentOrderId: orderId,
+        current_order_id: orderId,
+        occupiedSince: new Date(),
+        occupied_since: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await batch.commit();
+      return { success: true };
+    } catch (error) {
+      console.error('Error sending KOT:', error);
+      return { success: false, error: error.message };
     }
   });
 }

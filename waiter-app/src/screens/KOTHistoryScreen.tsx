@@ -4,7 +4,7 @@
  * Each KOT is a batch of items sent to the kitchen at a particular time.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from 'react-native';
-import { query as dbQuery } from '../services/databaseHelpers';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 const PRIMARY_RED = '#f20d0d';
 const DARK = '#1e293b';
@@ -60,54 +61,51 @@ export default function KOTHistoryScreen({
   const [loading, setLoading] = useState(true);
   const [grandTotal, setGrandTotal] = useState(0);
 
+  const unsubRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
-    loadKOTHistory();
-  }, [orderId]);
+    setLoading(true);
+    const q = query(collection(db, 'orders', orderId, 'items'), orderBy('created_at', 'asc'));
+    unsubRef.current = onSnapshot(q, snapshot => {
+      const items: OrderItem[] = snapshot.docs.map(d => {
+        const data = d.data() as any;
+        const qty = data.currentQty ?? data.quantity ?? 0;
+        const price = data.unitPrice ?? data.base_price ?? 0;
+        return {
+          id: d.id,
+          order_id: orderId,
+          menu_item_name: data.menuItemName || data.menu_item_name || '',
+          quantity: qty,
+          base_price: price,
+          total_price: qty * price,
+          sent_to_kitchen: data.sentQty > 0 || !!data.sent_to_kitchen ? 1 : 0,
+          created_at: data.created_at || data.updatedAt?.toMillis?.() || Date.now(),
+          modifiers: data.modifiers || '',
+          category: data.category || 'food',
+        };
+      });
 
-  const loadKOTHistory = async () => {
-    try {
-      setLoading(true);
-
-      const items = await dbQuery<OrderItem>(
-        'order_items',
-        'order_id = ?',
-        [orderId],
-        'created_at ASC'
-      );
-
-      // Group items into KOTs by their creation time clusters (within 30s of each other)
+      // Group into KOTs by 30-second clusters
       const kotGroups: KOT[] = [];
       let kotNumber = 1;
-
       for (const item of items) {
         const lastKot = kotGroups[kotGroups.length - 1];
         const itemTime = item.created_at || 0;
-
-        // If no KOT yet, or item was created > 30s after last KOT group — start a new KOT
-        if (
-          !lastKot ||
-          itemTime - lastKot.sentAt > 30000
-        ) {
-          kotGroups.push({
-            kotNumber: kotNumber++,
-            sentAt: itemTime,
-            items: [item],
-            subtotal: item.total_price,
-          });
+        if (!lastKot || itemTime - lastKot.sentAt > 30000) {
+          kotGroups.push({ kotNumber: kotNumber++, sentAt: itemTime, items: [item], subtotal: item.total_price });
         } else {
           lastKot.items.push(item);
           lastKot.subtotal += item.total_price;
         }
       }
-
       setKots(kotGroups);
       setGrandTotal(items.reduce((s, i) => s + (i.total_price || 0), 0));
-    } catch (err) {
-      console.error('Error loading KOT history:', err);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, () => setLoading(false));
+
+    return () => { if (unsubRef.current) unsubRef.current(); };
+  }, [orderId]);
+
 
   const formatTime = (ts: number): string => {
     if (!ts) return '';

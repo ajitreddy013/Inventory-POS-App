@@ -19,6 +19,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { db } from './firebase';
 import {
   upsert,
+  bulkUpsert,
   deleteRecord,
   getAll,
   addToSyncQueue,
@@ -27,6 +28,7 @@ import {
   getDeviceInfo,
   setDeviceInfo
 } from './databaseHelpers';
+import { getDatabase } from './database';
 
 /**
  * Convert camelCase to snake_case
@@ -219,49 +221,28 @@ export class FirestoreSyncEngine {
     };
 
     try {
-      // Fetch sections
+      // Fetch and bulk-upsert each collection sequentially
       const sections = await fetchCollection('sections');
-      for (const doc of sections) {
-        const data = convertKeysToSnakeCase(doc);
-        await upsert('sections', data);
-      }
+      // Clear first to avoid stale duplicates, then re-insert
+      getDatabase().runSync('DELETE FROM sections');
+      await bulkUpsert('sections', sections.map(convertKeysToSnakeCase));
 
-      // Fetch tables
       const tables = await fetchCollection('tables');
-      for (const doc of tables) {
-        const data = convertKeysToSnakeCase(doc);
-        await upsert('tables', data);
-      }
+      getDatabase().runSync('DELETE FROM tables');
+      await bulkUpsert('tables', tables.map(convertKeysToSnakeCase));
 
-      // Fetch waiters
       const waiters = await fetchCollection('waiters');
-      for (const doc of waiters) {
-        const data = convertKeysToSnakeCase(doc);
-        await upsert('waiters', data);
-      }
+      await bulkUpsert('waiters', waiters.map(convertKeysToSnakeCase));
 
-      // Fetch menu categories
       const categories = await fetchCollection('menuCategories');
-      for (const doc of categories) {
-        const data = convertKeysToSnakeCase(doc);
-        await upsert('menu_categories', data);
-      }
+      await bulkUpsert('menu_categories', categories.map(convertKeysToSnakeCase));
 
-      // Fetch menu items
       const items = await fetchCollection('menuItems');
-      for (const doc of items) {
-        const data = convertKeysToSnakeCase(doc);
-        await upsert('menu_items', data);
-      }
+      await bulkUpsert('menu_items', items.map(convertKeysToSnakeCase));
 
-      // Fetch modifiers
       const modifiers = await fetchCollection('modifiers');
-      for (const doc of modifiers) {
-        const data = convertKeysToSnakeCase(doc);
-        await upsert('modifiers', data);
-      }
-      
-      // Log summary only (reduced verbosity)
+      await bulkUpsert('modifiers', modifiers.map(convertKeysToSnakeCase));
+
       console.log(`🔄 Sync complete: ${sections.length} sections, ${tables.length} tables, ${waiters.length} waiters, ${categories.length} categories, ${items.length} items, ${modifiers.length} modifiers`);
 
     } catch (error) {

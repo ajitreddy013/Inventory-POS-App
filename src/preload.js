@@ -181,7 +181,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   
   // Generic invoke method for Firebase and other IPC handlers
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
-  
+
+  // Firebase menu + order entry operations
+  getMenuItems: (filters) => ipcRenderer.invoke('firebase:get-menu-items', filters),
+  getMenuCategoriesWithIds: () => ipcRenderer.invoke('firebase:get-menu-categories-with-ids'),
+  createOrder: (orderData) => ipcRenderer.invoke('firebase:create-order', orderData),
+  getOrderItems: (orderId) => ipcRenderer.invoke('firebase:get-order-items', { orderId }),
+  upsertOrderItem: (orderId, item) => ipcRenderer.invoke('firebase:upsert-order-item', { orderId, item }),
+  deleteOrderItem: (orderId, menuItemId) => ipcRenderer.invoke('firebase:delete-order-item', { orderId, menuItemId }),
+  sendKot: (payload) => ipcRenderer.invoke('firebase:send-kot', payload),
+  generateBill: (billData) => ipcRenderer.invoke('firebase:generate-bill', billData),  
   // Event listeners for real-time updates
   on: (channel, callback) => {
     const subscription = (event, ...args) => callback(...args);

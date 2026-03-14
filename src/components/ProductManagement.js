@@ -438,7 +438,10 @@ const ProductManagement = () => {
           <thead>
             <tr>
               <th>Item Name</th>
+              <th>Code</th>
               <th>Category</th>
+              <th>Sub-Category</th>
+              <th>Type</th>
               <th>Price</th>
               <th>Status</th>
               <th>Actions</th>
@@ -447,7 +450,7 @@ const ProductManagement = () => {
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#7f8c8d' }}>
                   {searchTerm || selectedCategory ? 'No menu items found matching your filters' : 'No menu items added yet'}
                 </td>
               </tr>
@@ -470,7 +473,22 @@ const ProductManagement = () => {
                     </div>
                   </td>
                   <td>
+                    <code style={{ background: '#f1f3f4', padding: '2px 6px', borderRadius: '4px', fontSize: '0.85rem' }}>
+                      {product.shortCode || '-'}
+                    </code>
+                  </td>
+                  <td>
                     <span className="category-badge">{product.category}</span>
+                  </td>
+                  <td style={{ color: '#555', fontSize: '0.9rem' }}>{product.subCategory || '-'}</td>
+                  <td>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: '500',
+                      background: product.isBarItem ? '#fff3cd' : '#e8f5e9',
+                      color: product.isBarItem ? '#856404' : '#2e7d32'
+                    }}>
+                      {product.isBarItem ? 'Bar' : 'Restaurant'}
+                    </span>
                   </td>
                   <td>₹{product.price.toFixed(2)}</td>
                   <td>
@@ -493,16 +511,18 @@ const ProductManagement = () => {
                         className="btn btn-sm btn-secondary"
                         title="Edit Menu Item"
                         disabled={loading}
+                        style={{ padding: '4px', lineHeight: 1, minWidth: 'unset' }}
                       >
-                        <Edit size={16} />
+                        <Edit size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(product.id, product.name)}
                         className="btn btn-sm btn-danger"
                         title="Delete Menu Item"
                         disabled={loading}
+                        style={{ padding: '4px', lineHeight: 1, minWidth: 'unset' }}
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>
@@ -562,7 +582,11 @@ const ProductManagement = () => {
           }
         }
         
-        .filter-container {
+        .action-buttons {
+          display: flex;
+          gap: 4px;
+          align-items: center;
+        }
           display: flex;
           align-items: center;
           gap: 8px;

@@ -63,7 +63,8 @@ import InventoryManagement from "./components/InventoryManagement"; // Stock mon
 import DailyTransfer from "./components/DailyTransfer";           // Stock transfers
 import POSSystem from "./components/POSSystem";                   // Point of sale
 import TableManagement from "./components/TableManagement";       // Table management
-import TablePOS from "./components/TablePOS";                     // Table-specific POS
+import TablePOS from "./components/TablePOS";                     // Table-specific POS (legacy)
+import TableOrderEntry from "./components/TableOrderEntry";       // New table order entry
 import SalesReports from "./components/SalesReports";             // Sales reporting
 import Settings from "./components/Settings";                     // App settings
 import Spendings from "./components/Spendings";                   // Expense tracking
@@ -242,7 +243,7 @@ function AppContent() {
             path="/tables"
             element={
               selectedTable ? (
-                <TablePOS
+                <TableOrderEntry
                   table={selectedTable}
                   onBack={handleBackToTables}
                   onTableUpdate={handleTableUpdate}

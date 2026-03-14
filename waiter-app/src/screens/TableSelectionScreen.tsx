@@ -22,6 +22,8 @@ import {
 import { getAll, query as dbQuery } from '../services/databaseHelpers';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
+import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 // Stitch-inspired fresh color palette
 const COLORS = {
@@ -98,11 +100,15 @@ export default function TableSelectionScreen({
     };
     initLoad();
 
-    const tableInterval = setInterval(() => loadTables(), 5000);
+    // Real-time Firestore listener for instant table updates
+    const unsubscribe = onSnapshot(collection(db, 'tables'), () => {
+      loadTables();
+    });
+
     const timeInterval = setInterval(() => setCurrentTime(Date.now()), 60000);
 
     return () => {
-      clearInterval(tableInterval);
+      unsubscribe();
       clearInterval(timeInterval);
     };
   }, []);
@@ -115,54 +121,63 @@ export default function TableSelectionScreen({
 
   const loadSections = async () => {
     try {
-      const data = await getAll<Section>('sections', 'name ASC');
-      setSections(data);
+      const snapshot = await getDocs(collection(db, 'sections'));
+      const data: Section[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name || '',
+        ...doc.data()
+      }));
+      setSections(data.sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error loading sections:', error);
+      // Fallback to SQLite
+      try {
+        const data = await getAll<Section>('sections', 'name ASC');
+        setSections(data);
+      } catch {}
     }
   };
 
   const loadTables = async () => {
     try {
-      const tablesData = await getAll<Table>('tables', 'name ASC');
-      const tablesWithBills = await Promise.all(
-        tablesData.map(async (table) => {
-          if (table.current_order_id && table.status !== 'available') {
-            try {
-              const items = await dbQuery<any>(
-                'order_items',
-                'order_id = ? AND sent_to_kitchen = 1',
-                [table.current_order_id]
-              );
-              const itemsTotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
-              // Use the server's current_bill_amount if available, otherwise fallback to local items total
-              const totalAmount = (table as any).current_bill_amount !== undefined && (table as any).current_bill_amount !== null
-                ? (table as any).current_bill_amount
-                : itemsTotal;
+      // Read directly from Firestore for real-time accuracy
+      const snapshot = await getDocs(collection(db, 'tables'));
+      const tablesData: Table[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Table));
 
-              return { ...table, billAmount: totalAmount };
-            } catch (err) {
-              return table;
-            }
-          }
-          return table;
-        })
-      );
-      setTables(tablesWithBills);
+      const tablesWithBills = tablesData.map(table => {
+        const amount = (table as any).currentBillAmount || (table as any).current_bill_amount || 0;
+        return { ...table, billAmount: amount };
+      });
+
+      setTables(tablesWithBills.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     } catch (error) {
       console.error('Error loading tables:', error);
+      // Fallback to SQLite
+      try {
+        const data = await getAll<Table>('tables', 'name ASC');
+        setTables(data);
+      } catch {}
     }
   };
 
-  const getElapsedTime = (occupiedSince?: number): string | null => {
+  const getElapsedTime = (table: Table): string | null => {
+    const occupiedSince = (table as any).occupiedSince || (table as any).occupied_since;
     if (!occupiedSince) return null;
-    const elapsed = Math.floor((currentTime - occupiedSince) / 60000);
+    const ts = typeof occupiedSince === 'object' && occupiedSince.seconds
+      ? occupiedSince.seconds * 1000
+      : Number(occupiedSince);
+    const elapsed = Math.floor((currentTime - ts) / 60000);
     return `${elapsed} min`;
   };
 
   const getTableColor = (table: Table): string => {
-    if (table.status === 'available') return '#82E0AA'; // Green for free
-    return '#F4D03F'; // Yellow/Red for occupied
+    const status = table.status || 'available';
+    if (status === 'available') return '#82E0AA';
+    if (status === 'pending_bill') return '#E74C3C';
+    return '#F4D03F';
   };
 
   const getStatusColor = (tableStatus: string): string => {
@@ -318,7 +333,7 @@ export default function TableSelectionScreen({
   // ─── Table Card ───────────────────────────────────────────────────────────────
   const renderTableCard = (table: Table) => {
     const backgroundColor = getTableColor(table);
-    const elapsedTime = getElapsedTime(table.occupied_since);
+    const elapsedTime = getElapsedTime(table);
     const isOccupied = table.status !== 'available';
 
     return (
@@ -331,7 +346,7 @@ export default function TableSelectionScreen({
         {/* Three rows layout */}
         <View style={styles.cardContent}>
           {/* Row 1: Elapsed Time (only if occupied) */}
-          {isOccupied && elapsedTime && (
+        {isOccupied && elapsedTime && (
             <Text style={styles.elapsedTime}>{elapsedTime}</Text>
           )}
 
