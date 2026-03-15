@@ -8,16 +8,21 @@ import {
   ArrowLeft,
   Send,
   X,
+  Coffee,
+  Pizza,
+  Salad,
+  Wine,
+  UtensilsCrossed,
+  ChefHat,
+  ChevronRight,
+  Info
 } from "lucide-react";
 import "./DesktopOrderEntry.css";
 
 /**
  * Desktop Order Entry Component
  * 
- * Allows managers to create orders directly from the desktop application.
- * Supports table selection, menu browsing, order item management, and sending to kitchen.
- * 
- * Requirements: 27.1-27.10
+ * Re-designed with a professional three-column layout for high-efficiency POS operations.
  */
 const DesktopOrderEntry = ({ onBack }) => {
   // State management
@@ -280,7 +285,7 @@ const DesktopOrderEntry = ({ onBack }) => {
         throw new Error(submitResult.error || "Failed to submit order");
       }
 
-      // Route to KOT Router (stub implementation - Task 4.1 not yet complete)
+      // Route to KOT Router
       const kotResult = await window.electronAPI.invoke(
         "firebase:route-to-kot",
         {
@@ -294,18 +299,12 @@ const DesktopOrderEntry = ({ onBack }) => {
 
       if (!kotResult.success) {
         console.warn("KOT routing failed:", kotResult.error);
-        // Don't fail the entire operation if KOT routing fails (stub)
-      } else {
-        console.log("KOT routing result:", kotResult);
       }
       
       alert("Order sent to kitchen successfully!");
 
-      // Clear order and go back to table selection
       setOrderItems([]);
       setSelectedTable(null);
-      
-      // Reload tables to update status
       await loadTables();
     } catch (error) {
       console.error("Error sending order to kitchen:", error);
@@ -335,43 +334,55 @@ const DesktopOrderEntry = ({ onBack }) => {
     tables: tables.filter((table) => table.sectionId === section.id),
   }));
 
+  // Helper function to get category icons
+  const getCategoryIcon = (categoryName) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes("pizza")) return <Pizza size={20} />;
+    if (name.includes("coffee") || name.includes("drink") || name.includes("beverage")) return <Coffee size={20} />;
+    if (name.includes("salad") || name.includes("veg")) return <Salad size={20} />;
+    if (name.includes("wine") || name.includes("alcohol")) return <Wine size={20} />;
+    if (name.includes("main")) return <UtensilsCrossed size={20} />;
+    return <ChefHat size={20} />;
+  };
+
   // Render table selection view
   if (!selectedTable) {
     return (
       <div className="desktop-order-entry">
-        <div className="order-header">
-          <button className="btn btn-secondary" onClick={onBack}>
-            <ArrowLeft size={20} />
-            Back
-          </button>
-          <h1>
-            <ShoppingCart size={24} />
-            Desktop Order Entry
-          </h1>
-        </div>
+        <header className="order-header">
+          <div className="header-left">
+            <button className="btn-back" onClick={onBack} title="Go Back">
+              <ArrowLeft size={20} />
+            </button>
+            <h1>
+              <ShoppingCart size={24} className="text-primary" />
+              Desktop POS System
+            </h1>
+          </div>
+        </header>
 
-        <div className="table-selection">
-          <h2>Select a Table</h2>
-          {tablesBySection.map((section) => (
+        <main className="table-selection">
+          <h2>Floor Management</h2>
+          {tablesBySection.map((section) => section.tables.length > 0 && (
             <div key={section.id} className="section-group">
               <h3>{section.name}</h3>
               <div className="tables-grid">
                 {section.tables.map((table) => (
                   <div
                     key={table.id}
-                    className={`table-card ${table.status}`}
+                    className="table-card"
                     onClick={() => handleTableSelect(table)}
                   >
                     <div className="table-name">{table.name}</div>
-                    <div className={`table-status ${table.status}`}>
-                      {table.status}
-                    </div>
+                    <span className={`status-badge ${table.status}`}>
+                      {table.status.replace('_', ' ')}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           ))}
-        </div>
+        </main>
       </div>
     );
   }
@@ -379,176 +390,177 @@ const DesktopOrderEntry = ({ onBack }) => {
   // Render order entry view
   return (
     <div className="desktop-order-entry">
-      <div className="order-header">
+      <header className="order-header">
         <div className="header-left">
-          <button className="btn btn-secondary" onClick={handleBackToTables}>
+          <button className="btn-back" onClick={handleBackToTables} title="Back to Floor">
             <ArrowLeft size={20} />
-            Back to Tables
           </button>
           <h1>
-            <ShoppingCart size={24} />
-            {selectedTable.name}
+            Order: <span className="text-primary">{selectedTable.name}</span>
           </h1>
         </div>
-        <div className="header-right">
-          <div className="table-status">
-            Status:{" "}
-            <span className={`status-badge ${selectedTable.status}`}>
-              {selectedTable.status}
-            </span>
-          </div>
-        </div>
-      </div>
+        <span className={`status-badge ${selectedTable.status}`}>
+          {selectedTable.status.replace('_', ' ')}
+        </span>
+      </header>
 
       <div className="order-layout">
-        {/* Left Panel - Menu Browser */}
-        <div className="menu-panel">
-          <div className="search-section">
-            <div className="search-input-container">
-              <Search size={20} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search menu items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
-            </div>
-          </div>
-
-          <div className="category-tabs">
+        {/* Column 1: Categories Sidebar */}
+        <aside className="categories-sidebar">
+          <button
+            className={`category-item ${selectedCategory === "all" ? "active" : ""}`}
+            onClick={() => setSelectedCategory("all")}
+          >
+            <div className="category-icon"><ChefHat size={20} /></div>
+            All Items
+          </button>
+          {categories.map((category) => (
             <button
-              className={`category-tab ${selectedCategory === "all" ? "active" : ""}`}
-              onClick={() => setSelectedCategory("all")}
+              key={category}
+              className={`category-item ${selectedCategory === category ? "active" : ""}`}
+              onClick={() => setSelectedCategory(category)}
             >
-              All
+              <div className="category-icon">{getCategoryIcon(category)}</div>
+              {category}
             </button>
-            {categories.map((category) => (
-              <button
-                key={category}
-                className={`category-tab ${selectedCategory === category ? "active" : ""}`}
-                onClick={() => setSelectedCategory(category)}
-              >
-                {category}
-              </button>
-            ))}
+          ))}
+        </aside>
+
+        {/* Column 2: Items Gallery */}
+        <main className="items-panel">
+          <div className="search-container">
+            <Search className="search-icon" size={20} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search dishes, drinks or codes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
 
-          <div className="menu-items-grid">
+          <div className="items-grid">
             {filteredMenuItems.map((item) => (
               <div
                 key={item.id}
-                className="menu-item-card"
+                className="item-card"
                 onClick={() => handleAddMenuItem(item)}
               >
-                <div className="menu-item-info">
-                  <h3>{item.name}</h3>
+                <div>
+                  <div className="item-footer" style={{ marginBottom: '0.5rem' }}>
+                    <span className="item-tag">{item.category}</span>
+                    <Info size={16} className="text-muted" />
+                  </div>
+                  <h4>{item.name}</h4>
                   {item.description && (
-                    <p className="menu-item-description">{item.description}</p>
+                    <p className="item-desc">{item.description}</p>
                   )}
-                  <p className="menu-item-price">₹{item.price.toFixed(2)}</p>
-                  <p className="menu-item-category">{item.category}</p>
+                </div>
+                <div className="item-footer">
+                  <span className="item-price">₹{item.price.toFixed(2)}</span>
+                  <Plus size={20} className="text-primary" />
                 </div>
               </div>
             ))}
+            {filteredMenuItems.length === 0 && (
+              <div className="empty-state" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem' }}>
+                <Search size={48} className="text-muted" style={{ marginBottom: '1rem' }} />
+                <p className="text-muted">No items found matching your search.</p>
+              </div>
+            )}
           </div>
-        </div>
+        </main>
 
-        {/* Right Panel - Order Items */}
-        <div className="order-panel">
-          <div className="order-section">
-            <h3>
-              <ShoppingCart size={20} /> Order Items ({orderItems.length})
-            </h3>
+        {/* Column 3: Billing Area */}
+        <aside className="billing-panel">
+          <div className="billing-header">
+            <h2><ShoppingCart size={22} className="text-primary" /> Current Order</h2>
+          </div>
 
-            <div className="order-items-list">
-              {orderItems.length === 0 ? (
-                <p className="empty-order">No items in order</p>
-              ) : (
-                orderItems.map((item) => (
-                  <div key={item.id} className={`order-item ${item.sentToKitchen ? 'sent-to-kitchen' : ''}`}>
-                    <div className="item-info">
-                      <h4>
-                        {item.menuItemName}
-                        {item.sentToKitchen && (
-                          <span className="sent-badge">Sent to Kitchen</span>
-                        )}
-                      </h4>
-                      <p>₹{item.basePrice.toFixed(2)} base</p>
+          <div className="billing-items">
+            {orderItems.length === 0 ? (
+              <div className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <ShoppingCart size={32} className="text-muted" style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                <p className="text-muted">Selection is empty.</p>
+                <p className="text-muted" style={{ fontSize: '0.8rem' }}>Select items from the list to start billing.</p>
+              </div>
+            ) : (
+              orderItems.map((item) => (
+                <div key={item.id} className={`order-item-row ${item.sentToKitchen ? 'sent-to-kitchen' : ''}`}>
+                  <div className="row-main">
+                    <div>
+                      <span className="row-title">{item.menuItemName}</span>
+                      {item.sentToKitchen && (
+                        <span className="sent-badge" style={{ marginLeft: '0.5rem', background: '#f59e0b', color: 'white', fontSize: '0.6rem', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>SENT</span>
+                      )}
                       {item.modifiers.length > 0 && (
-                        <div className="item-modifiers">
+                        <div className="item-modifiers" style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                           {item.modifiers.map((mod, idx) => (
-                            <span key={idx} className="modifier-tag">
-                              {mod.name}
-                              {mod.price > 0 && ` (+₹${mod.price.toFixed(2)})`}
+                            <span key={idx} style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                              • {mod.name}
                             </span>
                           ))}
                         </div>
                       )}
                     </div>
-                    <div className="quantity-controls">
+                    <span className="row-title">₹{item.totalPrice.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="row-controls">
+                    <div className="qty-pill">
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="qty-btn"
+                        className="btn-qty"
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, item.quantity - 1); }}
                         disabled={item.sentToKitchen}
-                        title={item.sentToKitchen ? "Cannot modify - already sent to kitchen" : "Decrease quantity"}
                       >
-                        <Minus size={16} />
+                        <Minus size={14} />
                       </button>
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateQuantity(item.id, parseInt(e.target.value) || 0)
-                        }
-                        className="qty-input"
-                        min="1"
-                        disabled={item.sentToKitchen}
-                        title={item.sentToKitchen ? "Cannot modify - already sent to kitchen" : "Enter quantity"}
-                      />
+                      <span className="qty-val">{item.quantity}</span>
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="qty-btn"
+                        className="btn-qty"
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, item.quantity + 1); }}
                         disabled={item.sentToKitchen}
-                        title={item.sentToKitchen ? "Cannot modify - already sent to kitchen" : "Increase quantity"}
                       >
-                        <Plus size={16} />
+                        <Plus size={14} />
                       </button>
                     </div>
-                    <div className="item-total">
-                      ₹{item.totalPrice.toFixed(2)}
-                    </div>
+                    
                     <button
-                      onClick={() => removeFromOrder(item.id)}
-                      className="remove-btn"
+                      className="btn-remove"
+                      onClick={(e) => { e.stopPropagation(); removeFromOrder(item.id); }}
                       disabled={item.sentToKitchen}
-                      title={item.sentToKitchen ? "Cannot remove - already sent to kitchen" : "Remove item"}
+                      title="Remove Item"
                     >
                       <Trash2 size={16} />
                     </button>
                   </div>
-                ))
-              )}
-            </div>
+                </div>
+              ))
+            )}
           </div>
 
-          <div className="order-summary">
-            <div className="summary-line total">
-              <span>Total:</span>
+          <div className="billing-summary">
+            <div className="summary-row">
+              <span>Subtotal</span>
+              <span>₹{calculateTotal().toFixed(2)}</span>
+            </div>
+            <div className="summary-row">
+              <span>Taxes</span>
+              <span>₹0.00</span>
+            </div>
+            <div className="summary-total">
+              <span>Total</span>
               <span>₹{calculateTotal().toFixed(2)}</span>
             </div>
           </div>
 
-          <div className="action-buttons">
+          <div className="action-area">
             <button
+              className="btn-large btn-send"
               onClick={sendToKitchen}
               disabled={orderItems.length === 0 || loading}
-              className="btn btn-primary send-to-kitchen-btn"
             >
-              {loading ? (
-                "Sending..."
-              ) : (
+              {loading ? "Sending..." : (
                 <>
                   <Send size={20} />
                   Send to Kitchen
@@ -556,7 +568,7 @@ const DesktopOrderEntry = ({ onBack }) => {
               )}
             </button>
           </div>
-        </div>
+        </aside>
       </div>
 
       {/* Modifier Selection Modal */}
@@ -564,13 +576,13 @@ const DesktopOrderEntry = ({ onBack }) => {
         <div className="modal-overlay" onClick={closeModifierModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Select Modifiers for {selectedMenuItem.name}</h2>
-              <button className="close-btn" onClick={closeModifierModal}>
-                <X size={24} />
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Customize: {selectedMenuItem.name}</h2>
+              <button className="btn-back" style={{ width: '32px', height: '32px' }} onClick={closeModifierModal}>
+                <X size={18} />
               </button>
             </div>
-            <div className="modal-body">
-              <div className="modifiers-list">
+            <div className="modal-body" style={{ padding: '1.5rem' }}>
+              <div className="modifiers-list" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 {modifiers
                   .filter((m) =>
                     selectedMenuItem.availableModifiers?.includes(m.id)
@@ -584,33 +596,39 @@ const DesktopOrderEntry = ({ onBack }) => {
                           : ""
                       }`}
                       onClick={() => toggleModifier(modifier)}
+                      style={{ 
+                        padding: '0.75rem', 
+                        borderRadius: '8px', 
+                        cursor: 'pointer', 
+                        transition: 'var(--transition)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
                     >
-                      <div className="modifier-info">
-                        <span className="modifier-name">{modifier.name}</span>
-                        <span className="modifier-type">
-                          {modifier.type === "spice_level"
-                            ? "Spice Level"
-                            : "Add-on"}
-                        </span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{modifier.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{modifier.price > 0 ? `+₹${modifier.price}` : 'Free'}</div>
                       </div>
-                      <div className="modifier-price">
-                        {modifier.price > 0
-                          ? `+₹${modifier.price.toFixed(2)}`
-                          : "Free"}
-                      </div>
+                      {selectedModifiers.find((m) => m.id === modifier.id) && <ChevronRight size={16} className="text-primary" />}
                     </div>
                   ))}
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={closeModifierModal}>
+            <div className="modal-footer" style={{ padding: '1rem 1.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button 
+                className="btn-large" 
+                style={{ background: '#e2e8f0', color: '#0f172a', fontSize: '0.9rem', padding: '0.6rem 1.2rem', width: 'auto' }} 
+                onClick={closeModifierModal}
+              >
                 Cancel
               </button>
-              <button
-                className="btn btn-primary"
+              <button 
+                className="btn-large btn-send" 
+                style={{ fontSize: '0.9rem', padding: '0.6rem 1.2rem', width: 'auto' }} 
                 onClick={confirmAddWithModifiers}
               >
-                Add to Order
+                Add Option
               </button>
             </div>
           </div>
