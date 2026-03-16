@@ -1,189 +1,112 @@
-# Ajit Bar & Restaurant POS System - Project Status
+# CounterFlow POS — Project Status
 
-## ✅ COMPLETED FEATURES
+**Last Updated:** March 17, 2026
+**Latest Commit:** `b992668` on `master`
 
-### 🏪 Manager Role Implementation
-- ✅ Single manager role with full access to all features
-- ✅ Clean, intuitive interface for restaurant operations
-- ✅ All required functionality accessible through navigation
+---
 
-### 📦 Product Management 
-- ✅ Add products with variants (e.g., 180ml, 500ml, Full/Half portions)
-- ✅ Complete product details: Name, Variant, SKU, Price, Cost, Category, Unit
-- ✅ Support for restaurant-specific units (bottles, plates, glasses, etc.)
-- ✅ Search and filter functionality
-- ✅ Edit and delete products
+## System Overview
 
-### 🏬 Dual Inventory System
-- ✅ **Godown Stock**: Master stock from suppliers
-- ✅ **Counter Stock**: Daily operational stock for sales
-- ✅ Separate tracking and management for both locations
-- ✅ Visual stock level indicators
-- ✅ Low stock alerts and warnings
+CounterFlow POS is a two-part system:
+1. **Desktop App** — Electron + React, Firebase Admin SDK, SQLite (non-critical local cache)
+2. **Mobile App (WaiterFlow)** — React Native / Expo, Firebase SDK, offline SQLite mirror
 
-### 🔄 Daily Transfer System
-- ✅ Easy transfer interface from godown to counter
-- ✅ Visual product selection with stock information
-- ✅ Quantity controls with validation
-- ✅ Bulk transfer capability
-- ✅ Real-time stock updates
-- ✅ Transfer history tracking
+Firestore is the source of truth for all order, table, menu, and waiter data.
 
-### 🛒 Point of Sale (POS)
-- ✅ **Sale Types**: Table and Parcel orders
-- ✅ **Table Management**: Table number assignment for dine-in
-- ✅ **Product Search**: Quick search by name, SKU, or barcode
-- ✅ **Cart Management**: Add, modify, remove items
-- ✅ **Customer Information**: Name and phone recording
-- ✅ **Billing Calculations**: Subtotal, tax, discount, total
-- ✅ **Payment Methods**: Cash, Card, UPI, Cheque
-- ✅ **Automatic Stock Deduction**: Counter stock reduces on sale
+---
 
-### 🧾 Bill Generation
-- ✅ **Professional Format**: Ajit Bar & Restaurant branding
-- ✅ **Complete Details**: Date/time, table/parcel info, itemized list
-- ✅ **PDF Export**: Save bills as PDF files
-- ✅ **Print Ready**: Formatted for thermal printer output
-- ✅ **Proper Layout**: Clean, readable bill format
+## Completed Features
 
-### 📊 Sales Tracking & Reports
-- ✅ **Complete Sales History**: All transactions recorded
-- ✅ **Date Range Filtering**: View sales for specific periods
-- ✅ **Sale Type Tracking**: Separate table vs parcel statistics
-- ✅ **Customer Records**: Track customer information
-- ✅ **Payment Method Tracking**: Record payment types used
-- ✅ **Real-time Reporting**: Always up-to-date data
+### Phase 1: Firebase Infrastructure ✅
+- Firebase project `counterflow-81d88` (asia-south1)
+- Firestore schema: orders, tables, menuItems, menuCategories, waiters, sections, kots
+- PIN-based waiter authentication (Firebase Auth + custom tokens)
+- Manager bcrypt PIN authentication with lockout
 
-### 📈 Inventory Reports
-- ✅ **Stock Summary**: Current levels in godown and counter
-- ✅ **Low Stock Alerts**: Visual warnings for items running low
-- ✅ **Stock Movements**: Complete audit trail of all transfers
-- ✅ **Inventory Valuation**: Total stock value calculations
+### Phase 2: Desktop Core Integration ✅
+- Firebase SDK + Admin SDK in Electron
+- Waiter management UI (CRUD, PIN validation)
+- Manager authentication with 3-attempt lockout
+- Menu management (CRUD, modifiers, real-time sync)
+- Section and table management (CRUD, real-time listeners)
+- Inventory management with manager PIN auth and movement history
+- Billing: Cash, UPI, Split, discounts, pending bills
+- Waiter performance reports
+- KOT Router (food → kitchen printer, drinks → bar printer)
+- Thermal printer driver (ESC/POS, USB/Network/Serial)
+- Failed KOT management with auto-retry
+- Configuration parser for printer settings
+- Order data serialization and validation
+- Idempotent order submission
 
-## 🏗️ TECHNICAL IMPLEMENTATION
+### Phase 3: Mobile App (WaiterFlow) ✅
+- Expo + TypeScript project setup
+- PIN login screen with session persistence
+- Table selection grid with real-time status colors
+- Menu browser with category filter and search
+- Order entry with modifiers (spice levels + paid add-ons)
+- Real-time Firestore `onSnapshot` for order items
+- KOT History screen (accessible from order entry header)
+- Offline order capture with automatic sync on reconnect
+- Table merge / split / transfer operations
 
-### Database Design
-- ✅ SQLite database with complete schema
-- ✅ Products table with variant support
-- ✅ Inventory table with dual stock tracking
-- ✅ Sales and sale_items tables for transaction records
-- ✅ Stock_movements table for complete audit trail
-- ✅ Proper foreign key relationships and constraints
+### Phase 4: KOT Printing ✅
+- KOT Router: category-based routing, incremental KOT logic
+- Thermal printer driver: ESC/POS commands, connection pooling, retry
+- Failed KOT storage and manual/auto retry UI
+- 32 printer driver tests + 12 failed KOT tests passing
 
-### Application Architecture
-- ✅ **Frontend**: React 18 with modern hooks
-- ✅ **Backend**: Electron with Node.js
-- ✅ **Database**: SQLite3 for local storage
-- ✅ **PDF Generation**: jsPDF for bill exports
-- ✅ **Icons**: Lucide React icon library
-- ✅ **Styling**: Custom CSS with responsive design
+### Phase 5: Data Validation & Serialization ✅
+- Order serializer / deserializer (JSON round-trip)
+- Data validator (order, bill, split payment)
+- Idempotency via deterministic order IDs
+- 34 validation tests + 20 serialization tests passing
 
-### User Interface
-- ✅ **Clean Design**: Professional, restaurant-focused UI
-- ✅ **Navigation**: Intuitive sidebar navigation
-- ✅ **Responsive**: Works on different screen sizes
-- ✅ **Visual Feedback**: Loading states, success/error messages
-- ✅ **Search & Filters**: Easy product and data finding
-- ✅ **Modal Dialogs**: Proper forms for data entry
+### Task 10: Desktop Table Order Entry ✅ (March 2026)
+- `TableOrderEntry.js` — two-panel screen (Menu Browser + Billing Area)
+- Light theme matching `TableManagement` (`#F8F9FA` / `#212529` / `#DC3545`)
+- Real-time Firestore `onSnapshot` via `firebase:subscribe-order-items` IPC
+- Field normalization: mobile snake_case ↔ desktop camelCase
+- KOT delta model: only `currentQty - sentQty` dispatched per KOT
+- Sent items locked (lock icon, no controls); pending items have +/− buttons
+- New items appear at bottom with auto-scroll; sent items sorted to top
+- KOT History panel on desktop beside Send KOT button
+- Discount panel (fixed / %) with payable total
+- Payment: Cash, UPI, Split with sum validation
+- `removeHandler` guards prevent duplicate IPC handler errors
+- `created_at` written on first desktop upsert for correct KOT grouping
+- Mobile `OrderEntryScreen` switched to real-time Firestore listener
+- Mobile `KOTHistoryScreen` wired into `OrderEntryScreen` header
 
-## 📊 SAMPLE DATA INCLUDED
+---
 
-### Products
-- ✅ Kingfisher Beer (330ml, 650ml variants)
-- ✅ Chicken Tikka (Full, Half portions)
-- ✅ Paneer Butter Masala
-- ✅ Naan (Plain, Butter variants)
-- ✅ Whiskey (Royal Stag 30ml, 60ml variants)
-- ✅ Jeera Rice
-- ✅ Realistic pricing and categories
+## Key Files
 
-### Stock Levels
-- ✅ Pre-configured godown and counter stock
-- ✅ Various stock levels to demonstrate features
-- ✅ Some out-of-stock items to show alerts
+| File | Purpose |
+|---|---|
+| `src/components/TableOrderEntry.js` | Desktop two-panel order entry |
+| `src/firebase/electronIntegration.js` | All Firebase IPC handlers |
+| `src/preload.js` | IPC bridge (exposes firebase:* to renderer) |
+| `src/App.js` | Routes — TableOrderEntry replaces TablePOS |
+| `waiter-app/src/screens/OrderEntryScreen.tsx` | Mobile order entry (real-time) |
+| `waiter-app/src/screens/KOTHistoryScreen.tsx` | Mobile KOT history |
+| `src/services/kotRouterService.js` | KOT routing logic |
+| `src/services/thermalPrinterDriver.js` | ESC/POS printer driver |
 
-## 🧪 TESTING COMPLETED
+---
 
-### Core Functionality
-- ✅ Database initialization and schema creation
-- ✅ Sample data insertion and retrieval
-- ✅ Product management operations
-- ✅ Stock transfer functionality
-- ✅ Sales creation and processing
-- ✅ Report generation
-- ✅ PDF bill generation
+## Development Notes
 
-### Integration Testing
-- ✅ Complete workflow testing
-- ✅ Stock level updates on transfers and sales
-- ✅ Data consistency across operations
-- ✅ Error handling and validation
+- Desktop loads from production build — run `npm run build` then `npm start` after any `src/` change
+- SQLite inserts are non-fatal; Firestore is source of truth
+- Menu item `foodType` values: `"veg"`, `"non-veg"`, `"none"`
+- Firebase project: `counterflow-81d88` (asia-south1 / Mumbai)
 
-## 🚀 READY FOR DEPLOYMENT
+---
 
-### Installation Instructions
-- ✅ Complete README with setup guide
-- ✅ Package.json with all dependencies
-- ✅ Build scripts for development and production
-- ✅ Sample data auto-initialization
+## Pending / Future
 
-### Usage Documentation
-- ✅ Comprehensive feature documentation
-- ✅ Daily workflow guidelines
-- ✅ Troubleshooting information
-- ✅ Future enhancement roadmap
-
-## 📋 DAILY WORKFLOW SUPPORT
-
-### Morning Setup
-- ✅ Check inventory levels in Inventory module
-- ✅ Use Daily Transfer to move stock to counter
-- ✅ Review low stock alerts
-
-### During Operations
-- ✅ Use POS system for all sales
-- ✅ Select appropriate sale type (Table/Parcel)
-- ✅ Generate and print/export bills
-
-### End of Day
-- ✅ Review sales reports
-- ✅ Check remaining stock levels
-- ✅ Plan next day's transfers
-
-## 🔮 FUTURE ENHANCEMENTS PLANNED
-
-### Phase 2 Features
-- ⏳ Supplier/Dealer management
-- ⏳ Purchase order tracking
-- ⏳ Mobile app for remote monitoring
-- ⏳ Advanced analytics and insights
-- ⏳ Barcode scanner integration
-- ⏳ KOT (Kitchen Order Ticket) printing
-- ⏳ Multi-user support with roles
-- ⏳ Cloud backup and sync
-
-## 🎯 PROJECT SUCCESS METRICS
-
-✅ **Functional Requirements**: 100% Complete
-✅ **User Interface**: Professional and intuitive
-✅ **Data Management**: Robust and reliable
-✅ **Reporting**: Comprehensive and accurate
-✅ **Bill Generation**: Professional format
-✅ **Stock Management**: Dual-location system working
-✅ **Sales Processing**: Complete POS functionality
-✅ **Documentation**: Comprehensive and clear
-
-## 🏁 CONCLUSION
-
-The Ajit Bar & Restaurant POS system is **fully functional** and **ready for production use**. All core requirements have been implemented and tested successfully. The system provides a complete solution for:
-
-- Product management with variants
-- Dual inventory tracking (godown + counter)
-- Daily stock transfers
-- Professional POS billing
-- Sales tracking and reporting
-- PDF bill generation
-
-The application can be deployed immediately and will provide significant value for restaurant operations management.
-
-**Status: ✅ COMPLETE AND READY FOR USE**
+- Property-based tests for TableOrderEntry (marked optional in spec, skipped for MVP)
+- KOT print from desktop order entry
+- Multi-printer configuration UI
+- Cloud backup / export

@@ -1,410 +1,224 @@
-# CounterFlow POS | Advanced Inventory Management and Point of Sale Application
+# CounterFlow POS | Restaurant Point of Sale & Waiter Ordering System
 
-🏆 **The ultimate Point of Sale (POS) and Inventory Management System for Restaurants, Bars, and Retail**
+CounterFlow POS is a full-stack restaurant management system combining an Electron desktop POS app with a React Native mobile waiter app (WaiterFlow), backed by Firebase/Firestore for real-time cloud sync.
 
-CounterFlow POS is a comprehensive, production-ready business management solution catered specifically for restaurants, bars, and retail establishments. It offers advanced stock management, professional hardware integration, automated reporting, and robust financial tracking.
-
-## 🎥 Demo Video
+## Demo Video
 
 [![CounterFlow POS Demo](https://img.youtube.com/vi/axBFug2R3Dg/maxresdefault.jpg)](https://youtu.be/axBFug2R3Dg)
 
-**Watch the complete walkthrough** of CounterFlow POS showcasing all major features including POS system, inventory management, table management, sales reports, and thermal printer integration.
-
-[🎬 **Watch on YouTube**](https://youtu.be/axBFug2R3Dg)
+[Watch on YouTube](https://youtu.be/axBFug2R3Dg)
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
-![Rebranded](https://img.shields.io/badge/rebrand-2025-yellow)
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 
-## 📸 Screenshots
-
-### Dashboard
-![Dashboard](screenshots/dashboard.png)
-*Main dashboard showing business overview, key metrics, and quick access to all modules*
-
-### POS System
-![POS System](screenshots/pos-system.png)
-*Point of sale interface with product selection, cart management, and billing*
-
-### Inventory Management
-![Inventory Management](screenshots/inventory-management.png)
-*Stock management with godown and counter stock tracking*
-
-### Product Management
-![Product Management](screenshots/product-management.png)
-*Product catalog management with variants and pricing*
-
-### Daily Transfer
-![Daily Transfer](screenshots/daily-transfer.png)
-*Stock transfer interface from godown to counter*
-
-### Sales Reports
-![Sales Reports](screenshots/sales-reports.png)
-*Comprehensive sales analytics and reporting*
-
-### Table Management
-![Table Management](screenshots/table-management.png)
-*Restaurant table layout and order management*
-
-### Settings
-![Settings](screenshots/settings.png)
-*Application configuration and system settings*
-
-## ✨ Key Highlights
-
-- 🖥️ **Cross-Platform Desktop Application** - Windows, macOS, Linux support
-- 🔐 **Secure Architecture** - Electron with secure IPC communication and enhanced security patterns
-- 📊 **Real-time Business Analytics** - Live dashboards and automated reports
-- 🖨️ **Professional Hardware Integration** - ESC/POS thermal printer support
-- 📧 **Enhanced Email System** - Automated daily reports with improved settings management
-- 💾 **Robust Database** - Better-SQLite3 for improved performance and reliability
-- 🎯 **Production Ready** - Comprehensive error handling, logging, and rebuild support
-- 🔄 **Modern Build System** - Enhanced Electron builder with automatic dependency rebuilding
-
-## 🚀 Core Features
-
-### 📦 Business Management Modules
-
-#### 1. 🏪 Advanced Inventory Management
-- **Product Catalog**: Complete product management with variants (sizes, types)
-- **Dual Stock System**: 
-  - **Godown Stock**: Master inventory from suppliers
-  - **Counter Stock**: Ready-to-sell operational stock
-- **Smart Stock Transfers**: Bulk transfer with validation and audit trail
-- **Automatic Updates**: Real-time stock updates on sales and transfers
-- **Low Stock Alerts**: Visual warnings and automated notifications
-- **Stock Movement Audit**: Complete history of all stock changes
-- **Barcode Support**: SKU and barcode management
-- **Category Management**: Organize products by categories
-
-#### 2. 💰 Point of Sale (POS) System
-- **Dual Sale Types**: Table service and takeaway/parcel orders
-- **Smart Product Selection**: Quick search with counter stock validation
-- **Advanced Cart Management**: Add, remove, modify quantities with live totals
-- **Flexible Billing**: Tax, discount, and multiple payment method support
-- **Payment Methods**: Cash, Card, UPI, Cheque, Credit
-- **Professional Bill Generation**: PDF export and thermal printer support
-- **Customer Management**: Optional customer details and phone tracking
-- **Sale Validation**: Prevents overselling with stock checks
-
-#### 3. 🍽️ Restaurant Table Management
-- **Table Layout**: Visual table management for restaurant/bar areas
-- **Table Status Tracking**: Available, occupied, reserved states
-- **Order Management**: Save and resume table orders
-- **Table-Specific POS**: Dedicated interface for table orders
-- **Bill Management**: Track current bill amounts per table
-- **Capacity Management**: Set table capacity and area designation
-
-#### 4. 📊 Advanced Sales Analytics
-- **Real-time Sales Tracking**: Live sales monitoring with detailed records
-- **Comprehensive Sale History**: Complete transaction records with search/filter
-- **Customer Analytics**: Track customer preferences and order history
-- **Payment Analysis**: Breakdown by payment methods
-- **Time-based Reports**: Daily, weekly, monthly sales analysis
-- **Top-selling Items**: Analytics on best-performing products
-
-#### 5. 📈 Professional Reporting Suite
-- **Daily Sales Reports**: Comprehensive daily business summaries
-- **Financial Reports**: Revenue, expenses, profit/loss analysis
-- **Inventory Reports**: Stock levels, low stock, and movement reports
-- **Transfer Reports**: Daily transfer history and summaries
-- **Custom Date Ranges**: Flexible reporting periods
-- **PDF Export**: Professional report generation
-- **Email Automation**: Scheduled daily reports with attachments
-
-#### 6. 🔄 Smart Daily Transfer System
-- **Visual Transfer Interface**: Intuitive drag-and-drop style transfers
-- **Bulk Operations**: Transfer multiple items simultaneously
-- **Quantity Validation**: Prevents over-transfer with real-time checking
-- **Transfer History**: Complete audit trail of all transfers
-- **Automated Scheduling**: Set up recurring transfer patterns
-- **Stock Optimization**: Suggestions for optimal transfer quantities
-
-#### 7. 💳 Financial Management
-- **Daily Counter Balance**: Opening and closing balance tracking
-- **Expense Management**: Categorized business expense tracking
-- **Spending Analytics**: Expense analysis by category and date
-- **Profit/Loss Calculation**: Automated financial calculations
-- **Cash Flow Tracking**: Daily cash movement monitoring
-- **Financial Reports**: Comprehensive financial summaries
-
-#### 8. 📋 Pending Bills Management
-- **Save Bills for Later**: Hold orders for future completion
-- **Bill Modification**: Edit saved bills before completion
-- **Customer Association**: Link bills to customer information
-- **Bulk Operations**: Mass operations on pending bills
-- **Bill Templates**: Save common orders as templates
-- **Expiration Tracking**: Monitor old pending bills
-
-## 🖨️ Hardware Integration
-
-### Thermal Printer Support
-- **ESC/POS Protocol**: Full compatibility with standard thermal printers
-- **Multiple Connection Types**: USB, Network (IP), and Serial port connections
-- **Popular Models**: Epson TM-T82II, TM-T88V, TM-T20, and other ESC/POS printers
-- **Dynamic Bill Sizing**: Automatic height adjustment based on bill content
-- **Professional Formatting**: Clean, readable receipts on 80mm thermal paper
-- **Printer Management**: Status monitoring, configuration, and reconnection
-- **Fallback Support**: Graceful degradation when printer unavailable
-
-### Configuration Options
-- **USB Printers**: Auto-detection of connected USB thermal printers
-- **Network Printers**: IP-based printers (default: 192.168.1.100:9100)
-- **Serial Printers**: Serial port printers (default: /dev/ttyUSB0 at 9600 baud)
-- **Paper Settings**: 80mm width, 32 characters per line
-- **Print Features**: Auto-cut, optional beep, status indicators
-
-## 📧 Automated Email System
-
-### Daily Business Reports
-- **Scheduled Reports**: Automatic daily emails at 11:59 PM
-- **Professional Templates**: HTML email templates with business branding
-- **PDF Attachments**: Multiple report types as PDF attachments
-- **Comprehensive Data**: Sales, inventory, financial, and operational metrics
-- **Secure Configuration**: Encrypted password storage for email accounts
-
-### Email Features
-- **SMTP Support**: Compatible with Gmail, Outlook, and other providers
-- **Multiple Recipients**: Send reports to multiple stakeholders
-- **Attachment Management**: Automatic PDF generation and cleanup
-- **Connection Testing**: Verify email settings before deployment
-- **Enhanced Settings Management**: Improved email configuration with reset functionality
-- **Error Handling**: Robust error handling with retry mechanisms
-
-## 📄 Professional Bill Format
-
-The system generates professional bills with dynamic formatting:
+## System Architecture
 
 ```
-================================
-          AJIT WINES
-      [Address & Contact]
-      GST: [GST Number]
-================================
-Date: DD/MM/YYYY    Time: HH:MM
-Bill No: INV-2024-0001
-Table: T1 / Parcel: P001
+Desktop App (Electron + React)
+  ├── Table Management (Firestore real-time)
+  ├── TableOrderEntry — two-panel order entry
+  │     ├── Menu Browser (left panel)
+  │     └── Billing Area + KOT History (right panel)
+  ├── Menu Management
+  ├── Billing & Payments (Cash / UPI / Split)
+  ├── KOT printing (ESC/POS thermal printers)
+  └── Reports & Analytics
 
-Customer: [Name]
-Phone: [Number]
-================================
-Item             Qty  Rate Amount
---------------------------------
-Kingfisher 330ml  2   120   240
-Chicken Tikka     1   180   180
-Naan             2    45    90
---------------------------------
-Subtotal:                  510
-Tax (5%):                   26
-Discount:                  -10
---------------------------------
-TOTAL:               ₹ 526
-================================
-Payment: Cash
-Thank you for visiting!
-================================
+Mobile App — WaiterFlow (React Native / Expo)
+  ├── Waiter PIN login
+  ├── Table selection (real-time status)
+  ├── Order entry with modifiers
+  ├── KOT History screen
+  └── Offline support with Firestore sync
+
+Firebase / Firestore (Cloud)
+  ├── orders / {orderId} / items  ← shared order state
+  ├── tables
+  ├── menuItems / menuCategories
+  ├── waiters
+  └── sections
 ```
+
+## Key Features
+
+### Desktop App
+- Two-panel Table Order Entry screen (Menu Browser + Billing Area)
+- Real-time Firestore `onSnapshot` sync — items added from mobile appear instantly on desktop and vice versa
+- KOT delta model: only unsent quantities are dispatched per KOT
+- KOT History panel (beside Send KOT button) — grouped by 30-second clusters, synced with mobile
+- Sent items locked with lock icon; pending items have +/− controls
+- Discount panel (fixed or %) with payable total calculation
+- Payment: Cash, UPI, or Split (Cash + UPI with sum validation)
+- Light theme matching the desktop design system (`#F8F9FA` / `#212529` / `#DC3545`)
+- ESC/POS thermal printer integration (USB, Network, Serial)
+- Manager PIN authentication for inventory operations
+- Waiter performance reports, inventory management, daily transfers
+
+### Mobile App (WaiterFlow)
+- PIN-based waiter authentication
+- Real-time table status grid (available / occupied / pending_bill)
+- Order entry with spice level and paid add-on modifiers
+- Real-time Firestore `onSnapshot` for order items — desktop additions appear instantly
+- KOT History screen accessible from order entry header
+- Offline order capture with automatic sync on reconnect
+- Table merge / split / transfer operations
 
 ## Technology Stack
 
-- **Frontend**: React 18 with Lucide React icons
-- **Backend**: Electron 28 with Node.js
-- **Database**: Better-SQLite3 for enhanced performance and reliability
-- **PDF Generation**: jsPDF with AutoTable for professional reports
-- **Styling**: Custom CSS with responsive design
-- **Build System**: React Scripts with Electron Builder 24
-- **Development Tools**: ESLint, Prettier, TypeScript-ESLint for code quality
-- **Email**: Nodemailer with enhanced configuration management
-- **Scheduling**: Node-cron for automated tasks
+| Layer | Technology |
+|---|---|
+| Desktop frontend | React 18 |
+| Desktop backend | Electron 28 + Node.js |
+| Mobile | React Native (Expo) + TypeScript |
+| Cloud database | Firebase Firestore |
+| Local database | Better-SQLite3 (desktop), expo-sqlite (mobile) |
+| Auth | Firebase Authentication (PIN-based) |
+| Printing | ESC/POS (thermalPrinterDriver) |
+| PDF | jsPDF + AutoTable |
+| Email | Nodemailer |
 
-## Installation & Setup
+## Project Structure
+
+```
+/
+├── src/                          # Desktop Electron + React app
+│   ├── components/
+│   │   ├── TableOrderEntry.js    # Two-panel order entry screen
+│   │   ├── TableManagement.js    # Table grid
+│   │   └── ...
+│   ├── firebase/
+│   │   └── electronIntegration.js  # All Firebase IPC handlers
+│   ├── services/
+│   │   ├── kotRouterService.js
+│   │   └── thermalPrinterDriver.js
+│   ├── App.js
+│   ├── main.js
+│   └── preload.js
+├── waiter-app/                   # React Native mobile app
+│   └── src/
+│       ├── screens/
+│       │   ├── OrderEntryScreen.tsx
+│       │   ├── KOTHistoryScreen.tsx
+│       │   └── TableSelectionScreen.tsx
+│       └── services/
+│           └── syncEngine.ts
+├── tests/                        # Jest test suites
+├── .kiro/specs/                  # Feature specs
+│   ├── desktop-table-order-entry/
+│   └── waiter-flow/
+└── firestore.rules
+```
+
+## Getting Started
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- npm or yarn package manager
+- Node.js 18+
+- npm
+- Expo CLI (for mobile)
 
-### Installation Steps
+### Desktop App
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd inventory-pos-app
-   ```
+```bash
+# Install dependencies
+npm install
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+# Build React app (required after any src/ change)
+npm run build
 
-3. **Rebuild native dependencies** (if needed)
-   ```bash
-   npm run electron-rebuild
-   ```
-
-4. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-   This will start both the React development server and Electron app.
-
-5. **For production build**
-   ```bash
-   npm run build
-   npm run dist
-   ```
-
-6. **For Windows builds**
-   ```bash
-   npm run dist-win          # Windows installer
-   npm run dist-win-portable # Portable executable
-   ```
-
-### Sample Data
-
-The application automatically initializes with sample data on first run, including:
-- Various beer variants (Kingfisher 330ml, 650ml)
-- Food items (Chicken Tikka, Paneer Butter Masala, Naan)
-- Beverages (Whiskey variants)
-- Rice dishes
-
-The sample data includes realistic pricing and stock levels to help you test all features immediately.
-
-## Usage Guide
-
-### Getting Started
-
-1. **Dashboard**: Overview of key metrics and quick access to all modules
-2. **Products**: Add and manage your product catalog
-3. **Inventory**: View and manage stock levels
-4. **Daily Transfer**: Transfer stock from godown to counter
-5. **POS**: Process sales and generate bills
-6. **Reports**: View sales and inventory reports
-
-### Daily Workflow
-
-1. **Morning Setup**:
-   - Check inventory levels
-   - Transfer required stock from godown to counter
-   - Review low stock alerts
-
-2. **During Operations**:
-   - Use POS system for all sales
-   - Select Table or Parcel as appropriate
-   - Generate bills and receipts
-
-3. **End of Day**:
-   - Review daily sales report
-   - Check remaining stock levels
-   - Plan next day's transfers
-
-### Key Features in Detail
-
-#### Product Management
-- Add products with variants (e.g., different bottle sizes)
-- Set cost and selling prices
-- Organize by categories
-- Track in different units (bottles, plates, glasses, etc.)
-
-#### Stock Management
-- **Godown Stock**: Bulk storage from suppliers
-- **Counter Stock**: Ready-to-sell inventory
-- **Transfer System**: Move stock as needed
-- **Automatic Deduction**: Stock reduces on each sale
-
-#### Sales Processing
-- **Quick Search**: Find products by name, SKU, or barcode
-- **Cart Management**: Add multiple items, adjust quantities
-- **Customer Details**: Optional customer information
-- **Multiple Payment Types**: Support various payment methods
-- **Bill Generation**: Professional PDF bills
-
-#### Reporting
-- **Real-time Data**: Always up-to-date information
-- **Date Range Filtering**: View reports for specific periods
-- **Export Options**: Save reports as needed
-- **Stock Alerts**: Visual warnings for low inventory
-
-## Database Schema
-
-The application uses SQLite with the following main tables:
-- **products**: Product catalog with variants
-- **inventory**: Stock levels tracking
-- **sales**: Sales transactions
-- **sale_items**: Individual items in each sale
-- **stock_movements**: Complete audit trail
-
-## File Structure
-
-```
-src/
-├── components/           # React components
-│   ├── Dashboard.js     # Main dashboard
-│   ├── ProductManagement.js
-│   ├── InventoryManagement.js
-│   ├── DailyTransfer.js
-│   ├── POSSystem.js
-│   ├── SalesReports.js
-│   └── ...
-├── database.js          # SQLite database operations
-├── main.js             # Electron main process
-├── preload.js          # Electron preload script
-├── pdf-service.js      # PDF generation
-├── printer-service.js  # Printing functionality
-├── init-sample-data.js # Sample data initialization
-└── App.css            # Styling
+# Start Electron
+npm start
 ```
 
-## Future Enhancements
+### Mobile App
 
-- **Dealer/Supplier Management**: Track suppliers and purchase orders
-- **Mobile Interface**: Remote access for reports and monitoring
-- **Multi-device Sync**: Real-time synchronization across devices
-- **Email/SMS Receipts**: Digital receipt delivery
-- **Advanced Analytics**: Detailed business intelligence
-- **Barcode Scanning**: Hardware barcode scanner integration
-- **KOT Printing**: Kitchen Order Ticket printing
-- **User Management**: Multiple user roles and permissions
+```bash
+cd waiter-app
+npm install
+npx expo start
+```
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and fill in your Firebase credentials:
+
+```
+REACT_APP_FIREBASE_API_KEY=...
+REACT_APP_FIREBASE_AUTH_DOMAIN=...
+REACT_APP_FIREBASE_PROJECT_ID=counterflow-81d88
+REACT_APP_FIREBASE_STORAGE_BUCKET=...
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=...
+REACT_APP_FIREBASE_APP_ID=...
+```
+
+### Windows Build
+
+```bash
+npm run build
+npm run dist-win          # NSIS installer
+npm run dist-win-portable # Portable exe
+```
+
+## Firebase IPC Handlers (Desktop)
+
+| Handler | Description |
+|---|---|
+| `firebase:get-menu-items` | Fetch all active menu items |
+| `firebase:get-menu-categories-with-ids` | Fetch menu categories |
+| `firebase:create-order` | Create new order document |
+| `firebase:get-order-items` | Fetch order items subcollection |
+| `firebase:upsert-order-item` | Create/update an order item |
+| `firebase:subscribe-order-items` | Real-time onSnapshot subscription |
+| `firebase:unsubscribe-order-items` | Unsubscribe from snapshot |
+| `firebase:send-kot` | Dispatch KOT, lock sent items |
+| `firebase:generate-bill` | Generate bill and clear table |
+
+## Firestore Data Model
+
+```
+orders/{orderId}
+  status: 'draft' | 'submitted' | 'completed'
+  tableId, tableName, createdBy, createdAt, updatedAt
+
+orders/{orderId}/items/{menuItemId}
+  menuItemId, menuItemName, unitPrice
+  currentQty   ← total desired quantity
+  sentQty      ← quantity already sent to kitchen
+  category, created_at, updated_at
+
+tables/{tableId}
+  name, status: 'available' | 'occupied'
+  currentOrderId, currentBillAmount
+
+menuItems/{id}
+  name, price, subCategory, foodType
+  isActive, isOutOfStock
+
+waiters/{id}
+  name, pin (hashed), isActive
+```
+
+## KOT Delta Model
+
+Each order item tracks `currentQty` and `sentQty`. Only the delta (`currentQty - sentQty`) is sent per KOT, preventing duplicate kitchen instructions. Items with `sentQty > 0` are locked on both desktop and mobile.
+
+## Recent Updates (March 2026)
+
+- Full `TableOrderEntry` desktop screen with real-time Firestore sync
+- KOT History panel on desktop (beside Send KOT), synced with mobile
+- Mobile `OrderEntryScreen` switched to Firestore `onSnapshot` (real-time)
+- Mobile `KOTHistoryScreen` wired into order entry header
+- Field normalization between mobile (snake_case) and desktop (camelCase) Firestore docs
+- `removeHandler` guards prevent stale IPC handler errors on Electron restart
+- Light theme applied to desktop order entry matching `TableManagement` palette
+- Committed: `b992668` on `master`
 
 ## Support
 
-For technical support or feature requests, please contact the development team.
-
-**Contact Information:**
 - Email: ajitreddy013@gmail.com
 - Phone: +91 7517323121
 
-## Recent Updates
-
-### Version 1.0.0 - CounterFlow POS Rebrand (2025)
-- 🎉 **Complete rebrand** to CounterFlow POS with enhanced branding
-- 🔧 **Enhanced email settings** with improved reset functionality
-- 🛠️ **Added electron-rebuild** script for better native dependency management
-- 🔒 **Enhanced security** with comprehensive .gitignore patterns
-- 🏗️ **Improved build system** with better Windows support
-- 📦 **Updated dependencies** including Better-SQLite3 for improved performance
-- 🧹 **Code quality improvements** with ESLint fixes and better project organization
-
-## ⚠️ IMPORTANT LEGAL NOTICE
-
-**ALL RIGHTS RESERVED** - This software is **PROPRIETARY** and **CONFIDENTIAL**.
-
-🚫 **UNAUTHORIZED USE PROHIBITED**
-- Commercial use, redistribution, or copying is **STRICTLY FORBIDDEN**
-- Creating derivative works or competing systems is **PROHIBITED**
-- Reverse engineering or code extraction is **ILLEGAL**
-- This code is for **viewing and educational purposes ONLY**
-
-⚖️ **Legal Action**: Unauthorized use may result in legal proceedings.
-
 ## License
 
-This software is proprietary and developed specifically for Ajit Wines.
-See the [LICENSE](LICENSE) file for detailed terms and restrictions.
-
----
-
-**Built with ❤️ for Ajit Wines | Powered by CounterFlow POS**
-
-*Last updated: August 3, 2025*
+Proprietary — All Rights Reserved. See [LICENSE](LICENSE).

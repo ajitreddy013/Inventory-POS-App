@@ -1,411 +1,168 @@
-# Code Documentation - Inventory POS Application
+# Code Documentation — CounterFlow POS
 
-## Overview
-This is a comprehensive Point of Sale (POS) and Inventory Management system built with Electron, React, and SQLite. The application is designed for restaurants/bars with both table service and takeaway orders.
+**Last Updated:** March 17, 2026
 
 ## Architecture
 
-### Technology Stack
-- **Frontend**: React 18 with functional components and hooks
-- **Backend**: Electron main process with Node.js
-- **Database**: SQLite3 for local data storage
-- **Routing**: React Router (Hash-based for Electron compatibility)
-- **UI Icons**: Lucide React
-- **PDF Generation**: jsPDF with autoTable
-- **Printing**: ESC/POS thermal printer support
-- **Email**: Nodemailer for automated reports
-- **Scheduling**: node-cron for automated tasks
-
-### Application Structure
 ```
-inventory-pos-app/
-├── src/
-│   ├── components/          # React components
-│   ├── services/           # Business logic services
-│   ├── utils/              # Utility functions
-│   ├── main.js             # Electron main process
-│   ├── preload.js          # Secure IPC bridge
-│   ├── database.js         # SQLite database service
-│   └── App.js              # Main React component
-├── public/                 # Static assets
-├── build/                  # Production build
-├── reports/                # Generated reports
-├── temp/                   # Temporary files
-└── documentation/          # Documentation files
+Desktop App (Electron + React)
+  Renderer Process (React)
+    App.js → TableManagement → TableOrderEntry
+                             → (other screens)
+  Main Process (Node.js)
+    main.js → electronIntegration.js (Firebase IPC handlers)
+            → kotRouterService.js
+            → thermalPrinterDriver.js
+            → database.js (SQLite — non-critical local cache)
+  Preload
+    preload.js → contextBridge exposes firebase:* and other IPC channels
+
+Mobile App (React Native / Expo)
+  screens/
+    LoginScreen → TableSelectionScreen → OrderEntryScreen
+                                       → KOTHistoryScreen
+  services/
+    syncEngine.ts (Firestore onSnapshot + offline queue)
+    firebase.ts
+
+Firebase / Firestore (Source of Truth)
+  orders/{orderId}/items/{menuItemId}
+  tables/{tableId}
+  menuItems, menuCategories, waiters, sections
 ```
 
-## Core Components
+## Key Files
 
-### 1. Main Process (main.js)
-**Purpose**: Electron main process that manages the application lifecycle, database, and background services.
+### Desktop
 
-**Key Responsibilities**:
-- Application window creation and management
-- Database initialization and operations
-- Service initialization (printer, PDF, email, etc.)
-- IPC handlers for frontend-backend communication
-- Scheduled tasks (daily email reports)
-- File system operations
+| File | Purpose |
+|---|---|
+| `src/App.js` | React router; `/tables` route renders TableOrderEntry or TableManagement |
+| `src/main.js` | Electron main process, window creation, service init |
+| `src/preload.js` | contextBridge — exposes all IPC channels to renderer |
+| `src/firebase/electronIntegration.js` | All Firebase IPC handlers (menu, orders, KOT, billing, etc.) |
+| `src/components/TableOrderEntry.js` | Two-panel order entry screen |
+| `src/components/TableManagement.js` | Table grid with real-time status |
+| `src/services/kotRouterService.js` | KOT routing (food→kitchen, drinks→bar) |
+| `src/services/thermalPrinterDriver.js` | ESC/POS printer driver |
+| `src/database.js` | SQLite (local cache, non-critical) |
 
-**Important Functions**:
-- `createWindow()`: Creates the main application window
-- `sendDailyEmailReport()`: Automated daily business reports
-- `getTopSellingItems()`: Analytics for sales data
-- Various IPC handlers for database operations
+### Mobile
 
-### 2. Database Service (database.js)
-**Purpose**: SQLite database management with complete CRUD operations.
+| File | Purpose |
+|---|---|
+| `waiter-app/src/screens/OrderEntryScreen.tsx` | Order entry with real-time Firestore listener |
+| `waiter-app/src/screens/KOTHistoryScreen.tsx` | KOT history (real-time, grouped by 30s clusters) |
+| `waiter-app/src/screens/TableSelectionScreen.tsx` | Table grid with real-time status |
+| `waiter-app/src/services/syncEngine.ts` | Firestore sync + offline queue |
 
-**Key Features**:
-- **Products Table**: Product catalog with variants
-- **Inventory Table**: Dual stock tracking (godown/counter)
-- **Sales Table**: Transaction records
-- **Sale Items Table**: Individual items in each sale
-- **Stock Movements Table**: Complete audit trail
-- **Tables Table**: Restaurant table management
-- **Spendings Table**: Business expense tracking
-- **Counter Balance Table**: Daily cash management
+## IPC Handler Pattern
 
-**Database Schema**:
-```sql
--- Core business tables
-products (id, name, variant, sku, price, cost, category, ...)
-inventory (id, product_id, godown_stock, counter_stock, ...)
-sales (id, sale_number, total_amount, sale_date, ...)
-sale_items (id, sale_id, product_id, quantity, unit_price, ...)
-stock_movements (id, product_id, movement_type, quantity, ...)
+All Firebase IPC handlers live in `electronIntegration.js`. Each handler uses a `removeHandler` guard:
 
--- Restaurant management
-tables (id, name, capacity, area, status, ...)
-table_orders (id, table_id, items, total, ...)
-
--- Financial management
-spendings (id, description, amount, category, ...)
-counter_balance (id, balance_date, opening_balance, ...)
-pending_bills (id, bill_number, items, total_amount, ...)
+```js
+ipcMain.removeHandler('firebase:your-handler');
+ipcMain.handle('firebase:your-handler', async (event, args) => {
+  try {
+    // ... Firestore operation
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 ```
 
-### 3. Preload Script (preload.js)
-**Purpose**: Secure bridge between Electron main process and React renderer.
+The `removeHandler` call prevents "handler already registered" errors when Electron hot-restarts.
 
-**Security Features**:
-- Uses `contextBridge` for secure API exposure
-- No direct Node.js access from renderer
-- Validated IPC communication
-- Controlled data flow
+## Real-Time Sync Pattern
 
-**API Categories**:
-- Product Operations
-- Inventory Operations
-- Sales Operations
-- Printing & PDF Operations
-- Table Management
-- Email Operations
-- Financial Operations
-- System Operations
+Desktop subscribes to order items via `onSnapshot`:
 
-### 4. React Components
+```js
+// electronIntegration.js
+ipcMain.handle('firebase:subscribe-order-items', (event, { orderId }) => {
+  const unsubscribe = db.collection('orders').doc(orderId)
+    .collection('items').onSnapshot(snapshot => {
+      const items = snapshot.docs.map(doc => normalize(doc.data()));
+      event.sender.send('order-items-update', { orderId, items });
+    });
+  activeSubscriptions.set(orderId, unsubscribe);
+});
+```
 
-#### Main Application (App.js)
-**Purpose**: Root React component with routing and navigation.
+Mobile uses the same pattern directly via Firebase SDK `onSnapshot`.
 
-**Features**:
-- Hash-based routing for Electron compatibility
-- Collapsible sidebar navigation
-- State management for table selection
-- Clean UI with icon-based menu
+## KOT Delta Model
 
-#### Dashboard (components/Dashboard.js)
-**Purpose**: Main business overview with key metrics.
+```
+currentQty  = total quantity customer wants
+sentQty     = quantity already sent to kitchen
+pendingQty  = currentQty - sentQty  (goes in next KOT)
 
-**Features**:
-- Total products and low stock alerts
-- Today's sales summary
-- Recent transactions
-- Quick action buttons
+On Send KOT:
+  kotItems = orderItems.filter(i => i.currentQty > i.sentQty)
+  each kotItem.kotQty = currentQty - sentQty
+  after success: sentQty = currentQty for all dispatched items
+```
 
-#### Product Management (components/ProductManagement.js)
-**Purpose**: Product catalog management with CRUD operations.
+## Field Normalization
 
-**Features**:
-- Add/edit/delete products
-- Variant support (different sizes, types)
-- Cost and pricing management
-- Category organization
+Mobile writes snake_case, desktop writes camelCase. The snapshot handler in `electronIntegration.js` normalizes both:
 
-#### Inventory Management (components/InventoryManagement.js)
-**Purpose**: Stock level monitoring and management.
-
-**Features**:
-- Dual stock tracking (godown/counter)
-- Stock level updates
-- Low stock alerts
-- Stock transfer operations
-
-#### POS System (components/POSSystem.js)
-**Purpose**: Point of sale transaction processing.
-
-**Features**:
-- Product selection and cart management
-- Table/parcel order types
-- Payment processing
-- Bill generation and printing
-
-#### Reports (components/SalesReports.js)
-**Purpose**: Business reporting and analytics.
-
-**Features**:
-- Daily sales reports
-- Financial summaries
-- PDF export capabilities
-- Email report automation
-
-## Services
-
-### 1. PDF Service (pdf-service.js)
-**Purpose**: PDF generation for bills and reports.
-
-**Features**:
-- Dynamic bill generation
-- Professional formatting
-- Multiple report types
-- Automatic file saving
-
-### 2. Printer Service (printer-service.js)
-**Purpose**: Thermal printer integration.
-
-**Features**:
-- ESC/POS protocol support
-- USB, Network, and Serial connections
-- Dynamic bill formatting
-- Printer status monitoring
-
-### 3. Email Service (email-service.js)
-**Purpose**: Automated email reporting.
-
-**Features**:
-- Daily business reports
-- PDF attachments
-- SMTP configuration
-- Template-based emails
-
-### 4. Report Service (services/reportService.js)
-**Purpose**: Business report generation.
-
-**Features**:
-- Sales analytics
-- Financial summaries
-- Inventory reports
-- Custom date ranges
-
-## Database Design
-
-### Core Business Logic
-
-#### Product Management
-```javascript
-// Product with variants
-{
-  id: 1,
-  name: "Kingfisher Beer",
-  variant: "330ml",
-  sku: "KB-330",
-  price: 120.00,
-  cost: 80.00,
-  category: "Beer"
+```js
+function normalize(data) {
+  return {
+    menuItemId: data.menuItemId || data.menu_item_id,
+    currentQty: data.currentQty ?? data.current_qty ?? 0,
+    sentQty:    data.sentQty    ?? data.sent_qty    ?? 0,
+    // ...
+  };
 }
 ```
 
-#### Inventory Tracking
-```javascript
-// Dual stock system
-{
-  product_id: 1,
-  godown_stock: 100,      // Main storage
-  counter_stock: 20,      // Ready for sale
-  min_stock_level: 5
-}
+## Firestore Collections
+
+```
+orders/{orderId}
+  status: 'draft' | 'submitted' | 'completed'
+  tableId, tableName, createdBy, createdAt, updatedAt
+
+orders/{orderId}/items/{menuItemId}
+  menuItemId, menuItemName, unitPrice
+  currentQty, sentQty
+  category, created_at, updated_at
+
+tables/{tableId}
+  name, status, currentOrderId, currentBillAmount
+
+menuItems/{id}
+  name, price, subCategory
+  foodType: 'veg' | 'non-veg' | 'none'
+  isActive, isOutOfStock
+
+waiters/{id}
+  name, pin (hashed), isActive
+
+sections/{id}
+  name
 ```
 
-#### Sales Processing
-```javascript
-// Complete sale record
-{
-  sale_number: "S-2024-001",
-  sale_type: "table",
-  table_number: "T1",
-  total_amount: 240.00,
-  items: [
-    {
-      product_id: 1,
-      quantity: 2,
-      price: 120.00
-    }
-  ]
-}
+## Testing
+
+```bash
+# Run all tests (single pass)
+npm test -- --run
+
+# Individual suites
+npx jest tests/kot-router.test.js
+npx jest tests/thermalPrinterDriver.test.js
+npx jest tests/data-validation.test.js
 ```
 
-### Stock Movement Audit
-Every stock change is recorded:
-```javascript
-{
-  product_id: 1,
-  movement_type: "transfer",
-  quantity: 10,
-  from_location: "godown",
-  to_location: "counter",
-  reference_id: null,
-  notes: "Daily transfer"
-}
-```
-
-## Key Features
-
-### 1. Dual Stock System
-- **Godown Stock**: Main inventory from suppliers
-- **Counter Stock**: Ready-to-sell items
-- **Daily Transfer**: Move stock from godown to counter
-
-### 2. Table Management
-- Restaurant table tracking
-- Order-to-table assignment
-- Table status management (available, occupied, reserved)
-
-### 3. Bill Generation
-- Professional bill formatting
-- Multiple payment methods
-- Thermal printer support
-- PDF export capability
-
-### 4. Automated Reporting
-- Daily email reports at 11:59 PM
-- PDF attachments with detailed analytics
-- Business metrics and insights
-
-### 5. Financial Management
-- Daily spending tracking
-- Counter balance management
-- Opening/closing balance calculations
-- Profit/loss analysis
-
-## Configuration Files
-
-### 1. email-settings.json
-Email configuration for automated reports:
-```json
-{
-  "host": "smtp.gmail.com",
-  "port": 587,
-  "secure": false,
-  "auth": {
-    "user": "your-email@gmail.com",
-    "pass": "your-app-password"
-  },
-  "from": "your-email@gmail.com",
-  "to": "recipient@gmail.com",
-  "enabled": true
-}
-```
-
-### 2. printer-config.json
-Thermal printer configuration:
-```json
-{
-  "type": "usb",
-  "networkHost": "192.168.1.100",
-  "networkPort": 9100,
-  "serialPath": "/dev/ttyUSB0",
-  "serialBaudRate": 9600
-}
-```
-
-## Development Guidelines
-
-### 1. Code Structure
-- Follow React functional component patterns
-- Use hooks for state management
-- Maintain separation of concerns
-- Add comprehensive error handling
-
-### 2. Database Operations
-- Always use transactions for data integrity
-- Include proper error handling
-- Log all database operations
-- Maintain audit trails
-
-### 3. Security Practices
-- Never expose Node.js APIs directly to renderer
-- Use contextBridge for secure IPC
-- Validate all inputs
-- Sanitize user data
-
-### 4. Testing
-- Test all database operations
-- Verify printer connectivity
-- Test email functionality
-- Validate PDF generation
-
-## Common Tasks
-
-### Adding New Features
-1. Add database schema changes in `database.js`
-2. Create IPC handlers in `main.js`
-3. Add API methods in `preload.js`
-4. Create React components
-5. Update navigation in `App.js`
-
-### Modifying Reports
-1. Update report service in `services/reportService.js`
-2. Modify PDF generation in `pdf-service.js`
-3. Update email templates in `email-service.js`
-4. Add new IPC handlers if needed
-
-### Database Schema Changes
-1. Add new table creation in `createTables()` method
-2. Add corresponding CRUD operations
-3. Update IPC handlers
-4. Add API methods to preload script
-
-## Troubleshooting
-
-### Common Issues
-1. **Database locked**: Check for unclosed database connections
-2. **Printer not found**: Verify printer configuration and drivers
-3. **Email not sending**: Check SMTP settings and network connectivity
-4. **PDF generation fails**: Verify file permissions and disk space
-
-### Debug Mode
-- Enable developer tools in development mode
-- Check console for error messages
-- Monitor IPC communication
-- Review database logs
-
-## Future Enhancements
-
-### Potential Improvements
-1. **Multi-user Support**: Add user authentication and roles
-2. **Cloud Sync**: Implement cloud database synchronization
-3. **Mobile App**: Create mobile interface for remote monitoring
-4. **Advanced Analytics**: Add more detailed business intelligence
-5. **Supplier Management**: Add supplier and purchase order tracking
-6. **Loyalty Program**: Implement customer loyalty features
-
-### Code Quality
-1. Add comprehensive unit tests
-2. Implement code linting and formatting
-3. Add API documentation
-4. Create automated build processes
-5. Add performance monitoring
-
-## Conclusion
-
-This application provides a complete POS and inventory management solution with:
-- Secure architecture with Electron and React
-- Comprehensive database design
-- Professional reporting capabilities
-- Hardware integration (thermal printers)
-- Automated business processes
-
-The codebase is well-structured, documented, and ready for future enhancements. All major business processes are covered, from product management to financial reporting.
-
-For any questions or modifications, refer to the inline code comments and this documentation.
+Test counts:
+- KOT Router: 11 property tests
+- Thermal Printer Driver: 32 tests
+- Failed KOT Management: 12 tests
+- Config Parser: 21 tests
+- Order Serialization: 20 tests
+- Data Validation: 34 tests
