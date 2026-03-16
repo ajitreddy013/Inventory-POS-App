@@ -1,43 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Lock, Plus, Minus, Loader, AlertCircle, Tag, Percent, X } from 'lucide-react';
+import { 
+  ArrowLeft, Lock, Plus, Minus, Loader, AlertCircle, Tag, Percent, X, 
+  Search, Info, Send, ShoppingCart, Coffee, Pizza, Salad, Wine, UtensilsCrossed, ChefHat, ChevronRight, Trash2, History, User, Phone
+} from 'lucide-react';
+import './DesktopOrderEntry.css';
+import { addPendingBill } from '../services/billService';
 
 // ─── Theme (matches desktop TableManagement) ─────────────────────────────────
-const T = {
-  bg: '#F8F9FA',
-  white: '#FFFFFF',
-  dark: '#212529',
-  secondary: '#6C757D',
-  muted: '#ADB5BD',
-  border: '#DEE2E6',
-  cardBorder: '#E9ECEF',
-  primary: '#DC3545',
-  primaryLight: '#FFEBEE',
-  sidebarBg: '#FFFFFF',
-  sidebarActive: '#DC3545',
-  sidebarActiveBg: '#FFEBEE',
-  headerBg: '#FFFFFF',
-  panelBg: '#F8F9FA',
-  errorBg: '#F8D7DA',
-  errorText: '#842029',
-  green: '#28A745',
-  amber: '#FFC107',
-  blue: '#0D6EFD',
-  purple: '#6F42C1',
-  teal: '#0DCAF0',
+// Food type dot is now handled via CSS or simplified component
+const FoodTypeDot = ({ type }) => {
+  if (!type) return null;
+  return <span className={`food-dot ${type}`} />;
 };
-
-// Food type dot
-const FOOD_DOT = { veg: '#28A745', 'non-veg': '#DC3545' };
-function FoodDot({ type }) {
-  const c = FOOD_DOT[type];
-  if (!c) return null;
-  return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:c, marginRight:5, flexShrink:0 }} />;
-}
 
 export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [menuLoading, setMenuLoading] = useState(true);
   const [menuError, setMenuError] = useState(null);
 
@@ -59,6 +39,13 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [paying, setPaying] = useState(false);
 
   const [showKOTHistory, setShowKOTHistory] = useState(false);
+
+  // Pending Customer Modal States
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerDataError, setCustomerDataError] = useState(null);
+  const [isSavingPending, setIsSavingPending] = useState(false);
 
   const debounceRefs = useRef({});
   const listBottomRef = useRef(null);
@@ -169,12 +156,26 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     setOrderItems(prev => {
       const item = prev.find(i => i.menuItemId === menuItemId); if (!item) return prev;
       const pendingQty = item.currentQty - item.sentQty;
-      if (pendingQty <= 1 && item.sentQty > 0) return prev;
       if (pendingQty <= 1 && item.sentQty === 0) {
         window.electronAPI.deleteOrderItem(oid, menuItemId).catch(console.error);
         return prev.filter(i => i.menuItemId !== menuItemId);
       }
       const updated = prev.map(i => i.menuItemId === menuItemId ? { ...i, currentQty: i.currentQty - 1 } : i);
+      const updatedItem = updated.find(i => i.menuItemId === menuItemId);
+      scheduleUpsert(oid, updatedItem, table.id, updated.reduce((s, i) => s + i.currentQty * i.unitPrice, 0));
+      return updated;
+    });
+  }, [ensureOrder, scheduleUpsert, table]);
+
+  const handleRemovePending = useCallback(async (menuItemId) => {
+    let oid; try { oid = await ensureOrder(); } catch (e) { setError(e.message); return; }
+    setOrderItems(prev => {
+      const item = prev.find(i => i.menuItemId === menuItemId); if (!item) return prev;
+      if (item.sentQty === 0) {
+        window.electronAPI.deleteOrderItem(oid, menuItemId).catch(console.error);
+        return prev.filter(i => i.menuItemId !== menuItemId);
+      }
+      const updated = prev.map(i => i.menuItemId === menuItemId ? { ...i, currentQty: i.sentQty } : i);
       const updatedItem = updated.find(i => i.menuItemId === menuItemId);
       scheduleUpsert(oid, updatedItem, table.id, updated.reduce((s, i) => s + i.currentQty * i.unitPrice, 0));
       return updated;
@@ -195,9 +196,91 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   }, [orderItems, orderId, table, onTableUpdate]);
 
   const handleKeepPending = useCallback(async () => {
-    if (!orderId && orderItems.length > 0) { try { await ensureOrder(); } catch (e) { setError(e.message); return; } }
-    onBack();
-  }, [orderId, orderItems, ensureOrder, onBack]);
+    if (orderItems.length === 0) {
+      onBack();
+      return;
+    }
+    setShowCustomerModal(true);
+  }, [orderItems, onBack]);
+
+  const onConfirmPending = async () => {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      setCustomerDataError('Both Name and Mobile Number are mandatory');
+      return;
+    }
+
+    setIsSavingPending(true);
+    setCustomerDataError(null);
+
+    try {
+      const billData = {
+        billNumber: `PEND-${Date.now()}`,
+        saleType: 'table',
+        tableNumber: table.name,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: orderItems.map(item => ({
+          name: item.menuItemName,
+          quantity: item.currentQty,
+          unitPrice: item.unitPrice,
+          totalPrice: item.currentQty * item.unitPrice,
+          menuItemId: item.menuItemId
+        })),
+        subtotal: subtotal,
+        taxAmount: 0,
+        discountAmount: discountAmount,
+        totalAmount: payableTotal,
+        paymentMethod: 'cash',
+        notes: ''
+      };
+
+      const res = await addPendingBill(billData);
+      if (res) {
+        // 1. Clear active table order in SQLite backend
+        await window.electronAPI.clearTableOrder(table.id);
+        
+        // 2. Persist available status to SQLite database
+        await window.electronAPI.updateTable(table.id, { 
+          status: 'available',
+          current_bill_amount: 0 
+        });
+
+        // 3. Sync with Firebase (for real-time grid and mobile app)
+        try {
+          // Clear Firebase table status
+          await window.electronAPI.invoke('firebase:clear-table', table.id);
+          
+          // Mark Firebase order as completed (settled)
+          if (orderId) {
+            await window.electronAPI.invoke('firebase:update-order-status', { 
+              orderId, 
+              status: 'completed' 
+            });
+          }
+        } catch (firebaseErr) {
+          console.error('Firebase sync failed:', firebaseErr);
+          // Don't block the user if firebase sync fails but local save succeeded
+        }
+
+        // 4. Update local state for immediate UI feedback
+        if (onTableUpdate) {
+          onTableUpdate({ 
+            ...table, 
+            status: 'available', 
+            currentOrderId: null,
+            current_bill_amount: 0 
+          });
+        }
+        onBack();
+      } else {
+        throw new Error('Failed to save pending bill');
+      }
+    } catch (e) {
+      setCustomerDataError(e.message || 'An error occurred while saving');
+    } finally {
+      setIsSavingPending(false);
+    }
+  };
 
   const applyDiscount = () => {
     const val = parseFloat(discountInput) || 0;
@@ -228,291 +311,456 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     } catch (e) { setError(e.message); } finally { setPaying(false); }
   }, [splitCash, splitUpi, payableTotal, orderId, table, discountAmount, onBack]);
 
-  const visibleItems = selectedCategory
-    ? menuItems.filter(i => (i.subCategory || i.category || 'Other') === selectedCategory)
-    : menuItems;
+  const getCategoryIcon = (categoryName) => {
+    const name = (categoryName || '').toLowerCase();
+    if (name.includes('pizza')) return <Pizza size={18} />;
+    if (name.includes('coffee') || name.includes('drink') || name.includes('beverage')) return <Coffee size={18} />;
+    if (name.includes('salad') || name.includes('veg')) return <Salad size={18} />;
+    if (name.includes('wine') || name.includes('alcohol')) return <Wine size={18} />;
+    if (name.includes('main')) return <UtensilsCrossed size={18} />;
+    return <ChefHat size={18} />;
+  };
+
+  const visibleItems = menuItems.filter(i => {
+    const cat = i.subCategory || i.category || 'Other';
+    const matchesCategory = !selectedCategory || cat === selectedCategory;
+    const matchesSearch = !searchTerm || 
+      i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (i.description && i.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchesCategory && matchesSearch;
+  });
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background: T.bg, color: T.dark, fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif' }}>
-
+    <div className="desktop-order-entry">
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px', background: T.white, borderBottom:`1px solid ${T.border}`, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
-        <button onClick={onBack} style={btn(T.bg, T.dark, T.border)}>
-          <ArrowLeft size={16} />
-        </button>
-        <span style={{ fontWeight:700, fontSize:17, color: T.dark }}>{table?.name}</span>
-        {table?.section && <span style={{ color: T.secondary, fontSize:13 }}>{table.section}</span>}
-        {saving && <Loader size={14} style={{ marginLeft:'auto', color: T.secondary }} />}
-      </div>
+      <header className="order-header">
+        <div className="header-left">
+          <button className="btn-back" onClick={onBack} title="Go Back">
+            <ArrowLeft size={20} />
+          </button>
+          <h1>
+            Order: <span className="text-primary">{table?.name}</span>
+          </h1>
+          {table?.section && <span className="status-badge available" style={{ marginLeft: '0.5rem' }}>{table.section}</span>}
+        </div>
+
+        <div className="header-center">
+          <div className="global-search-container">
+            <Search className="search-icon" size={18} />
+            <input
+              type="text"
+              placeholder="Search dishes, drinks or codes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            className={`btn-kot-header ${showKOTHistory ? 'active' : ''}`}
+            onClick={() => { setShowKOTHistory(!showKOTHistory); setShowDiscount(false); setShowSplit(false); }}
+          >
+            History
+          </button>
+        </div>
+
+        <div className="header-right">
+          {saving && <Loader size={16} className="text-muted spin" />}
+        </div>
+      </header>
 
       {/* Error bar */}
       {error && (
-        <div style={{ background: T.errorBg, color: T.errorText, padding:'8px 20px', display:'flex', alignItems:'center', gap:8, fontSize:13 }}>
-          <AlertCircle size={14} />
-          <span style={{ flex:1 }}>{error}</span>
-          <button onClick={() => setError(null)} style={{ background:'none', border:'none', color: T.errorText, cursor:'pointer', fontSize:16 }}>×</button>
+        <div className="error-bar" style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <AlertCircle size={16} />
+          <span style={{ flex: 1 }}>{error}</span>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1.25rem' }}>&times;</button>
         </div>
       )}
 
       {/* Body */}
-      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+      <div className="order-layout">
+        
+        {/* Column 1: Categories Sidebar */}
+        <aside className="categories-sidebar">
+          <button
+            className={`category-item ${!selectedCategory ? 'active' : ''}`}
+            onClick={() => setSelectedCategory(null)}
+          >
+            <div className="category-icon"><ChefHat size={20} /></div>
+            All Items
+          </button>
+          {categories.map(cat => (
+            <button
+              key={cat}
+              className={`category-item ${selectedCategory === cat ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              <div className="category-icon">{getCategoryIcon(cat)}</div>
+              {cat}
+            </button>
+          ))}
+        </aside>
 
-        {/* ── Left: Menu Browser (35%) ── */}
-        <div style={{ width:'35%', display:'flex', borderRight:`1px solid ${T.border}`, overflow:'hidden' }}>
-
-          {/* Sub-category sidebar */}
-          <div style={{ width:130, overflowY:'auto', background: T.white, borderRight:`1px solid ${T.border}`, padding:'8px 0' }}>
-            {menuLoading ? (
-              <div style={{ padding:16, textAlign:'center', color: T.secondary }}><Loader size={18} /></div>
-            ) : menuError ? (
-              <div style={{ padding:8 }}>
-                <div style={{ color: T.primary, fontSize:12, marginBottom:8 }}>{menuError}</div>
-                <button onClick={loadMenu} style={btn(T.bg, T.dark, T.border, 12)}>Retry</button>
+        {/* Column 2: Items Gallery */}
+        <main className="items-panel">
+          {showKOTHistory ? (
+            <div className="kot-history-panel">
+              <div className="panel-header-compact">
+                <h3>KOT History ({kotGroups.length})</h3>
+                <button className="btn-close-panel" onClick={() => setShowKOTHistory(false)}>Back to Menu</button>
               </div>
-            ) : categories.map(cat => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)} style={{
-                display:'block', width:'100%', textAlign:'left', padding:'10px 14px',
-                border:'none', cursor:'pointer', fontSize:12, fontWeight: selectedCategory === cat ? 700 : 400,
-                background: selectedCategory === cat ? T.primaryLight : 'transparent',
-                color: selectedCategory === cat ? T.primary : T.dark,
-                borderLeft: selectedCategory === cat ? `3px solid ${T.primary}` : '3px solid transparent',
-                transition:'all 0.15s',
-              }}>
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Item grid */}
-          <div style={{ flex:1, overflowY:'auto', padding:10, display:'flex', flexDirection:'column', gap:6, background: T.bg }}>
-            {visibleItems.map(item => (
-              <button key={item.id} onClick={() => handleAddItem(item)} style={{
-                background: T.white, border:`1px solid ${T.cardBorder}`, borderRadius:8,
-                padding:'10px 12px', cursor:'pointer', textAlign:'left', color: T.dark,
-                display:'flex', flexDirection:'column', gap:3, boxShadow:'0 1px 3px rgba(0,0,0,0.04)',
-                transition:'all 0.15s',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; e.currentTarget.style.boxShadow = '0 2px 8px rgba(220,53,69,0.12)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = T.cardBorder; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                <div style={{ display:'flex', alignItems:'center', fontSize:13, fontWeight:600 }}>
-                  <FoodDot type={item.foodType} />{item.name}
+              
+              <div className="kot-scroll-area">
+                {kotGroups.length === 0 ? (
+                  <div className="empty-state">
+                    <History size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>No KOTs sent for this table yet</p>
+                  </div>
+                ) : (
+                  <div className="kot-list-grid">
+                    {kotGroups.map(kot => (
+                      <div key={kot.kotNumber} className="kot-card-premium">
+                        <div className="kot-card-header">
+                          <div className="kot-id">KOT #{kot.kotNumber}</div>
+                          <div className="kot-time">
+                            {kot.sentAt ? new Date(kot.sentAt).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : ''}
+                          </div>
+                        </div>
+                        <div className="kot-card-body">
+                          {kot.items.map(item => (
+                            <div key={item.menuItemId} className="kot-item-row">
+                              <span className="kot-item-qty">{item.currentQty}×</span>
+                              <span className="kot-item-name">{item.menuItemName}</span>
+                              <span className="kot-item-price">₹{(item.currentQty * item.unitPrice).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="kot-card-footer">
+                          <span>Total</span>
+                          <span>₹{kot.items.reduce((s, i) => s + i.currentQty * i.unitPrice, 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="items-grid">
+              {menuLoading ? (
+                <div className="empty-state" style={{ gridColumn: '1/-1' }}>
+                  <Loader size={32} className="spin text-primary" />
+                  <p>Loading menu...</p>
                 </div>
-                <div style={{ color: T.secondary, fontSize:12 }}>₹{Number(item.price).toFixed(2)}</div>
-              </button>
+              ) : visibleItems.map(item => (
+              <div 
+                key={item.id} 
+                className="item-card"
+                onClick={() => handleAddItem(item)}
+              >
+                <div>
+                  <div className="item-footer" style={{ marginBottom: '0.5rem' }}>
+                    <span className="item-tag">{item.subCategory || item.category || 'Other'}</span>
+                    <FoodTypeDot type={item.foodType} />
+                  </div>
+                  <h4>{item.name}</h4>
+                  {item.description && <p className="item-desc">{item.description}</p>}
+                </div>
+                <div className="item-footer">
+                  <span className="item-price">₹{Number(item.price).toFixed(2)}</span>
+                  <div className="btn-qty" style={{ width: '32px', height: '32px' }}>
+                    <Plus size={18} />
+                  </div>
+                </div>
+              </div>
             ))}
+            {!menuLoading && visibleItems.length === 0 && (
+              <div className="empty-state" style={{ gridColumn: '1/-1' }}>
+                <Search size={48} className="text-muted" style={{ marginBottom: '1rem' }} />
+                <p className="text-muted">No items found matching your search.</p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
+      </main>
 
-        {/* ── Right: Billing Area (65%) ── */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background: T.white }}>
+        {/* ── Column 3: Billing Area (65% in layout, but let flex handle) ── */}
+        <aside className="billing-panel">
+          <div className="billing-header">
+            <h2><ShoppingCart size={22} className="text-primary" /> Current Order</h2>
+          </div>
 
-          {/* Order items list */}
-          <div style={{ flex:1, overflowY:'auto', padding:16 }}>
+          <div className="billing-items">
             {orderItems.length === 0 ? (
-              <div style={{ color: T.muted, textAlign:'center', marginTop:60, fontSize:14 }}>
-                <div style={{ fontSize:40, marginBottom:12 }}>🍽️</div>
-                Tap items on the left to add them
+              <div className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <ShoppingCart size={32} className="text-muted" style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                <p className="text-muted">Selection is empty.</p>
+                <p className="text-muted" style={{ fontSize: '0.8rem' }}>Tap items on the left to start billing.</p>
               </div>
             ) : (
-              <>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-                  <thead>
-                    <tr style={{ borderBottom:`2px solid ${T.border}` }}>
-                      <th style={{ textAlign:'left', padding:'6px 8px', fontWeight:600, color: T.secondary, fontSize:12 }}>Item</th>
-                      <th style={{ textAlign:'center', padding:'6px 8px', fontWeight:600, color: T.secondary, fontSize:12 }}>Qty</th>
-                      <th style={{ textAlign:'right', padding:'6px 8px', fontWeight:600, color: T.secondary, fontSize:12 }}>Price</th>
-                      <th style={{ textAlign:'right', padding:'6px 8px', fontWeight:600, color: T.secondary, fontSize:12 }}>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...orderItems]
-                      .sort((a, b) => {
-                        const aS = a.sentQty > 0 && a.currentQty === a.sentQty;
-                        const bS = b.sentQty > 0 && b.currentQty === b.sentQty;
-                        return aS === bS ? 0 : aS ? -1 : 1;
-                      })
-                      .map(item => {
-                        const pendingQty = item.currentQty - item.sentQty;
-                        const isSent = item.sentQty > 0 && pendingQty === 0;
-                        return (
-                          <tr key={item.menuItemId} style={{ borderBottom:`1px solid ${T.cardBorder}` }}>
-                            <td style={{ padding:'9px 8px', color: isSent ? T.muted : T.dark }}>
-                              {isSent && <Lock size={10} style={{ marginRight:4, color: T.muted }} />}
-                              {item.menuItemName}
-                              {item.sentQty > 0 && pendingQty > 0 && (
-                                <span style={{ color: T.muted, fontSize:11, marginLeft:4 }}>({item.sentQty} sent)</span>
-                              )}
-                            </td>
-                            <td style={{ padding:'9px 4px', textAlign:'center' }}>
-                              {isSent ? (
-                                <span style={{ color: T.muted, fontWeight:600 }}>{item.currentQty}</span>
-                              ) : (
-                                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                                  <button onClick={() => handleDecrement(item.menuItemId)} style={qtyBtn}>
-                                    <Minus size={11} />
-                                  </button>
-                                  <span style={{ minWidth:22, textAlign:'center', fontWeight:600 }}>{item.currentQty}</span>
-                                  <button onClick={() => handleIncrement(item.menuItemId)} style={qtyBtn}>
-                                    <Plus size={11} />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ padding:'9px 8px', textAlign:'right', color: T.secondary }}>
-                              ₹{Number(item.unitPrice).toFixed(2)}
-                            </td>
-                            <td style={{ padding:'9px 8px', textAlign:'right', fontWeight:600, color: T.dark }}>
-                              ₹{(item.currentQty * item.unitPrice).toFixed(2)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-                <div ref={listBottomRef} />
-              </>
+              [...orderItems]
+                .sort((a, b) => {
+                  const aS = a.sentQty > 0 && a.currentQty === a.sentQty;
+                  const bS = b.sentQty > 0 && b.currentQty === b.sentQty;
+                  return aS === bS ? 0 : aS ? -1 : 1;
+                })
+                .map(item => {
+                  const pendingQty = item.currentQty - item.sentQty;
+                  const isSent = item.sentQty > 0 && pendingQty === 0;
+                  return (
+                    <div key={item.menuItemId} className={`order-item-row ${isSent ? 'sent-to-kitchen' : ''}`}>
+                      <div className="row-top-line">
+                        <div className="item-name-qty-group">
+                          <span className="row-title" title={item.menuItemName}>{item.menuItemName}</span>
+                          {pendingQty > 0 && (
+                            <span className="pending-badge">+{pendingQty}</span>
+                          )}
+                          <div className="qty-controls-inline">
+                            <button
+                              className="btn-qty-sm"
+                              disabled={isSent}
+                              onClick={() => handleDecrement(item.menuItemId)}
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="qty-val-sm">{item.currentQty}</span>
+                            <button
+                              className="btn-qty-sm"
+                              onClick={() => handleIncrement(item.menuItemId)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                          <div className="price-stack">
+                            <span className="price-total-main">₹{(item.currentQty * item.unitPrice).toFixed(2)}</span>
+                            <span className="price-unit-small">₹{Number(item.unitPrice).toFixed(2)}</span>
+                          </div>
+                          
+                          <div className="actions-cluster">
+                            <button
+                              className="btn-remove"
+                              disabled={pendingQty === 0}
+                              onClick={() => handleRemovePending(item.menuItemId)}
+                              title="Remove Unsent Items"
+                              style={{ opacity: pendingQty === 0 ? 0.3 : 1, cursor: pendingQty === 0 ? 'default' : 'pointer' }}
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
             )}
+            <div ref={listBottomRef} />
           </div>
 
-          {/* Totals */}
-          <div style={{ padding:'10px 20px', borderTop:`1px solid ${T.border}`, background: T.bg }}>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color: T.secondary, marginBottom:4 }}>
-              <span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span>
+          {/* Extra Panels: Discount */}
+          {showDiscount && (
+            <div className="billing-extra-panel">
+              <div className="panel-controls">
+                <button 
+                  onClick={() => setDiscountType('fixed')} 
+                  className={`btn-secondary-pos ${discountType === 'fixed' ? 'active' : ''}`}
+                >
+                  <Tag size={14} /> Fixed
+                </button>
+                <button 
+                  onClick={() => setDiscountType('percent')} 
+                  className={`btn-secondary-pos ${discountType === 'percent' ? 'active' : ''}`}
+                >
+                  <Percent size={14} /> Percent
+                </button>
+                <input 
+                  type="number" 
+                  className="input-modern"
+                  value={discountInput} 
+                  onChange={e => setDiscountInput(e.target.value)}
+                  placeholder={discountType === 'percent' ? '0–100' : 'Amount'} 
+                />
+                <button onClick={applyDiscount} className="btn-send" style={{ width: 'auto', padding: '0.6rem 1.2rem' }}>Apply</button>
+              </div>
+            </div>
+          )}
+
+          {/* Extra Panels: Split Pay */}
+          {showSplit && (
+            <div className="billing-extra-panel">
+              <div className="panel-controls">
+                <input 
+                  type="number" 
+                  className="input-modern"
+                  value={splitCash} 
+                  onChange={e => setSplitCash(e.target.value)} 
+                  placeholder="Cash Amount" 
+                />
+                <input 
+                  type="number" 
+                  className="input-modern"
+                  value={splitUpi} 
+                  onChange={e => setSplitUpi(e.target.value)} 
+                  placeholder="UPI Amount" 
+                />
+                <button 
+                  onClick={handleSplitPay}
+                  disabled={paying || Math.abs((parseFloat(splitCash)||0)+(parseFloat(splitUpi)||0)-payableTotal)>0.01}
+                  className="btn-send" 
+                  style={{ width: 'auto', padding: '0.6rem 1rem' }}
+                >
+                  {paying ? <Loader size={12} className="spin" /> : 'Confirm Split'}
+                </button>
+              </div>
+              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: Math.abs((parseFloat(splitCash)||0)+(parseFloat(splitUpi)||0)-payableTotal)<0.01 ? '#10b981' : '#f43f5e' }}>
+                Total: ₹{((parseFloat(splitCash)||0)+(parseFloat(splitUpi)||0)).toFixed(2)} / Required: ₹{payableTotal.toFixed(2)}
+              </div>
+            </div>
+          )}
+
+          <div className="billing-summary">
+            <div className="summary-row">
+              <span>Subtotal</span>
+              <span>₹{subtotal.toFixed(2)}</span>
             </div>
             {discountAmount > 0 && (
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color: T.primary, marginBottom:4 }}>
-                <span>Discount</span><span>-₹{discountAmount.toFixed(2)}</span>
+              <div className="summary-row" style={{ color: '#f43f5e', fontWeight: 600 }}>
+                <span>Discount</span>
+                <span>-₹{discountAmount.toFixed(2)}</span>
               </div>
             )}
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:16, fontWeight:700, color: T.dark }}>
-              <span>Total</span><span>₹{payableTotal.toFixed(2)}</span>
+            <div className="summary-total">
+              <span>Total</span>
+              <span>₹{payableTotal.toFixed(2)}</span>
             </div>
           </div>
 
-          {/* Discount panel */}
-          {showDiscount && (
-            <div style={{ padding:'10px 16px', background: T.white, borderTop:`1px solid ${T.border}` }}>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                <button onClick={() => setDiscountType('fixed')} style={btn(discountType==='fixed' ? T.primary : T.bg, discountType==='fixed' ? '#fff' : T.dark, T.border, 12)}>
-                  <Tag size={12} /> Fixed
-                </button>
-                <button onClick={() => setDiscountType('percent')} style={btn(discountType==='percent' ? T.primary : T.bg, discountType==='percent' ? '#fff' : T.dark, T.border, 12)}>
-                  <Percent size={12} /> %
-                </button>
-                <input type="number" min="0" value={discountInput} onChange={e => setDiscountInput(e.target.value)}
-                  placeholder={discountType === 'percent' ? '0–100' : 'Amount'}
-                  style={{ flex:1, border:`1px solid ${T.border}`, borderRadius:6, padding:'5px 10px', fontSize:13, color: T.dark, background: T.white }} />
-                <button onClick={applyDiscount} style={btn(T.green, '#fff', T.green, 12)}>Apply</button>
-                <button onClick={() => { setShowDiscount(false); setDiscountInput(''); }} style={btn(T.bg, T.dark, T.border, 12)}><X size={12} /></button>
-              </div>
-            </div>
-          )}
-
-          {/* Split panel */}
-          {showSplit && (
-            <div style={{ padding:'10px 16px', background: T.white, borderTop:`1px solid ${T.border}` }}>
-              <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                <input type="number" min="0" value={splitCash} onChange={e => setSplitCash(e.target.value)} placeholder="Cash"
-                  style={splitInput} />
-                <input type="number" min="0" value={splitUpi} onChange={e => setSplitUpi(e.target.value)} placeholder="UPI"
-                  style={splitInput} />
-                <span style={{ fontSize:12, color: Math.abs((parseFloat(splitCash)||0)+(parseFloat(splitUpi)||0)-payableTotal)<0.01 ? T.green : T.primary }}>
-                  = ₹{((parseFloat(splitCash)||0)+(parseFloat(splitUpi)||0)).toFixed(2)} / ₹{payableTotal.toFixed(2)}
-                </span>
-                <button onClick={handleSplitPay}
-                  disabled={paying || Math.abs((parseFloat(splitCash)||0)+(parseFloat(splitUpi)||0)-payableTotal)>0.01}
-                  style={btn(T.green, '#fff', T.green, 12)}>
-                  {paying ? <Loader size={12} /> : 'Confirm'}
-                </button>
-                <button onClick={() => setShowSplit(false)} style={btn(T.bg, T.dark, T.border, 12)}><X size={12} /></button>
-              </div>
-            </div>
-          )}
-
-          {/* KOT History panel */}
-          {showKOTHistory && (
-            <div style={{ borderTop:`1px solid ${T.border}`, background: T.white, maxHeight:300, overflowY:'auto' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 16px', borderBottom:`1px solid ${T.border}`, background: T.bg }}>
-  
-                <span style={{ fontWeight:700, fontSize:13, color: T.dark }}>KOT History</span>
-                <span style={{ fontSize:12, color: T.secondary }}>{kotGroups.length} KOT{kotGroups.length !== 1 ? 's' : ''}</span>
-              </div>
-              {kotGroups.length === 0 ? (
-                <div style={{ padding:16, color: T.muted, fontSize:13, textAlign:'center' }}>No KOTs sent yet</div>
-              ) : kotGroups.map(kot => (
-                <div key={kot.kotNumber} style={{ borderBottom:`1px solid ${T.cardBorder}`, padding:'10px 16px' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                    <span style={{ background: T.amber, color: T.dark, fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:4 }}>
-                      KOT #{kot.kotNumber}
-                    </span>
-                    <span style={{ color: T.secondary, fontSize:11 }}>
-                      {kot.sentAt ? new Date(kot.sentAt).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : ''}
-                    </span>
-                    <span style={{ marginLeft:'auto', fontSize:13, fontWeight:700, color: T.dark }}>
-                      ₹{kot.items.reduce((s, i) => s + i.currentQty * i.unitPrice, 0).toFixed(2)}
-                    </span>
-                  </div>
-                  {kot.items.map(item => (
-                    <div key={item.menuItemId} style={{ display:'flex', justifyContent:'space-between', fontSize:12, color: T.secondary, paddingLeft:8, marginBottom:2 }}>
-                      <span>{item.currentQty}× {item.menuItemName}</span>
-                      <span>₹{(item.currentQty * item.unitPrice).toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Action bar */}
-          <div style={{ display:'flex', gap:6, padding:'10px 14px', background: T.white, borderTop:`1px solid ${T.border}`, flexWrap:'wrap', boxShadow:'0 -1px 4px rgba(0,0,0,0.06)' }}>
-            <button onClick={handleSendKot} disabled={kotSending} style={btn('#FFC107', T.dark, '#FFC107')}>
-              {kotSending ? <Loader size={14} /> : 'Send KOT'}
+          <div className="secondary-actions">
+            <button 
+              className="btn-secondary-pos"
+              onClick={handleKeepPending}
+            >
+              Keep Pending
             </button>
-            <button onClick={() => { setShowKOTHistory(h => !h); setShowDiscount(false); setShowSplit(false); }}
-              style={btn(showKOTHistory ? T.cardBorder : T.bg, T.dark, T.border)}>
-              KOT History
-            </button>
-            <button onClick={handleKeepPending} style={btn(T.bg, T.dark, T.border)}>Keep Pending</button>
-            <button onClick={() => { setShowDiscount(d => !d); setShowSplit(false); setShowKOTHistory(false); }}
-              style={btn(showDiscount ? T.purple : T.bg, showDiscount ? '#fff' : T.dark, T.border)}>
+            <button 
+              className={`btn-secondary-pos ${showDiscount ? 'active' : ''}`}
+              onClick={() => { setShowDiscount(!showDiscount); setShowSplit(false); setShowKOTHistory(false); }}
+            >
               Discount
             </button>
-            <div style={{ flex:1 }} />
-            <button onClick={() => handlePay('cash')} disabled={paying || !orderItems.length} style={btn(T.green, '#fff', T.green)}>
-              {paying ? <Loader size={14} /> : 'Cash'}
-            </button>
-            <button onClick={() => handlePay('upi')} disabled={paying || !orderItems.length} style={btn(T.blue, '#fff', T.blue)}>
-              UPI
-            </button>
-            <button onClick={() => { setShowSplit(s => !s); setShowDiscount(false); setShowKOTHistory(false); }}
-              disabled={!orderItems.length} style={btn(T.teal, T.dark, T.teal)}>
-              Split
-            </button>
           </div>
 
-        </div>
+          <div className="action-area" style={{ padding: '1rem 1.5rem' }}>
+            <button
+              className="btn-large btn-send"
+              disabled={kotSending || orderItems.filter(i => i.currentQty - i.sentQty > 0).length === 0}
+              onClick={handleSendKot}
+            >
+              {kotSending ? "Sending..." : (
+                <>
+                  <Send size={20} />
+                  Send KOT
+                </>
+              )}
+            </button>
+
+            <div className="payment-actions">
+              <button 
+                className="btn-pay btn-cash"
+                disabled={paying || orderItems.length === 0}
+                onClick={() => handlePay('cash')}
+              >
+                Cash
+              </button>
+              <button 
+                className="btn-pay btn-upi"
+                disabled={paying || orderItems.length === 0}
+                onClick={() => handlePay('upi')}
+              >
+                UPI
+              </button>
+              <button 
+                className="btn-pay btn-split"
+                disabled={paying || orderItems.length === 0}
+                onClick={() => { setShowSplit(!showSplit); setShowDiscount(false); setShowKOTHistory(false); }}
+              >
+                Split
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
+
+      {/* Pending Customer Details Modal */}
+      {showCustomerModal && (
+        <div className="customer-modal-overlay">
+          <div className="customer-modal">
+            <div className="customer-modal-header">
+              <h3>Customer Details</h3>
+              <button 
+                className="close-modal-btn" 
+                onClick={() => { setShowCustomerModal(false); setCustomerDataError(null); }}
+                disabled={isSavingPending}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="customer-modal-body">
+              <p className="modal-description">Please enter customer details to keep this bill pending.</p>
+              
+              <div className="input-group">
+                <label><User size={16} /> Customer Name *</label>
+                <input 
+                  type="text" 
+                  value={customerName} 
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Enter customer name"
+                  disabled={isSavingPending}
+                  autoFocus
+                />
+              </div>
+              
+              <div className="input-group">
+                <label><Phone size={16} /> Mobile Number *</label>
+                <input 
+                  type="text" 
+                  value={customerPhone} 
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="Enter mobile number"
+                  disabled={isSavingPending}
+                />
+              </div>
+
+              {customerDataError && (
+                <div className="modal-error">
+                  <AlertCircle size={16} />
+                  <span>{customerDataError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="customer-modal-footer">
+              <button 
+                className="btn-cancel" 
+                onClick={() => { setShowCustomerModal(false); setCustomerDataError(null); }}
+                disabled={isSavingPending}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-confirm" 
+                onClick={onConfirmPending}
+                disabled={isSavingPending}
+              >
+                {isSavingPending ? 'Saving...' : 'Keep Pending'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
+);
 }
-
-// ─── Style helpers ────────────────────────────────────────────────────────────
-const btn = (bg, color, borderColor, fontSize = 13) => ({
-  background: bg, border: `1px solid ${borderColor}`, borderRadius: 6,
-  padding: '6px 12px', color, cursor: 'pointer', fontSize,
-  display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500,
-  fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
-});
-
-const qtyBtn = {
-  background: '#F8F9FA', border: '1px solid #DEE2E6', borderRadius: 4,
-  padding: '3px 7px', color: '#212529', cursor: 'pointer',
-  display: 'flex', alignItems: 'center',
-};
-
-const splitInput = {
-  width: 90, border: '1px solid #DEE2E6', borderRadius: 6,
-  padding: '5px 10px', color: '#212529', fontSize: 13, background: '#FFFFFF',
-};
