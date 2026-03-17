@@ -1852,36 +1852,46 @@ function registerSectionHandlers() {
     }
   });
   
+  // Clear table status (available again)
+  ipcMain.handle('firebase:clear-table', async (event, tableId) => {
+    try {
+      if (!tableId) {
+        return { success: false, error: 'Table ID is required' };
+      }
+      
+      await updateDocument('tables', tableId, {
+        status: 'available',
+        currentOrderId: null,
+        current_order_id: null,
+        currentBillAmount: 0,
+        current_bill_amount: 0,
+        occupiedSince: null,
+        occupied_since: null,
+        updatedAt: new Date()
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error clearing table:', error);
+      return { success: false, error: 'Failed to clear table' };
+    }
+  });
+
   // Delete table
   ipcMain.handle('firebase:delete-table', async (event, tableId) => {
     try {
-      // Check if table exists
       const table = await getDocument('tables', tableId);
+      if (!table) return { success: true };
       
-      if (!table) {
-        // Idempotent - already deleted
-        return { success: true };
-      }
-      
-      // Check if table has an active order
       if (table.currentOrderId) {
-        return { 
-          success: false, 
-          error: 'Cannot delete table with active order. Please complete or cancel the order first.' 
-        };
+        return { success: false, error: 'Cannot delete table with active order.' };
       }
       
-      // Check table status
       if (table.status === 'occupied' || table.status === 'pending_bill') {
-        return { 
-          success: false, 
-          error: 'Cannot delete table that is occupied or has pending bill.' 
-        };
+        return { success: false, error: 'Cannot delete table that is occupied or has pending bill.' };
       }
       
-      // Delete table
       await deleteDocument('tables', tableId);
-      
       return { success: true };
     } catch (error) {
       console.error('Error deleting table:', error);
@@ -3102,6 +3112,26 @@ function registerKOTRouterStub() {
  * Supports the desktop Table Order Entry screen.
  */
 function registerTableOrderHandlers() {
+  // Update order status
+  ipcMain.handle('firebase:update-order-status', async (event, { orderId, status }) => {
+    try {
+      if (!orderId || !status) {
+        return { success: false, error: 'Order ID and status are required' };
+      }
+      
+      await updateDocument('orders', orderId, {
+        status,
+        updatedAt: new Date(),
+        ...(status === 'completed' ? { completedAt: new Date() } : {})
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      return { success: false, error: 'Failed to update order status' };
+    }
+  });
+
   // Remove any stale handlers from previous registrations to avoid duplicate-handler errors
   ['firebase:get-order-items', 'firebase:upsert-order-item', 'firebase:delete-order-item', 'firebase:send-kot', 'firebase:subscribe-order-items', 'firebase:unsubscribe-order-items'].forEach(ch => {
     try { ipcMain.removeHandler(ch); } catch (_) {}

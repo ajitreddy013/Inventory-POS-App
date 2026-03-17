@@ -110,11 +110,8 @@ function createWindow() {
     ? "http://localhost:3000"                                    // Development server
     : `file://${path.join(__dirname, "../build/index.html")}`; // Production build
 
-  // IMPORTANT: Currently forced to use production build for stability
-  // This ensures consistent behavior regardless of environment
-  const forcedUrl = `file://${path.join(__dirname, "../build/index.html")}`;
-  console.log('Loading URL:', forcedUrl);
-  mainWindow.loadURL(forcedUrl);
+  console.log('Loading URL:', startUrl);
+  mainWindow.loadURL(startUrl);
 
   // Open developer tools in development mode for debugging
   if (isDev) {
