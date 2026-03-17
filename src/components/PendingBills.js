@@ -1,523 +1,296 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  getPendingBills,
-  clearPendingBill,
-  deletePendingBill,
-  generateBill,
-} from "../services/billService";
-import {
-  Clock,
-  CheckCircle,
-  Trash2,
-  Eye,
-  X,
-  FileText,
-  AlertCircle,
-  Search,
-  FileDown,
-} from "lucide-react";
+  Clock, Trash2, Eye, X, FileText, AlertCircle, Search, CheckCircle, Loader, User, Phone, ChevronDown
+} from 'lucide-react';
+
+const SORT_OPTIONS = [
+  { value: 'date_desc', label: 'Newest First' },
+  { value: 'date_asc', label: 'Oldest First' },
+  { value: 'customer_asc', label: 'Customer A→Z' },
+  { value: 'customer_desc', label: 'Customer Z→A' },
+  { value: 'amount_desc', label: 'Amount High→Low' },
+];
 
 const PendingBills = () => {
-  const [pendingBills, setPendingBills] = useState([]);
-  const [filteredBills, setFilteredBills] = useState([]);
+  const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('date_desc');
   const [selectedBill, setSelectedBill] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [generatingBillId, setGeneratingBillId] = useState(null);
-  // State for bulk generation - not currently used
-  // const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [settleMode, setSettleMode] = useState(false);
+  const [settlePayment, setSettlePayment] = useState('cash');
 
-  useEffect(() => {
-    fetchPendingBills();
-  }, []);
-
-  // Filter bills based on search term
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredBills(pendingBills);
-    } else {
-      const filtered = pendingBills.filter(bill => 
-        bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (bill.customer_phone && bill.customer_phone.includes(searchTerm)) ||
-        (bill.table_number && bill.table_number.toString().includes(searchTerm))
-      );
-      setFilteredBills(filtered);
-    }
-  }, [searchTerm, pendingBills]);
-
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-  };
-
-  const clearSearch = () => {
-    setSearchTerm("");
-  };
-
-  const fetchPendingBills = async () => {
+  const fetchBills = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
-      const bills = await getPendingBills();
-      setPendingBills(bills);
-      setFilteredBills(bills);
-    } catch (error) {
-      // Failed to fetch pending bills
-      alert("Failed to load pending bills");
+      const res = await window.electronAPI.getFirebasePendingBills();
+      if (!res?.success) throw new Error(res?.error || 'Failed to load');
+      setBills(res.bills || []);
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleClearBill = async (id) => {
-    if (!window.confirm("Are you sure you want to clear this pending bill?")) {
-      return;
+  useEffect(() => { fetchBills(); }, [fetchBills]);
+
+  const filtered = bills.filter(b => {
+    if (!searchTerm.trim()) return true;
+    const t = searchTerm.toLowerCase();
+    return (
+      (b.customerName || '').toLowerCase().includes(t) ||
+      (b.customerPhone || '').includes(t) ||
+      (b.tableName || '').toLowerCase().includes(t)
+    );
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    switch (sortBy) {
+      case 'date_asc': return new Date(a.createdAt) - new Date(b.createdAt);
+      case 'customer_asc': return (a.customerName || '').localeCompare(b.customerName || '');
+      case 'customer_desc': return (b.customerName || '').localeCompare(a.customerName || '');
+      case 'amount_desc': return (b.totalAmount || 0) - (a.totalAmount || 0);
+      default: return new Date(b.createdAt) - new Date(a.createdAt);
     }
+  });
 
+  const handleSettle = async (bill) => {
     setProcessing(true);
     try {
-      const result = await clearPendingBill(id);
-      if (result.success) {
-        const updatedBills = pendingBills.filter((bill) => bill.id !== id);
-        setPendingBills(updatedBills);
-        setFilteredBills(updatedBills.filter(bill => 
-          bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (bill.customer_phone && bill.customer_phone.includes(searchTerm)) ||
-          (bill.table_number && bill.table_number.toString().includes(searchTerm))
-        ));
-        alert(`Bill cleared successfully! Sale number: ${result.saleNumber}`);
-        // Close modal if it's open and showing this bill
-        if (selectedBill && selectedBill.id === id) {
-          closeDetails();
-        }
-      }
-    } catch (error) {
-      // Failed to clear pending bill
-      alert("Failed to clear pending bill");
-    } finally {
-      setProcessing(false);
-    }
+      const res = await window.electronAPI.settlePendingBill(bill.id, [{ type: settlePayment, amount: bill.totalAmount }]);
+      if (!res?.success) throw new Error(res?.error || 'Failed to settle');
+      setBills(prev => prev.filter(b => b.id !== bill.id));
+      setSelectedBill(null); setSettleMode(false);
+    } catch (e) { setError(e.message); }
+    finally { setProcessing(false); }
   };
 
-  const handleDeleteBill = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this pending bill?")) {
-      return;
-    }
-
+  const handleDelete = async (billId) => {
+    if (!window.confirm('Delete this pending bill?')) return;
     setProcessing(true);
     try {
-      await deletePendingBill(id);
-      const updatedBills = pendingBills.filter((bill) => bill.id !== id);
-      setPendingBills(updatedBills);
-      setFilteredBills(updatedBills.filter(bill => 
-        bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (bill.customer_name && bill.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (bill.customer_phone && bill.customer_phone.includes(searchTerm)) ||
-        (bill.table_number && bill.table_number.toString().includes(searchTerm))
-      ));
-      alert("Pending bill deleted successfully!");
-      // Close modal if it's open and showing this bill
-      if (selectedBill && selectedBill.id === id) {
-        closeDetails();
-      }
-    } catch (error) {
-      // Failed to delete pending bill
-      alert("Failed to delete pending bill");
-    } finally {
-      setProcessing(false);
-    }
+      const res = await window.electronAPI.deleteFirebasePendingBill(billId);
+      if (!res?.success) throw new Error(res?.error || 'Failed to delete');
+      setBills(prev => prev.filter(b => b.id !== billId));
+      if (selectedBill?.id === billId) setSelectedBill(null);
+    } catch (e) { setError(e.message); }
+    finally { setProcessing(false); }
   };
 
-  const handleGenerateBill = async (bill) => {
-    setProcessing(true);
-    setGeneratingBillId(bill.id);
-    try {
-      // Get bar settings for the PDF
-      const barSettings = await window.electronAPI.getBarSettings();
-      
-      // Format the bill data for PDF generation
-      const billData = {
-        saleNumber: bill.bill_number,
-        saleType: bill.sale_type || 'parcel',
-        tableNumber: bill.table_number || null,
-        customerName: bill.customer_name || 'Walk-in Customer',
-        customerPhone: bill.customer_phone || '',
-        items: bill.items.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-        })),
-        subtotal: bill.subtotal,
-        taxAmount: bill.tax_amount || 0,
-        discountAmount: bill.discount_amount || 0,
-        totalAmount: bill.total_amount,
-        paymentMethod: bill.payment_method || 'Cash',
-        saleDate: bill.created_at,
-        barSettings: barSettings,
-      };
-      
-      const response = await generateBill(billData);
-      if (response.success) {
-        alert(`Bill generated successfully! Saved to: ${response.filePath}`);
-      } else {
-        alert(`Failed to generate bill: ${response.error}`);
-      }
-    } catch (error) {
-      // Failed to generate bill
-      alert("Bill generation failed");
-    } finally {
-      setProcessing(false);
-      setGeneratingBillId(null);
-    }
-  };
-
-  const handleGenerateAllBills = async () => {
-    if (filteredBills.length === 0) {
-      alert("No bills to generate report for!");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to generate a report for ${filteredBills.length} pending bill(s)?`)) {
-      return;
-    }
-
-    setProcessing(true);
-    // setBulkGenerating(true);
-
-    try {
-      const response = await window.electronAPI.exportPendingBillsReport(filteredBills);
-      if (response.success) {
-        alert(`Pending bills report generated successfully! Saved to: ${response.filePath}`);
-      } else {
-        alert(`Failed to generate report: ${response.error}`);
-      }
-    } catch (error) {
-      // Failed to generate pending bills report
-      alert("Failed to generate pending bills report");
-    } finally {
-      setProcessing(false);
-      // setBulkGenerating(false);
-      setGeneratingBillId(null);
-    }
-  };
-
-  const handleViewDetails = (bill) => {
-    setSelectedBill(bill);
-    setShowDetails(true);
-  };
-
-  const closeDetails = () => {
-    setSelectedBill(null);
-    setShowDetails(false);
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
+  const fmt = (d) => d ? new Date(d).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', hour12:true }) : '—';
 
   return (
-    <div className="pending-bills">
-      <div className="page-header">
-        <h1>
-          <Clock size={24} /> Pending Bills
+    <div style={{ padding: '1.5rem', fontFamily: 'inherit' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', fontWeight: 700, color: '#212529' }}>
+          <Clock size={24} color="#DC3545" /> Pending Bills
+          <span style={{ background: '#DC3545', color: '#fff', borderRadius: '999px', fontSize: '0.8rem', padding: '0.1rem 0.6rem', marginLeft: '0.25rem' }}>{bills.length}</span>
         </h1>
-        <div className="header-actions">
-          <button 
-            onClick={handleGenerateAllBills}
-            disabled={processing || filteredBills.length === 0}
-            className="btn btn-info"
-            title="Generate pending bills report"
+        <button onClick={fetchBills} style={{ padding: '0.5rem 1rem', border: '1px solid #DEE2E6', borderRadius: '6px', background: '#fff', cursor: 'pointer', fontSize: '0.875rem' }}>
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <AlertCircle size={16} /> {error}
+          <button onClick={() => setError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'inherit' }}>&times;</button>
+        </div>
+      )}
+
+      {/* Search + Sort bar */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+          <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#6c757d' }} />
+          <input
+            type="text"
+            placeholder="Search by customer name, phone or table..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            style={{ width: '100%', padding: '0.6rem 0.75rem 0.6rem 2.25rem', border: '1px solid #DEE2E6', borderRadius: '6px', fontSize: '0.875rem', boxSizing: 'border-box' }}
+          />
+        </div>
+        <div style={{ position: 'relative' }}>
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            style={{ padding: '0.6rem 2rem 0.6rem 0.75rem', border: '1px solid #DEE2E6', borderRadius: '6px', fontSize: '0.875rem', appearance: 'none', background: '#fff', cursor: 'pointer' }}
           >
-            {processing ? 'Generating Report...' : <><FileDown size={16} /> Generate Bills Report</>}
-          </button>
-          <button onClick={fetchPendingBills} className="btn btn-secondary">
-            Refresh
-          </button>
+            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <ChevronDown size={14} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6c757d' }} />
         </div>
       </div>
 
-      {/* Search Section */}
-      <div className="search-section">
-        <h3>Search Bills</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div className="search-input-container">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search by bill number, customer name, phone, or table number..."
-              value={searchTerm}
-              onChange={handleSearch}
-              className="search-input"
-            />
+      {/* Summary */}
+      {!loading && sorted.length > 0 && (
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div style={{ background: '#F8F9FA', border: '1px solid #DEE2E6', borderRadius: '8px', padding: '0.75rem 1.25rem', flex: 1 }}>
+            <div style={{ fontSize: '0.75rem', color: '#6c757d', marginBottom: '0.25rem' }}>Showing</div>
+            <div style={{ fontWeight: 700, fontSize: '1.25rem', color: '#212529' }}>{sorted.length} bills</div>
           </div>
-          {searchTerm && (
-            <button
-              onClick={clearSearch}
-              className="btn btn-secondary"
-              style={{ minWidth: '80px' }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-
-      {loading ? (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          minHeight: '400px',
-          fontSize: '1.1rem',
-          color: '#6c757d' 
-        }}>
-          <p>Loading pending bills...</p>
-        </div>
-      ) : filteredBills.length === 0 ? (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '400px',
-          textAlign: 'center',
-          color: '#6c757d',
-          margin: '20px 30px'
-        }}>
-          <AlertCircle size={48} style={{ marginBottom: '20px', opacity: 0.5 }} />
-          <h3 style={{ marginBottom: '10px', fontSize: '1.5rem' }}>
-            {searchTerm ? 'No Bills Found' : 'No Pending Bills'}
-          </h3>
-          <p style={{ fontSize: '1rem', opacity: 0.8 }}>
-            {searchTerm 
-              ? `No bills match your search term "${searchTerm}"` 
-              : 'All bills have been processed or no bills are pending.'
-            }
-          </p>
-        </div>
-      ) : (
-<div className="pending-bills-content">
-          <div className="summary-cards">
-            <div className="summary-card">
-              <h3>{searchTerm ? 'Found Bills' : 'Total Pending'}</h3>
-              <div className="value">
-                {searchTerm ? `${filteredBills.length} / ${pendingBills.length}` : pendingBills.length}
-              </div>
-            </div>
-            <div className="summary-card">
-              <h3>{searchTerm ? 'Found Amount' : 'Total Amount'}</h3>
-              <div className="value">
-                ₹{filteredBills.reduce((sum, bill) => sum + bill.total_amount, 0).toFixed(2)}
-              </div>
-            </div>
-          </div>
-
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Bill Number</th>
-                  <th>Customer</th>
-                  <th>Table/Type</th>
-                  <th>Items</th>
-                  <th>Total Amount</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBills.map((bill) => (
-                  <tr key={bill.id}>
-                    <td className="bill-number">{bill.bill_number}</td>
-                    <td className="customer-info">
-                      <div>{bill.customer_name || "Walk-in Customer"}</div>
-                      {bill.customer_phone && (
-                        <div className="phone">{bill.customer_phone}</div>
-                      )}
-                    </td>
-                    <td className="table-info">
-                      <div>{bill.sale_type}</div>
-                      {bill.table_number && (
-                        <div className="table-number">Table {bill.table_number}</div>
-                      )}
-                    </td>
-                    <td className="items-count">
-                      {bill.items.length} item{bill.items.length > 1 ? 's' : ''}
-                    </td>
-                    <td className="total-amount">
-                      ₹{bill.total_amount.toFixed(2)}
-                    </td>
-                    <td className="created-date">
-                      {formatDate(bill.created_at)}
-                    </td>
-                    <td className="actions">
-                      <div className="action-buttons">
-                        <button
-                          onClick={() => handleViewDetails(bill)}
-                          className="btn btn-sm btn-secondary"
-                          title="View Details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleGenerateBill(bill)}
-                          disabled={processing}
-                          className="btn btn-sm btn-info"
-                          title="Generate Bill PDF"
-                        >
-                          {generatingBillId === bill.id ? '...' : <FileDown size={16} />}
-                        </button>
-                        <button
-                          onClick={() => handleClearBill(bill.id)}
-                          disabled={processing}
-                          className="btn btn-sm btn-success"
-                          title="Process Bill"
-                        >
-                          <CheckCircle size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBill(bill.id)}
-                          disabled={processing}
-                          className="btn btn-sm btn-danger"
-                          title="Delete Bill"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ background: '#F8F9FA', border: '1px solid #DEE2E6', borderRadius: '8px', padding: '0.75rem 1.25rem', flex: 1 }}>
+            <div style={{ fontSize: '0.75rem', color: '#6c757d', marginBottom: '0.25rem' }}>Total Pending</div>
+            <div style={{ fontWeight: 700, fontSize: '1.25rem', color: '#DC3545' }}>₹{sorted.reduce((s, b) => s + (b.totalAmount || 0), 0).toFixed(2)}</div>
           </div>
         </div>
       )}
 
-      {/* Bill Details Modal */}
-      {showDetails && selectedBill && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>
-                <FileText size={24} /> Bill Details
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', color: '#6c757d' }}>
+          <Loader size={32} className="spin" />
+        </div>
+      ) : sorted.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '4rem', color: '#6c757d' }}>
+          <Clock size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+          <p style={{ fontSize: '1.1rem' }}>{searchTerm ? 'No bills match your search' : 'No pending bills'}</p>
+        </div>
+      ) : (
+        <div style={{ background: '#fff', border: '1px solid #DEE2E6', borderRadius: '8px', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ background: '#F8F9FA', borderBottom: '2px solid #DEE2E6' }}>
+                {['Customer', 'Phone', 'Table', 'Items', 'Amount', 'Date', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: '#495057', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((bill, i) => (
+                <tr key={bill.id} style={{ borderBottom: '1px solid #F1F3F5', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                  <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#212529' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <User size={14} color="#6c757d" /> {bill.customerName || '—'}
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#495057' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Phone size={14} color="#6c757d" /> {bill.customerPhone || '—'}
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#495057' }}>{bill.tableName || '—'}</td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#495057' }}>{(bill.items || []).length} item{(bill.items || []).length !== 1 ? 's' : ''}</td>
+                  <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#DC3545' }}>₹{(bill.totalAmount || 0).toFixed(2)}</td>
+                  <td style={{ padding: '0.75rem 1rem', color: '#6c757d', whiteSpace: 'nowrap' }}>{fmt(bill.createdAt)}</td>
+                  <td style={{ padding: '0.75rem 1rem' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button onClick={() => { setSelectedBill(bill); setSettleMode(false); }} title="View" style={btnStyle('#6c757d')}>
+                        <Eye size={15} />
+                      </button>
+                      <button onClick={() => { setSelectedBill(bill); setSettleMode(true); }} title="Settle" style={btnStyle('#198754')} disabled={processing}>
+                        <CheckCircle size={15} />
+                      </button>
+                      <button onClick={() => handleDelete(bill.id)} title="Delete" style={btnStyle('#DC3545')} disabled={processing}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Detail / Settle Modal */}
+      {selectedBill && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: '12px', width: '480px', maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #DEE2E6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FileText size={20} color="#DC3545" /> {settleMode ? 'Settle Bill' : 'Bill Details'}
               </h2>
-              <button onClick={closeDetails} className="close-btn">
+              <button onClick={() => { setSelectedBill(null); setSettleMode(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6c757d' }}>
                 <X size={20} />
               </button>
             </div>
-            <div className="modal-content">
-              <div className="bill-details">
-                <div className="bill-info-grid">
-                  <div className="info-item">
-                    <strong>Bill Number:</strong>
-                    <span>{selectedBill.bill_number}</span>
-                  </div>
-                  <div className="info-item">
-                    <strong>Sale Type:</strong>
-                    <span>{selectedBill.sale_type}</span>
-                  </div>
-                  {selectedBill.table_number && (
-                    <div className="info-item">
-                      <strong>Table Number:</strong>
-                      <span>{selectedBill.table_number}</span>
-                    </div>
-                  )}
-                  <div className="info-item">
-                    <strong>Customer:</strong>
-                    <span>{selectedBill.customer_name || "Walk-in Customer"}</span>
-                  </div>
-                  {selectedBill.customer_phone && (
-                    <div className="info-item">
-                      <strong>Phone:</strong>
-                      <span>{selectedBill.customer_phone}</span>
-                    </div>
-                  )}
-                  <div className="info-item">
-                    <strong>Payment Method:</strong>
-                    <span>{selectedBill.payment_method}</span>
-                  </div>
-                  <div className="info-item">
-                    <strong>Created:</strong>
-                    <span>{formatDate(selectedBill.created_at)}</span>
-                  </div>
-                </div>
 
-                <div className="items-section">
-                  <h3>Items</h3>
-                  <table className="items-table">
-                    <thead>
-                      <tr>
-                        <th>Item</th>
-                        <th>Quantity</th>
-                        <th>Unit Price</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedBill.items.map((item, index) => (
-                        <tr key={index}>
-                          <td>{item.name}</td>
-                          <td>{item.quantity}</td>
-                          <td>₹{item.unitPrice.toFixed(2)}</td>
-                          <td>₹{item.totalPrice.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            <div style={{ padding: '1.25rem 1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                {[
+                  ['Customer', selectedBill.customerName],
+                  ['Phone', selectedBill.customerPhone],
+                  ['Table', selectedBill.tableName],
+                  ['Date', fmt(selectedBill.createdAt)],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ background: '#F8F9FA', borderRadius: '6px', padding: '0.6rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#6c757d', marginBottom: '0.2rem' }}>{k}</div>
+                    <div style={{ fontWeight: 600, color: '#212529', fontSize: '0.875rem' }}>{v || '—'}</div>
+                  </div>
+                ))}
+              </div>
 
-                <div className="bill-summary">
-                  <div className="summary-row">
-                    <span>Subtotal:</span>
-                    <span>₹{selectedBill.subtotal.toFixed(2)}</span>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                <thead>
+                  <tr style={{ background: '#F8F9FA' }}>
+                    {['Item', 'Qty', 'Rate', 'Total'].map(h => (
+                      <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: h === 'Item' ? 'left' : 'right', fontWeight: 600, color: '#495057' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(selectedBill.items || []).map((item, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #F1F3F5' }}>
+                      <td style={{ padding: '0.5rem 0.75rem' }}>{item.name}</td>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{item.quantity}</td>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>₹{Number(item.unitPrice).toFixed(2)}</td>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>₹{Number(item.totalPrice).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ borderTop: '2px solid #DEE2E6', paddingTop: '0.75rem' }}>
+                {selectedBill.discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#6c757d', marginBottom: '0.25rem' }}>
+                    <span>Discount</span><span>-₹{selectedBill.discountAmount.toFixed(2)}</span>
                   </div>
-                  {selectedBill.discount_amount > 0 && (
-                    <div className="summary-row">
-                      <span>Discount:</span>
-                      <span>-₹{selectedBill.discount_amount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {selectedBill.tax_amount > 0 && (
-                    <div className="summary-row">
-                      <span>Tax:</span>
-                      <span>₹{selectedBill.tax_amount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="summary-row total">
-                    <span>Total:</span>
-                    <span>₹{selectedBill.total_amount.toFixed(2)}</span>
-                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', color: '#DC3545' }}>
+                  <span>Total</span><span>₹{(selectedBill.totalAmount || 0).toFixed(2)}</span>
                 </div>
               </div>
+
+              {settleMode && (
+                <div style={{ marginTop: '1.25rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem', color: '#212529' }}>Select payment method:</p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    {['cash', 'upi', 'card'].map(m => (
+                      <button key={m} onClick={() => setSettlePayment(m)}
+                        style={{ flex: 1, padding: '0.6rem', border: `2px solid ${settlePayment === m ? '#198754' : '#DEE2E6'}`, borderRadius: '6px', background: settlePayment === m ? '#d1fae5' : '#fff', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize', fontSize: '0.875rem' }}>
+                        {m.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => handleSettle(selectedBill)}
+                    disabled={processing}
+                    style={{ width: '100%', padding: '0.75rem', background: '#198754', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  >
+                    {processing ? <Loader size={16} className="spin" /> : <CheckCircle size={16} />}
+                    {processing ? 'Settling...' : `Settle ₹${(selectedBill.totalAmount || 0).toFixed(2)} via ${settlePayment.toUpperCase()}`}
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="modal-actions">
-              <button
-                onClick={() => handleGenerateBill(selectedBill)}
-                disabled={processing}
-                className="btn btn-info"
-              >
-                {processing ? 'Generating...' : <><FileDown size={16} /> Generate Bill</>}
-              </button>
-              <button
-                onClick={() => handleClearBill(selectedBill.id)}
-                disabled={processing}
-                className="btn btn-success"
-              >
-                <CheckCircle size={16} /> Process Bill
-              </button>
-              <button
-                onClick={() => handleDeleteBill(selectedBill.id)}
-                disabled={processing}
-                className="btn btn-danger"
-              >
-                <Trash2 size={16} /> Delete Bill
-              </button>
-              <button onClick={closeDetails} className="btn btn-secondary">
-                Close
-              </button>
-            </div>
+
+            {!settleMode && (
+              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #DEE2E6', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button onClick={() => setSettleMode(true)} style={{ padding: '0.6rem 1.25rem', background: '#198754', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <CheckCircle size={15} /> Settle
+                </button>
+                <button onClick={() => handleDelete(selectedBill.id)} disabled={processing} style={{ padding: '0.6rem 1.25rem', background: '#DC3545', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Trash2 size={15} /> Delete
+                </button>
+                <button onClick={() => setSelectedBill(null)} style={{ padding: '0.6rem 1.25rem', background: '#F8F9FA', color: '#495057', border: '1px solid #DEE2E6', borderRadius: '6px', cursor: 'pointer' }}>
+                  Close
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -525,5 +298,15 @@ const PendingBills = () => {
   );
 };
 
-export default PendingBills;
+const btnStyle = (color) => ({
+  padding: '0.35rem 0.5rem',
+  background: `${color}15`,
+  color,
+  border: `1px solid ${color}40`,
+  borderRadius: '5px',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+});
 
+export default PendingBills;

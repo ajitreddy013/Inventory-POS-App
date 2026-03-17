@@ -55,6 +55,7 @@ async function initializeFirebaseAdmin() {
     registerKOTRouterStub();
     registerRealtimeListeners();
     registerTableOrderHandlers();
+    registerPendingBillHandlers();
     
     console.log('Firebase IPC handlers registered');
   } catch (error) {
@@ -3111,6 +3112,144 @@ function registerKOTRouterStub() {
  * TABLE ORDER ENTRY HANDLERS
  * Supports the desktop Table Order Entry screen.
  */
+function registerPendingBillHandlers() {
+  ['firebase:save-pending-bill','firebase:get-pending-bills','firebase:settle-pending-bill','firebase:delete-pending-bill','firebase:get-customer-suggestions'].forEach(ch => {
+    try { ipcMain.removeHandler(ch); } catch (_) {}
+  });
+
+  // Save a pending bill to Firestore and clear the table
+  ipcMain.handle('firebase:save-pending-bill', async (event, { orderId, tableId, tableName, customerName, customerPhone, items, subtotal, discountAmount, totalAmount }) => {
+    try {
+      const firestore = getAdminFirestore();
+      const billId = `pending_${Date.now()}`;
+      const now = new Date();
+
+      // 1. Save pending bill document
+      await firestore.collection('pendingBills').doc(billId).set({
+        billId,
+        orderId: orderId || null,
+        tableId,
+        tableName,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items,
+        subtotal,
+        discountAmount: discountAmount || 0,
+        totalAmount,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 2. Upsert customer record for autofill
+      const custSnap = await firestore.collection('customers')
+        .where('phone', '==', customerPhone.trim()).limit(1).get();
+      if (custSnap.empty) {
+        await firestore.collection('customers').add({
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        await custSnap.docs[0].ref.update({ name: customerName.trim(), updatedAt: now });
+      }
+
+      // 3. Clear table in Firestore
+      await firestore.collection('tables').doc(tableId).update({
+        status: 'available',
+        currentOrderId: null,
+        current_order_id: null,
+        currentBillAmount: 0,
+        current_bill_amount: 0,
+        updatedAt: now,
+      });
+
+      // 4. Mark order as pending_bill
+      if (orderId) {
+        await firestore.collection('orders').doc(orderId).update({
+          status: 'pending_bill',
+          pendingBillId: billId,
+          updatedAt: now,
+        });
+      }
+
+      return { success: true, billId };
+    } catch (error) {
+      console.error('Error saving pending bill:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get all pending bills from Firestore
+  ipcMain.handle('firebase:get-pending-bills', async () => {
+    try {
+      const firestore = getAdminFirestore();
+      const snap = await firestore.collection('pendingBills')
+        .where('status', '==', 'pending')
+        .orderBy('createdAt', 'desc')
+        .get();
+      const bills = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt }));
+      return { success: true, bills };
+    } catch (error) {
+      console.error('Error getting pending bills:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Settle (mark as paid) a pending bill
+  ipcMain.handle('firebase:settle-pending-bill', async (event, { billId, payments }) => {
+    try {
+      const firestore = getAdminFirestore();
+      await firestore.collection('pendingBills').doc(billId).update({
+        status: 'settled',
+        payments: payments || [],
+        settledAt: new Date(),
+        updatedAt: new Date(),
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error settling pending bill:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Delete a pending bill
+  ipcMain.handle('firebase:delete-pending-bill', async (event, billId) => {
+    try {
+      const firestore = getAdminFirestore();
+      await firestore.collection('pendingBills').doc(billId).update({
+        status: 'deleted',
+        updatedAt: new Date(),
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting pending bill:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get customer suggestions by partial phone number (for autofill)
+  ipcMain.handle('firebase:get-customer-suggestions', async (event, phone) => {
+    try {
+      if (!phone || phone.trim().length < 3) return { success: true, customers: [] };
+      const firestore = getAdminFirestore();
+      // Firestore prefix search: phone >= term AND phone < term + '\uf8ff'
+      const term = phone.trim();
+      const snap = await firestore.collection('customers')
+        .where('phone', '>=', term)
+        .where('phone', '<', term + '\uf8ff')
+        .limit(5)
+        .get();
+      const customers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return { success: true, customers };
+    } catch (error) {
+      console.error('Error getting customer suggestions:', error);
+      return { success: false, customers: [] };
+    }
+  });
+}
+
 function registerTableOrderHandlers() {
   // Update order status
   ipcMain.handle('firebase:update-order-status', async (event, { orderId, status }) => {

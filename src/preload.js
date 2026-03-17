@@ -190,7 +190,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   upsertOrderItem: (orderId, item) => ipcRenderer.invoke('firebase:upsert-order-item', { orderId, item }),
   deleteOrderItem: (orderId, menuItemId) => ipcRenderer.invoke('firebase:delete-order-item', { orderId, menuItemId }),
   sendKot: (payload) => ipcRenderer.invoke('firebase:send-kot', payload),
-  generateBill: (billData) => ipcRenderer.invoke('firebase:generate-bill', billData),  
+  generateBill: (billData) => ipcRenderer.invoke('firebase:generate-bill', billData),
+  // Pending bills (Firestore)
+  savePendingBill: (data) => ipcRenderer.invoke('firebase:save-pending-bill', data),
+  getFirebasePendingBills: () => ipcRenderer.invoke('firebase:get-pending-bills'),
+  settlePendingBill: (billId, payments) => ipcRenderer.invoke('firebase:settle-pending-bill', { billId, payments }),
+  deleteFirebasePendingBill: (billId) => ipcRenderer.invoke('firebase:delete-pending-bill', billId),
+  getCustomerSuggestions: (phone) => ipcRenderer.invoke('firebase:get-customer-suggestions', phone),
   // Event listeners for real-time updates
   on: (channel, callback) => {
     const subscription = (event, ...args) => callback(...args);

@@ -4,7 +4,6 @@ import {
   Search, Info, Send, ShoppingCart, Coffee, Pizza, Salad, Wine, UtensilsCrossed, ChefHat, ChevronRight, Trash2, History, User, Phone
 } from 'lucide-react';
 import './DesktopOrderEntry.css';
-import { addPendingBill } from '../services/billService';
 
 // ─── Theme (matches desktop TableManagement) ─────────────────────────────────
 // Food type dot is now handled via CSS or simplified component
@@ -44,6 +43,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [customerDataError, setCustomerDataError] = useState(null);
   const [isSavingPending, setIsSavingPending] = useState(false);
 
@@ -208,78 +208,53 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       setCustomerDataError('Both Name and Mobile Number are mandatory');
       return;
     }
-
     setIsSavingPending(true);
     setCustomerDataError(null);
-
     try {
-      const billData = {
-        billNumber: `PEND-${Date.now()}`,
-        saleType: 'table',
-        tableNumber: table.name,
+      const res = await window.electronAPI.savePendingBill({
+        orderId,
+        tableId: table.id,
+        tableName: table.name,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
-        items: orderItems.map(item => ({
-          name: item.menuItemName,
-          quantity: item.currentQty,
-          unitPrice: item.unitPrice,
-          totalPrice: item.currentQty * item.unitPrice,
-          menuItemId: item.menuItemId
+        items: orderItems.map(i => ({
+          menuItemId: i.menuItemId,
+          name: i.menuItemName,
+          quantity: i.currentQty,
+          unitPrice: i.unitPrice,
+          totalPrice: i.currentQty * i.unitPrice,
         })),
-        subtotal: subtotal,
-        taxAmount: 0,
-        discountAmount: discountAmount,
+        subtotal,
+        discountAmount,
         totalAmount: payableTotal,
-        paymentMethod: 'cash',
-        notes: ''
-      };
-
-      const res = await addPendingBill(billData);
-      if (res) {
-        // 1. Clear active table order in SQLite backend
-        await window.electronAPI.clearTableOrder(table.id);
-        
-        // 2. Persist available status to SQLite database
-        await window.electronAPI.updateTable(table.id, { 
-          status: 'available',
-          current_bill_amount: 0 
-        });
-
-        // 3. Sync with Firebase (for real-time grid and mobile app)
-        try {
-          // Clear Firebase table status
-          await window.electronAPI.invoke('firebase:clear-table', table.id);
-          
-          // Mark Firebase order as completed (settled)
-          if (orderId) {
-            await window.electronAPI.invoke('firebase:update-order-status', { 
-              orderId, 
-              status: 'completed' 
-            });
-          }
-        } catch (firebaseErr) {
-          console.error('Firebase sync failed:', firebaseErr);
-          // Don't block the user if firebase sync fails but local save succeeded
-        }
-
-        // 4. Update local state for immediate UI feedback
-        if (onTableUpdate) {
-          onTableUpdate({ 
-            ...table, 
-            status: 'available', 
-            currentOrderId: null,
-            current_bill_amount: 0 
-          });
-        }
-        onBack();
-      } else {
-        throw new Error('Failed to save pending bill');
-      }
+      });
+      if (!res?.success) throw new Error(res?.error || 'Failed to save pending bill');
+      if (onTableUpdate) onTableUpdate({ ...table, status: 'available', currentOrderId: null });
+      onBack();
     } catch (e) {
       setCustomerDataError(e.message || 'An error occurred while saving');
     } finally {
       setIsSavingPending(false);
     }
+  };
+
+  const handlePhoneChange = async (e) => {
+    const val = e.target.value;
+    setCustomerPhone(val);
+    if (val.length >= 3) {
+      try {
+        const res = await window.electronAPI.getCustomerSuggestions(val);
+        setCustomerSuggestions(res?.customers || []);
+      } catch (_) { setCustomerSuggestions([]); }
+    } else {
+      setCustomerSuggestions([]);
+    }
+  };
+
+  const selectSuggestion = (cust) => {
+    setCustomerPhone(cust.phone);
+    setCustomerName(cust.name);
+    setCustomerSuggestions([]);
   };
 
   const applyDiscount = () => {
@@ -725,13 +700,26 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
               
               <div className="input-group">
                 <label><Phone size={16} /> Mobile Number *</label>
-                <input 
-                  type="text" 
-                  value={customerPhone} 
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="Enter mobile number"
-                  disabled={isSavingPending}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    value={customerPhone} 
+                    onChange={handlePhoneChange}
+                    placeholder="Enter mobile number"
+                    disabled={isSavingPending}
+                    autoComplete="off"
+                  />
+                  {customerSuggestions.length > 0 && (
+                    <div className="customer-suggestions">
+                      {customerSuggestions.map(c => (
+                        <div key={c.id} className="suggestion-item" onClick={() => selectSuggestion(c)}>
+                          <span className="sug-phone">{c.phone}</span>
+                          <span className="sug-name">{c.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {customerDataError && (
