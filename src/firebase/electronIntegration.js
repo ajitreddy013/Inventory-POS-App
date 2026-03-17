@@ -3185,11 +3185,13 @@ function registerPendingBillHandlers() {
   ipcMain.handle('firebase:get-pending-bills', async () => {
     try {
       const firestore = getAdminFirestore();
+      // No orderBy to avoid requiring a composite index — sort in memory
       const snap = await firestore.collection('pendingBills')
         .where('status', '==', 'pending')
-        .orderBy('createdAt', 'desc')
         .get();
-      const bills = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt }));
+      const bills = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt }))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       return { success: true, bills };
     } catch (error) {
       console.error('Error getting pending bills:', error);

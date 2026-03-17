@@ -9,7 +9,7 @@
     "phone": "+91 7517323121"
   },
   "scripts": {
-    "start": "electron .",
+    "start": "ELECTRON_IS_DEV=0 electron .",
     "dev": "concurrently \"npm run start-react\" \"wait-on http://localhost:3000 && electron .\"",
     "start-react": "WATCHPACK_POLLING=true react-scripts start",
     "build": "react-scripts build",

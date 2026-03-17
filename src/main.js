@@ -102,7 +102,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       sandbox: false, // Keep false for preload script access
     },
-    icon: path.join(__dirname, "../assets/icon.png"),
+    ...(fs.existsSync(path.join(__dirname, "../assets/icon.png")) ? { icon: path.join(__dirname, "../assets/icon.png") } : {}),
   });
 
   // Determine the URL to load based on development/production environment
@@ -113,10 +113,21 @@ function createWindow() {
   console.log('Loading URL:', startUrl);
   mainWindow.loadURL(startUrl);
 
-  // Open developer tools in development mode for debugging
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
-  }
+  // Log any load failures
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Page failed to load:', errorCode, errorDescription);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('Renderer process gone:', details);
+  });
+
+  mainWindow.webContents.on('crashed', (event, killed) => {
+    console.error('Renderer crashed, killed:', killed);
+  });
+
+  // Open developer tools for debugging (always open to diagnose white screen)
+  mainWindow.webContents.openDevTools();
 
   // Clean up when window is closed
   mainWindow.on("closed", () => {
