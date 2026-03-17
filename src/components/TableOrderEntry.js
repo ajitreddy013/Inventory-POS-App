@@ -43,7 +43,8 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [nameSuggestions, setNameSuggestions] = useState([]);
+  const [phoneSuggestions, setPhoneSuggestions] = useState([]);
   const [customerDataError, setCustomerDataError] = useState(null);
   const [isSavingPending, setIsSavingPending] = useState(false);
 
@@ -243,18 +244,39 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     setCustomerPhone(val);
     if (val.length >= 3) {
       try {
-        const res = await window.electronAPI.getCustomerSuggestions(val);
-        setCustomerSuggestions(res?.customers || []);
-      } catch (_) { setCustomerSuggestions([]); }
+        const res = await window.electronAPI.getCustomerSuggestions({ phone: val });
+        setPhoneSuggestions(res?.customers || []);
+      } catch (_) { setPhoneSuggestions([]); }
     } else {
-      setCustomerSuggestions([]);
+      setPhoneSuggestions([]);
     }
   };
 
-  const selectSuggestion = (cust) => {
+  const handleNameChange = async (e) => {
+    const val = e.target.value;
+    setCustomerName(val);
+    if (val.length >= 2) {
+      try {
+        const res = await window.electronAPI.getCustomerSuggestions({ name: val });
+        setNameSuggestions(res?.customers || []);
+      } catch (_) { setNameSuggestions([]); }
+    } else {
+      setNameSuggestions([]);
+    }
+  };
+
+  const selectNameSuggestion = (cust) => {
+    setCustomerName(cust.name);
+    setCustomerPhone(cust.phone);
+    setNameSuggestions([]);
+    setPhoneSuggestions([]);
+  };
+
+  const selectPhoneSuggestion = (cust) => {
     setCustomerPhone(cust.phone);
     setCustomerName(cust.name);
-    setCustomerSuggestions([]);
+    setNameSuggestions([]);
+    setPhoneSuggestions([]);
   };
 
   const applyDiscount = () => {
@@ -676,7 +698,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
               <h3>Customer Details</h3>
               <button 
                 className="close-modal-btn" 
-                onClick={() => { setShowCustomerModal(false); setCustomerDataError(null); }}
+                onClick={() => { setShowCustomerModal(false); setCustomerDataError(null); setNameSuggestions([]); setPhoneSuggestions([]); }}
                 disabled={isSavingPending}
               >
                 <X size={20} />
@@ -688,14 +710,27 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
               
               <div className="input-group">
                 <label><User size={16} /> Customer Name *</label>
-                <input 
-                  type="text" 
-                  value={customerName} 
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Enter customer name"
-                  disabled={isSavingPending}
-                  autoFocus
-                />
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    value={customerName} 
+                    onChange={handleNameChange}
+                    placeholder="Enter customer name"
+                    disabled={isSavingPending}
+                    autoFocus
+                    autoComplete="off"
+                  />
+                  {nameSuggestions.length > 0 && (
+                    <div className="customer-suggestions">
+                      {nameSuggestions.map(c => (
+                        <div key={c.id} className="suggestion-item" onClick={() => selectNameSuggestion(c)}>
+                          <span className="sug-name">{c.name}</span>
+                          <span className="sug-phone">{c.phone}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="input-group">
@@ -709,10 +744,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
                     disabled={isSavingPending}
                     autoComplete="off"
                   />
-                  {customerSuggestions.length > 0 && (
+                  {phoneSuggestions.length > 0 && (
                     <div className="customer-suggestions">
-                      {customerSuggestions.map(c => (
-                        <div key={c.id} className="suggestion-item" onClick={() => selectSuggestion(c)}>
+                      {phoneSuggestions.map(c => (
+                        <div key={c.id} className="suggestion-item" onClick={() => selectPhoneSuggestion(c)}>
                           <span className="sug-phone">{c.phone}</span>
                           <span className="sug-name">{c.name}</span>
                         </div>

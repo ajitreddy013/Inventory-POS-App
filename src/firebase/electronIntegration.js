@@ -3231,20 +3231,37 @@ function registerPendingBillHandlers() {
     }
   });
 
-  // Get customer suggestions by partial phone number (for autofill)
-  ipcMain.handle('firebase:get-customer-suggestions', async (event, phone) => {
+  // Get customer suggestions by partial phone or name (for autofill)
+  ipcMain.handle('firebase:get-customer-suggestions', async (event, query) => {
     try {
-      if (!phone || phone.trim().length < 3) return { success: true, customers: [] };
+      // Support both old string (phone) and new object { phone?, name? }
+      const phone = typeof query === 'string' ? query : query?.phone;
+      const name = typeof query === 'object' ? query?.name : null;
+
       const firestore = getAdminFirestore();
-      // Firestore prefix search: phone >= term AND phone < term + '\uf8ff'
-      const term = phone.trim();
-      const snap = await firestore.collection('customers')
-        .where('phone', '>=', term)
-        .where('phone', '<', term + '\uf8ff')
-        .limit(5)
-        .get();
-      const customers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      return { success: true, customers };
+
+      if (phone && phone.trim().length >= 3) {
+        const term = phone.trim();
+        const snap = await firestore.collection('customers')
+          .where('phone', '>=', term)
+          .where('phone', '<', term + '\uf8ff')
+          .limit(5).get();
+        return { success: true, customers: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) };
+      }
+
+      if (name && name.trim().length >= 2) {
+        const term = name.trim().toLowerCase();
+        // Firestore doesn't support case-insensitive prefix search natively,
+        // so fetch all and filter in memory (customers collection is small)
+        const snap = await firestore.collection('customers').limit(200).get();
+        const customers = snap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(c => (c.name || '').toLowerCase().startsWith(term))
+          .slice(0, 5);
+        return { success: true, customers };
+      }
+
+      return { success: true, customers: [] };
     } catch (error) {
       console.error('Error getting customer suggestions:', error);
       return { success: false, customers: [] };
