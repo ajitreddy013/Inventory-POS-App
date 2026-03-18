@@ -203,6 +203,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPurchaseHistory: () => ipcRenderer.invoke('firebase:get-purchase-history'),
   transferToCounter: (items) => ipcRenderer.invoke('firebase:transfer-to-counter', items),
   getTransferHistory: () => ipcRenderer.invoke('firebase:get-transfer-history'),
+  getCounterStock: () => ipcRenderer.invoke('firebase:get-counter-stock'),
   // Event listeners for real-time updates
   on: (channel, callback) => {
     const subscription = (event, ...args) => callback(...args);
