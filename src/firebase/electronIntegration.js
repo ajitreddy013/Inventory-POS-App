@@ -612,11 +612,54 @@ function registerMenuHandlers() {
           value: true 
         });
       }
+
+      // Always exclude out-of-stock items unless explicitly requested
+      if (filters.includeOutOfStock !== true) {
+        queryFilters.push({
+          field: 'isOutOfStock',
+          operator: '==',
+          value: false
+        });
+      }
       
-      const items = await queryCollection('menuItems', queryFilters, {
+      let items = await queryCollection('menuItems', queryFilters, {
         orderBy: { field: 'name', direction: 'asc' }
       });
-      
+
+      // For bar items: only include those with counter stock > 0
+      if (filters.includeOutOfStock !== true) {
+        const firestore = getAdminFirestore();
+
+        // Read counterStock from inventory docs
+        const invSnap = await firestore.collection('inventory').get();
+        const counterMap = {};
+        for (const doc of invSnap.docs) {
+          const d = doc.data();
+          const id = d.menuItemId || doc.id;
+          if (id && d.counterStock != null) counterMap[id] = d.counterStock;
+        }
+
+        // Fall back to movements sum for items missing counterStock field
+        const barItemIds = items.filter(i => i.isBarItem && counterMap[i.id] == null).map(i => i.id);
+        if (barItemIds.length > 0) {
+          const movSnap = await firestore.collection('inventoryMovements')
+            .where('movementType', '==', 'godown_to_counter')
+            .get();
+          for (const doc of movSnap.docs) {
+            const d = doc.data();
+            const id = d.menuItemId;
+            if (id && counterMap[id] == null) {
+              counterMap[id] = (counterMap[id] || 0) + (d.quantity || 0);
+            }
+          }
+        }
+
+        items = items.filter(item => {
+          if (item.isBarItem) return (counterMap[item.id] || 0) > 0;
+          return true;
+        });
+      }
+
       return { success: true, items };
     } catch (error) {
       console.error('Error getting menu items:', error);
@@ -1611,16 +1654,28 @@ function registerInventoryHandlers() {
 
       const firestore = getAdminFirestore();
 
-      // Sum all godown_to_counter movements per menuItemId
-      const movSnap = await firestore.collection('inventoryMovements')
-        .where('movementType', '==', 'godown_to_counter')
-        .get();
-
+      // Read counterStock from inventory collection
+      const invSnap = await firestore.collection('inventory').get();
       const counterMap = {};
-      for (const doc of movSnap.docs) {
+      for (const doc of invSnap.docs) {
         const d = doc.data();
-        const id = d.menuItemId;
-        if (id) counterMap[id] = (counterMap[id] || 0) + (d.quantity || 0);
+        const id = d.menuItemId || doc.id;
+        if (id && d.counterStock != null) counterMap[id] = d.counterStock;
+      }
+
+      // For any item missing counterStock in inventory, fall back to summing movements
+      const itemsMissingCounter = items.filter(i => counterMap[i.id] == null);
+      if (itemsMissingCounter.length > 0) {
+        const movSnap = await firestore.collection('inventoryMovements')
+          .where('movementType', '==', 'godown_to_counter')
+          .get();
+        for (const doc of movSnap.docs) {
+          const d = doc.data();
+          const id = d.menuItemId;
+          if (id && counterMap[id] == null) {
+            counterMap[id] = (counterMap[id] || 0) + (d.quantity || 0);
+          }
+        }
       }
 
       const result = items.map(item => ({
@@ -3385,6 +3440,8 @@ function registerPendingBillHandlers() {
         });
       }
 
+      // 5. Deduction already happened via upsertOrderItem — no extra deduction needed
+
       return { success: true, billId };
     } catch (error) {
       console.error('Error saving pending bill:', error);
@@ -3525,6 +3582,7 @@ function registerTableOrderHandlers() {
               currentQty: d.currentQty ?? d.quantity ?? 0,
               sentQty: d.sentQty ?? (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
               category: d.category || '',
+              isBarItem: d.isBarItem || false,
               created_at: d.created_at || d.updatedAt?.toMillis?.() || Date.now(),
             };
           });
@@ -3561,6 +3619,7 @@ function registerTableOrderHandlers() {
           currentQty: d.currentQty ?? d.quantity ?? 0,
           sentQty: d.sentQty ?? (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
           category: d.category || '',
+          isBarItem: d.isBarItem || false,
         };
       });
       return { success: true, items };
@@ -3576,6 +3635,13 @@ function registerTableOrderHandlers() {
       const firestore = getAdminFirestore();
       const itemRef = firestore.collection('orders').doc(orderId).collection('items').doc(item.menuItemId);
       const now = new Date();
+
+      // Get previous qty to calculate delta for counter stock adjustment
+      const prevSnap = await itemRef.get();
+      const prevQty = prevSnap.exists ? (prevSnap.data().currentQty || 0) : 0;
+      const newQty = item.currentQty || 0;
+      const delta = newQty - prevQty; // positive = added more, negative = removed
+
       await itemRef.set({
         menuItemId: item.menuItemId,
         menuItemName: item.menuItemName,
@@ -3583,6 +3649,7 @@ function registerTableOrderHandlers() {
         currentQty: item.currentQty,
         sentQty: item.sentQty ?? 0,
         category: item.category || '',
+        isBarItem: item.isBarItem || false,
         updatedAt: now,
       }, { merge: true });
       // Set created_at only on first write (don't overwrite)
@@ -3598,6 +3665,26 @@ function registerTableOrderHandlers() {
           updatedAt: new Date(),
         });
       }
+
+      // Adjust counter stock immediately for bar items
+      if (delta !== 0) {
+        const menuItemDoc = await firestore.collection('menuItems').doc(item.menuItemId).get();
+        if (menuItemDoc.exists && menuItemDoc.data().isBarItem) {
+          const invRef = firestore.collection('inventory').doc(item.menuItemId);
+          await firestore.runTransaction(async (tx) => {
+            const invDoc = await tx.get(invRef);
+            const current = invDoc.exists ? (invDoc.data().counterStock || 0) : 0;
+            const newCounter = Math.max(0, current - delta);
+            tx.set(invRef, { menuItemId: item.menuItemId, counterStock: newCounter, updatedAt: new Date() }, { merge: true });
+            // Update isOutOfStock on menuItem
+            tx.update(firestore.collection('menuItems').doc(item.menuItemId), {
+              isOutOfStock: newCounter === 0,
+              updatedAt: new Date()
+            });
+          });
+        }
+      }
+
       return { success: true, itemId: item.menuItemId };
     } catch (error) {
       console.error('Error upserting order item:', error);
@@ -3609,7 +3696,31 @@ function registerTableOrderHandlers() {
   ipcMain.handle('firebase:delete-order-item', async (event, { orderId, menuItemId }) => {
     try {
       const firestore = getAdminFirestore();
-      await firestore.collection('orders').doc(orderId).collection('items').doc(menuItemId).delete();
+      const itemRef = firestore.collection('orders').doc(orderId).collection('items').doc(menuItemId);
+
+      // Get current qty before deleting to restore counter stock
+      const snap = await itemRef.get();
+      const qty = snap.exists ? (snap.data().currentQty || 0) : 0;
+
+      await itemRef.delete();
+
+      // Restore counter stock for bar items
+      if (qty > 0) {
+        const menuItemDoc = await firestore.collection('menuItems').doc(menuItemId).get();
+        if (menuItemDoc.exists && menuItemDoc.data().isBarItem) {
+          const invRef = firestore.collection('inventory').doc(menuItemId);
+          await firestore.runTransaction(async (tx) => {
+            const invDoc = await tx.get(invRef);
+            const current = invDoc.exists ? (invDoc.data().counterStock || 0) : 0;
+            const newCounter = current + qty;
+            tx.set(invRef, { menuItemId, counterStock: newCounter, updatedAt: new Date() }, { merge: true });
+            if (newCounter > 0) {
+              tx.update(firestore.collection('menuItems').doc(menuItemId), { isOutOfStock: false, updatedAt: new Date() });
+            }
+          });
+        }
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Error deleting order item:', error);
@@ -3648,12 +3759,51 @@ function registerTableOrderHandlers() {
       });
 
       await batch.commit();
+
       return { success: true };
     } catch (error) {
       console.error('Error sending KOT:', error);
       return { success: false, error: error.message };
     }
   });
+}
+
+// Deduct counterStock from inventory for bar items
+async function deductCounterStockForItems(firestore, items) {
+  for (const item of items) {
+    try {
+      // Only deduct bar items
+      const menuItemDoc = await firestore.collection('menuItems').doc(item.menuItemId).get();
+      if (!menuItemDoc.exists) continue;
+      const menuItem = menuItemDoc.data();
+      if (!menuItem.isBarItem) continue;
+
+      const qty = item.quantity || item.currentQty || 0;
+      if (qty <= 0) continue;
+
+      const invRef = firestore.collection('inventory').doc(item.menuItemId);
+      await firestore.runTransaction(async (tx) => {
+        const invDoc = await tx.get(invRef);
+        const current = invDoc.exists ? (invDoc.data().counterStock || 0) : 0;
+        const newCounter = Math.max(0, current - qty);
+        tx.set(invRef, {
+          menuItemId: item.menuItemId,
+          counterStock: newCounter,
+          updatedAt: new Date()
+        }, { merge: true });
+
+        // Mark out of stock if counter hits 0
+        if (newCounter === 0) {
+          tx.update(firestore.collection('menuItems').doc(item.menuItemId), {
+            isOutOfStock: true,
+            updatedAt: new Date()
+          });
+        }
+      });
+    } catch (e) {
+      console.error('Failed to deduct counter stock for', item.menuItemId, e.message);
+    }
+  }
 }
 
 // Export initialization function

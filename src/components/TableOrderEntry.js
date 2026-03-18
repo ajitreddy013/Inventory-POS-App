@@ -17,6 +17,8 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [counterStockMap, setCounterStockMap] = useState({});
+  const [godownStockMap, setGodownStockMap] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
   const [menuError, setMenuError] = useState(null);
 
@@ -26,6 +28,13 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [saving] = useState(false);
   const [error, setError] = useState(null);
   const [kotSending, setKotSending] = useState(false);
+
+  // Auto-dismiss error after 7 seconds
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 7000);
+    return () => clearTimeout(t);
+  }, [error]);
 
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountType, setDiscountType] = useState('fixed');
@@ -56,11 +65,36 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const loadMenu = useCallback(async () => {
     setMenuLoading(true); setMenuError(null);
     try {
-      const [itemsRes] = await Promise.all([
-        window.electronAPI.getMenuItems({ includeInactive: false }),
-        window.electronAPI.getMenuCategoriesWithIds(),
+      const [itemsRes, counterRes, godownRes] = await Promise.all([
+        window.electronAPI.getMenuItems({ includeInactive: false, includeOutOfStock: true }),
+        window.electronAPI.getCounterStock(),
+        window.electronAPI.getMenuItemsWithStock(),
       ]);
-      const items = (itemsRes?.items || []).filter(i => i.isActive !== false && !i.isOutOfStock);
+
+      // Build counter stock map for bar items
+      const counterMap = {};
+      if (counterRes?.success) {
+        for (const item of counterRes.items) counterMap[item.id] = item.counterStock || 0;
+      }
+      setCounterStockMap(counterMap);
+
+      // Build godown stock map
+      const godownMap = {};
+      if (godownRes?.success) {
+        for (const item of godownRes.items) godownMap[item.id] = item.godownStock || 0;
+      }
+      setGodownStockMap(godownMap);
+
+      const items = (itemsRes?.items || []).filter(i => {
+        if (i.isActive === false) return false;
+        if (i.isBarItem) {
+          // Bar items: only show if counter stock > 0
+          return (counterMap[i.id] || 0) > 0;
+        }
+        // Restaurant items: exclude if out of stock
+        return !i.isOutOfStock;
+      });
+
       setMenuItems(items);
       const seen = new Set(); const cats = [];
       for (const item of items) {
@@ -68,7 +102,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         if (!seen.has(sc)) { seen.add(sc); cats.push(sc); }
       }
       setCategories(cats);
-      setSelectedCategory(cats[0] || null);
+      setSelectedCategory(null);
     } catch (e) { setMenuError(e.message || 'Failed to load menu'); }
     finally { setMenuLoading(false); }
   }, []);
@@ -78,12 +112,23 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     if (!oid) return;
     if (orderItemsUnsubRef.current) { orderItemsUnsubRef.current(); orderItemsUnsubRef.current = null; }
     const channel = `order-items-update:${oid}`;
-    window.electronAPI.invoke('firebase:subscribe-order-items', { orderId: oid });
+
+    // Register listener FIRST before subscribing to avoid missing the initial snapshot
     const sub = window.electronAPI.on(channel, items => setOrderItems(items));
     orderItemsUnsubRef.current = () => {
       window.electronAPI.invoke('firebase:unsubscribe-order-items', { orderId: oid });
       window.electronAPI.removeListener(channel, sub);
     };
+
+    // Now subscribe — initial snapshot will fire and listener is already ready
+    window.electronAPI.invoke('firebase:subscribe-order-items', { orderId: oid })
+      .then(() => {
+        // Fallback: also fetch directly in case snapshot already fired before listener was ready
+        window.electronAPI.invoke('firebase:get-order-items', { orderId: oid })
+          .then(res => { if (res?.success && res.items?.length > 0) setOrderItems(res.items); })
+          .catch(() => {});
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -92,6 +137,23 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     if (oid) subscribeToOrderItems(oid);
     return () => { if (orderItemsUnsubRef.current) orderItemsUnsubRef.current(); };
   }, [loadMenu, subscribeToOrderItems, table, orderId]);
+
+  // Auto-clear stale bill amount when order has no items after a short delay
+  useEffect(() => {
+    if (menuLoading) return;
+    const oid = table?.currentOrderId || orderId;
+    if (!oid) return;
+    // Wait 2s for subscription to settle, then if still empty, clear stale amount
+    const t = setTimeout(async () => {
+      if (orderItems.length === 0 && (table?.currentBillAmount || table?.current_bill_amount || 0) > 0) {
+        try {
+          await window.electronAPI.invoke('firebase:clear-table', table.id);
+          if (onTableUpdate) onTableUpdate({ ...table, status: 'available', currentOrderId: null, currentBillAmount: 0 });
+        } catch (e) { console.warn('clear stale table:', e.message); }
+      }
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [orderItems.length, menuLoading, table, orderId, onTableUpdate]);
 
   useEffect(() => {
     if (listBottomRef.current) listBottomRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -130,27 +192,57 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleAddItem = useCallback(async (menuItem) => {
+    // Check counter stock cap for bar items BEFORE updating state
+    if (menuItem.isBarItem) {
+      const maxQty = counterStockMap[menuItem.id] || 0;
+      const currentQty = orderItems.find(i => i.menuItemId === menuItem.id)?.currentQty || 0;
+      if (currentQty >= maxQty) {
+        const inGodown = godownStockMap[menuItem.id] || 0;
+        setError(inGodown > 0
+          ? `Counter stock exhausted. ${inGodown} available in godown — transfer to counter first.`
+          : 'Stock not available.'
+        );
+        return;
+      }
+    }
     let oid; try { oid = await ensureOrder(); } catch (e) { setError(e.message); return; }
     setOrderItems(prev => {
       const existing = prev.find(i => i.menuItemId === menuItem.id);
       const updated = existing
         ? prev.map(i => i.menuItemId === menuItem.id ? { ...i, currentQty: i.currentQty + 1 } : i)
-        : [...prev, { menuItemId: menuItem.id, menuItemName: menuItem.name, unitPrice: menuItem.price, currentQty: 1, sentQty: 0, category: menuItem.subCategory || menuItem.category || '' }];
+        : [...prev, { menuItemId: menuItem.id, menuItemName: menuItem.name, unitPrice: menuItem.price, currentQty: 1, sentQty: 0, category: menuItem.subCategory || menuItem.category || '', isBarItem: menuItem.isBarItem }];
       const item = updated.find(i => i.menuItemId === menuItem.id);
       scheduleUpsert(oid, item, table.id, updated.reduce((s, i) => s + i.currentQty * i.unitPrice, 0));
       return updated;
     });
-  }, [ensureOrder, scheduleUpsert, table]);
+  }, [ensureOrder, scheduleUpsert, table, counterStockMap, godownStockMap, orderItems]);
 
   const handleIncrement = useCallback(async (menuItemId) => {
+    // Check counter stock cap for bar items BEFORE updating state
+    // Use isBarItem from orderItems (stored in Firestore) or fall back to menuItems lookup
+    const orderItem = orderItems.find(i => i.menuItemId === menuItemId);
+    const menuItem = menuItems.find(i => i.id === menuItemId);
+    const isBarItem = orderItem?.isBarItem || menuItem?.isBarItem || false;
+    if (isBarItem) {
+      const maxQty = counterStockMap[menuItemId] || 0;
+      const currentQty = orderItem?.currentQty || 0;
+      if (currentQty >= maxQty) {
+        const inGodown = godownStockMap[menuItemId] || 0;
+        setError(inGodown > 0
+          ? `Counter stock exhausted. ${inGodown} available in godown — transfer to counter first.`
+          : 'Stock not available.'
+        );
+        return;
+      }
+    }
     let oid; try { oid = await ensureOrder(); } catch (e) { setError(e.message); return; }
     setOrderItems(prev => {
       const updated = prev.map(i => i.menuItemId === menuItemId ? { ...i, currentQty: i.currentQty + 1 } : i);
-      const item = updated.find(i => i.menuItemId === menuItemId);
-      scheduleUpsert(oid, item, table.id, updated.reduce((s, i) => s + i.currentQty * i.unitPrice, 0));
+      const updatedItem = updated.find(i => i.menuItemId === menuItemId);
+      scheduleUpsert(oid, updatedItem, table.id, updated.reduce((s, i) => s + i.currentQty * i.unitPrice, 0));
       return updated;
     });
-  }, [ensureOrder, scheduleUpsert, table]);
+  }, [ensureOrder, scheduleUpsert, table, counterStockMap, godownStockMap, orderItems, menuItems]);
 
   const handleDecrement = useCallback(async (menuItemId) => {
     let oid; try { oid = await ensureOrder(); } catch (e) { setError(e.message); return; }
@@ -193,8 +285,9 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       if (!res?.success) throw new Error(res?.error || 'KOT failed');
       setOrderItems(prev => prev.map(i => ({ ...i, sentQty: i.currentQty })));
       if (onTableUpdate) onTableUpdate({ ...table, status: 'occupied', currentOrderId: orderId });
+      loadMenu(); // refresh counter stock map
     } catch (e) { setError(e.message); } finally { setKotSending(false); }
-  }, [orderItems, orderId, table, onTableUpdate]);
+  }, [orderItems, orderId, table, onTableUpdate, loadMenu]);
 
   const handleKeepPending = useCallback(async () => {
     if (orderItems.length === 0) {
@@ -292,9 +385,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     try {
       const res = await window.electronAPI.generateBill({ orderId, tableId: table.id, payments: [{ type, amount: payableTotal }], discount: discountAmount });
       if (!res?.success) throw new Error(res?.error || 'Bill failed');
+      loadMenu(); // refresh counter stock
       onBack();
     } catch (e) { setError(e.message); } finally { setPaying(false); }
-  }, [orderId, table, payableTotal, discountAmount, onBack]);
+  }, [orderId, table, payableTotal, discountAmount, onBack, loadMenu]);
 
   const handleSplitPay = useCallback(async () => {
     const cash = parseFloat(splitCash) || 0; const upi = parseFloat(splitUpi) || 0;
@@ -304,9 +398,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     try {
       const res = await window.electronAPI.generateBill({ orderId, tableId: table.id, payments: [{ type: 'cash', amount: cash }, { type: 'upi', amount: upi }], discount: discountAmount });
       if (!res?.success) throw new Error(res?.error || 'Bill failed');
+      loadMenu(); // refresh counter stock
       onBack();
     } catch (e) { setError(e.message); } finally { setPaying(false); }
-  }, [splitCash, splitUpi, payableTotal, orderId, table, discountAmount, onBack]);
+  }, [splitCash, splitUpi, payableTotal, orderId, table, discountAmount, onBack, loadMenu]);
 
   const getCategoryIcon = (categoryName) => {
     const name = (categoryName || '').toLowerCase();
@@ -320,11 +415,13 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
 
   const visibleItems = menuItems.filter(i => {
     const cat = i.subCategory || i.category || 'Other';
-    const matchesCategory = !selectedCategory || cat === selectedCategory;
     const matchesSearch = !searchTerm || 
       i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (i.description && i.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesCategory && matchesSearch;
+    // When searching, show all matching items regardless of category
+    if (searchTerm) return matchesSearch;
+    const matchesCategory = !selectedCategory || cat === selectedCategory;
+    return matchesCategory;
   });
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -365,12 +462,12 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         </div>
       </header>
 
-      {/* Error bar */}
+      {/* Error toast — fixed overlay, auto-dismisses */}
       {error && (
-        <div className="error-bar" style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-          <AlertCircle size={16} />
+        <div style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 9999, background: '#fee2e2', color: '#991b1b', padding: '0.85rem 1.25rem', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.18)', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.875rem', maxWidth: '380px' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1 }}>{error}</span>
-          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1.25rem' }}>&times;</button>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1.25rem', lineHeight: 1, padding: 0 }}>&times;</button>
         </div>
       )}
 
@@ -493,6 +590,21 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
                 <ShoppingCart size={32} className="text-muted" style={{ marginBottom: '1rem', opacity: 0.5 }} />
                 <p className="text-muted">Selection is empty.</p>
                 <p className="text-muted" style={{ fontSize: '0.8rem' }}>Tap items on the left to start billing.</p>
+                {(table?.currentBillAmount || table?.current_bill_amount || 0) > 0 && (
+                  <button
+                    style={{ marginTop: '1.5rem', padding: '0.5rem 1.2rem', background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.85rem' }}
+                    onClick={async () => {
+                      if (!window.confirm('Clear stale amount from this table?')) return;
+                      try {
+                        await window.electronAPI.invoke('firebase:clear-table', table.id);
+                        if (onTableUpdate) onTableUpdate({ ...table, status: 'available', currentOrderId: null, currentBillAmount: 0 });
+                        onBack();
+                      } catch (e) { setError('Failed to clear table: ' + e.message); }
+                    }}
+                  >
+                    Clear Stale Amount
+                  </button>
+                )}
               </div>
             ) : (
               [...orderItems]
