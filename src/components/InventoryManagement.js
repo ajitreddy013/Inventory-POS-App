@@ -1,6 +1,54 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Package, Search, Plus, History, X } from 'lucide-react';
 
+// Handles Firestore Admin SDK timestamps: { _seconds, _nanoseconds }, { seconds, nanoseconds }, .toDate(), or ISO string
+function parseTimestamp(val) {
+  if (!val) return null;
+  if (val.toDate) return val.toDate();
+  if (val._seconds != null) return new Date(val._seconds * 1000);
+  if (val.seconds != null) return new Date(val.seconds * 1000);
+  const d = new Date(val);
+  return isNaN(d) ? null : d;
+}
+
+function formatTime(val) {
+  const d = parseTimestamp(val);
+  if (!d) return '-';
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function formatDateLabel(val) {
+  const d = parseTimestamp(val);
+  if (!d) return 'Unknown Date';
+  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function toDateKey(val) {
+  const d = parseTimestamp(val);
+  if (!d) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+// Group records by date, sorted newest date first, each group sorted by time asc
+function groupByDate(records) {
+  const map = {};
+  for (const rec of records) {
+    const key = toDateKey(rec.addedAt);
+    if (!map[key]) map[key] = { key, label: formatDateLabel(rec.addedAt), items: [] };
+    map[key].items.push(rec);
+  }
+  // sort each group by time asc
+  for (const g of Object.values(map)) {
+    g.items.sort((a, b) => {
+      const da = parseTimestamp(a.addedAt);
+      const db = parseTimestamp(b.addedAt);
+      return (da || 0) - (db || 0);
+    });
+  }
+  // sort groups newest first
+  return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
+}
+
 const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState('bar');
   const [items, setItems] = useState([]);
@@ -10,6 +58,16 @@ const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [addStockModal, setAddStockModal] = useState({ open: false, item: null });
+
+  const loadSuppliers = useCallback(async () => {
+    try {
+      const res = await window.electronAPI.getPurchaseHistory();
+      if (res.success) {
+        const suppliers = [...new Set(res.records.map(r => r.supplier).filter(Boolean))];
+        setAllSuppliers(suppliers);
+      }
+    } catch (e) { /* silent */ }
+  }, []);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -29,10 +87,7 @@ const InventoryManagement = () => {
       const res = await window.electronAPI.getPurchaseHistory();
       if (res.success) {
         setPurchaseHistory(res.records);
-        // collect unique suppliers for autofill
-        const suppliers = [...new Set(
-          res.records.map(r => r.supplier).filter(Boolean)
-        )];
+        const suppliers = [...new Set(res.records.map(r => r.supplier).filter(Boolean))];
         setAllSuppliers(suppliers);
       }
     } catch (e) {
@@ -42,20 +97,13 @@ const InventoryManagement = () => {
     }
   }, []);
 
+  // load suppliers on mount so autofill works immediately
+  useEffect(() => { loadSuppliers(); }, [loadSuppliers]);
+
   useEffect(() => {
     if (activeTab === 'history') loadHistory();
     else loadItems();
   }, [activeTab, loadItems, loadHistory]);
-
-  // also load suppliers once on mount for autofill in modal
-  useEffect(() => {
-    window.electronAPI.getPurchaseHistory().then(res => {
-      if (res.success) {
-        const suppliers = [...new Set(res.records.map(r => r.supplier).filter(Boolean))];
-        setAllSuppliers(suppliers);
-      }
-    }).catch(() => {});
-  }, []);
 
   const restaurantItems = items.filter(item => !item.isBarItem);
   const barItems = items.filter(item => item.isBarItem);
@@ -65,21 +113,11 @@ const InventoryManagement = () => {
     (item.category || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const toDateStr = (val) => {
-    if (!val) return '';
-    const d = val.toDate ? val.toDate() : new Date(val);
-    return d.toISOString().slice(0, 10); // YYYY-MM-DD
-  };
-
   const filteredHistory = filterDate
-    ? purchaseHistory.filter(r => toDateStr(r.addedAt) === filterDate)
+    ? purchaseHistory.filter(r => toDateKey(r.addedAt) === filterDate)
     : purchaseHistory;
 
-  const formatDate = (val) => {
-    if (!val) return '-';
-    const d = val.toDate ? val.toDate() : new Date(val);
-    return d.toLocaleString();
-  };
+  const groupedHistory = groupByDate(filteredHistory);
 
   const foodTypeIcon = (type) => {
     if (type === 'veg') return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
@@ -190,14 +228,13 @@ const InventoryManagement = () => {
 
       {activeTab === 'history' && (
         <>
-          <div className="search-section" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #eee' }}>
             <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Filter by date:</label>
             <input
               type="date"
-              className="form-input"
               value={filterDate}
               onChange={e => setFilterDate(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd' }}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 14 }}
             />
             {filterDate && (
               <button className="btn btn-secondary btn-sm" onClick={() => setFilterDate('')}>
@@ -208,39 +245,54 @@ const InventoryManagement = () => {
 
           {loading ? (
             <div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>
+          ) : groupedHistory.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#888' }}>
+              No purchase history {filterDate ? `for ${filterDate}` : 'yet'}
+            </div>
           ) : (
-            <div className="table-container">
-              <table className="inventory-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Item</th>
-                    <th>Qty Added</th>
-                    <th>Supplier</th>
-                    <th>Cost/Unit</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredHistory.map((rec, i) => (
-                    <tr key={rec.id || i}>
-                      <td>{formatDate(rec.addedAt)}</td>
-                      <td><strong>{rec.menuItemName}</strong></td>
-                      <td>{rec.quantityAdded}</td>
-                      <td>{rec.supplier || '-'}</td>
-                      <td>{rec.costPerUnit ? `₹${rec.costPerUnit}` : '-'}</td>
-                      <td>{rec.notes || '-'}</td>
-                    </tr>
-                  ))}
-                  {filteredHistory.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
-                        No purchase history {filterDate ? `for ${filterDate}` : 'yet'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div style={{ padding: '0 24px 24px' }}>
+              {groupedHistory.map(group => (
+                <div key={group.key} style={{ marginTop: 24 }}>
+                  {/* Date header */}
+                  <div style={{
+                    background: '#f0f4ff',
+                    border: '1px solid #d0d9f0',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontWeight: 700,
+                    fontSize: 15,
+                    color: '#3a4a8a',
+                    marginBottom: 8
+                  }}>
+                    {group.label}
+                  </div>
+
+                  <table className="inventory-table" style={{ marginBottom: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Item</th>
+                        <th>Qty Added</th>
+                        <th>Supplier</th>
+                        <th>Cost/Unit</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map((rec, i) => (
+                        <tr key={rec.id || i}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{formatTime(rec.addedAt)}</td>
+                          <td><strong>{rec.menuItemName}</strong></td>
+                          <td>{rec.quantityAdded}</td>
+                          <td>{rec.supplier || '-'}</td>
+                          <td>{rec.costPerUnit ? `₹${rec.costPerUnit}` : '-'}</td>
+                          <td>{rec.notes || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           )}
         </>
@@ -254,6 +306,7 @@ const InventoryManagement = () => {
           onSaved={() => {
             setAddStockModal({ open: false, item: null });
             loadItems();
+            loadSuppliers();
           }}
         />
       )}
@@ -264,22 +317,14 @@ const InventoryManagement = () => {
 const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
   const [qty, setQty] = useState('');
   const [supplier, setSupplier] = useState('');
-  const [supplierSuggestions, setSupplierSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [costPerUnit, setCostPerUnit] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const handleSupplierChange = (val) => {
-    setSupplier(val);
-    if (val.trim()) {
-      const matches = suppliers.filter(s =>
-        s.toLowerCase().startsWith(val.toLowerCase())
-      );
-      setSupplierSuggestions(matches);
-    } else {
-      setSupplierSuggestions([]);
-    }
-  };
+  const suggestions = supplier.trim()
+    ? suppliers.filter(s => s.toLowerCase().includes(supplier.toLowerCase()))
+    : suppliers; // show all when field is focused but empty
 
   const handleSave = async () => {
     const quantity = parseFloat(qty);
@@ -329,34 +374,35 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               style={{ width: '100%', marginTop: 4 }}
             />
           </div>
+
           <div style={{ marginBottom: 12, position: 'relative' }}>
             <label>Supplier</label>
             <input
               type="text"
               className="form-input"
               value={supplier}
-              onChange={e => handleSupplierChange(e.target.value)}
+              onChange={e => { setSupplier(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
               placeholder="Supplier name"
               style={{ width: '100%', marginTop: 4 }}
               autoComplete="off"
             />
-            {supplierSuggestions.length > 0 && (
+            {showSuggestions && suggestions.length > 0 && (
               <ul style={{
                 position: 'absolute', top: '100%', left: 0, right: 0,
                 background: '#fff', border: '1px solid #ddd', borderRadius: 6,
-                listStyle: 'none', margin: 0, padding: 0, zIndex: 100,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                listStyle: 'none', margin: 0, padding: 0, zIndex: 200,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: 160, overflowY: 'auto'
               }}>
-                {supplierSuggestions.map(s => (
+                {suggestions.map(s => (
                   <li
                     key={s}
-                    onClick={() => { setSupplier(s); setSupplierSuggestions([]); }}
+                    onMouseDown={() => { setSupplier(s); setShowSuggestions(false); }}
                     style={{
                       padding: '8px 12px', cursor: 'pointer',
-                      borderBottom: '1px solid #f0f0f0'
+                      borderBottom: '1px solid #f0f0f0', fontSize: 14
                     }}
-                    onMouseEnter={e => e.target.style.background = '#f5f5f5'}
-                    onMouseLeave={e => e.target.style.background = '#fff'}
                   >
                     {s}
                   </li>
@@ -364,6 +410,7 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               </ul>
             )}
           </div>
+
           <div style={{ marginBottom: 12 }}>
             <label>Cost per Unit (₹)</label>
             <input
