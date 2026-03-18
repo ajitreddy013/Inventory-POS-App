@@ -1539,17 +1539,21 @@ function registerInventoryHandlers() {
         await runTransaction(async (transaction) => {
           const inventoryRef = firestore.collection('inventory').doc(menuItemId);
           const inventoryDoc = await transaction.get(inventoryRef);
-          const currentQty = inventoryDoc.exists ? (inventoryDoc.data().quantity || 0) : 0;
-          const newQty = Math.max(0, currentQty - quantity);
+          const data = inventoryDoc.exists ? inventoryDoc.data() : {};
+          const currentGodown = data.quantity || 0;
+          const currentCounter = data.counterStock || 0;
+          const newGodown = Math.max(0, currentGodown - quantity);
+          const newCounter = currentCounter + quantity;
 
           transaction.set(inventoryRef, {
             menuItemId,
-            quantity: newQty,
+            quantity: newGodown,
+            counterStock: newCounter,
             autoOutOfStock: true,
             updatedAt: new Date()
           }, { merge: true });
 
-          if (newQty === 0) {
+          if (newGodown === 0) {
             const menuItemRef = firestore.collection('menuItems').doc(menuItemId);
             transaction.update(menuItemRef, { isOutOfStock: true, updatedAt: new Date() });
           }
@@ -1595,6 +1599,33 @@ function registerInventoryHandlers() {
     } catch (error) {
       console.error('Error getting transfer history:', error);
       return { success: false, error: 'Failed to get transfer history' };
+    }
+  });
+
+  // Get counter stock — joins menuItems with inventory.counterStock
+  ipcMain.handle('firebase:get-counter-stock', async () => {
+    try {
+      const items = await queryCollection('menuItems', [
+        { field: 'isActive', operator: '==', value: true }
+      ], { orderBy: { field: 'name', direction: 'asc' } });
+
+      const firestore = getAdminFirestore();
+      const invSnap = await firestore.collection('inventory').get();
+      const stockMap = {};
+      for (const doc of invSnap.docs) {
+        const d = doc.data();
+        stockMap[d.menuItemId || doc.id] = d.counterStock || 0;
+      }
+
+      const result = items.map(item => ({
+        ...item,
+        counterStock: stockMap[item.id] || 0
+      }));
+
+      return { success: true, items: result };
+    } catch (error) {
+      console.error('Error getting counter stock:', error);
+      return { success: false, error: 'Failed to get counter stock' };
     }
   });
 }
