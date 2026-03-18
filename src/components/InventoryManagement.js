@@ -1,211 +1,58 @@
-import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
-import { 
-  Package, 
-  AlertTriangle, 
-  ArrowUpDown, 
-  Search,
-  Edit,
-  X,
-  FileText,
-  Download,
-  History
-} from 'lucide-react';
-import StockEditModal from './StockEditModal';
-import StockHistory from './StockHistory';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Package, Search, Plus, History, X } from 'lucide-react';
 
 const InventoryManagement = () => {
-  const [inventory, setInventory] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [editingStock, setEditingStock] = useState({ isOpen: false, product: null });
-  const [transferModal, setTransferModal] = useState({ open: false, product: null });
+  const [activeTab, setActiveTab] = useState('inventory');
+  const [items, setItems] = useState([]);
+  const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [barSettings, setBarSettings] = useState(null);
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' or 'history'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [addStockModal, setAddStockModal] = useState({ open: false, item: null });
 
-  useEffect(() => {
-    loadInventory();
-    loadBarSettings();
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await window.electronAPI.getMenuItemsWithStock();
+      if (res.success) setItems(res.items);
+    } catch (e) {
+      console.error('Failed to load inventory:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const loadBarSettings = async () => {
+  const loadHistory = useCallback(async () => {
+    setLoading(true);
     try {
-      const settings = await window.electronAPI.getBarSettings();
-      setBarSettings(settings);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to load bar settings:', error);
+      const res = await window.electronAPI.getPurchaseHistory();
+      if (res.success) setPurchaseHistory(res.records);
+    } catch (e) {
+      console.error('Failed to load purchase history:', e);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const loadInventory = async () => {
-    try {
-      const inventoryData = await window.electronAPI.getInventory();
-      setInventory(inventoryData);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to load inventory:', error);
-    }
-  };
+  useEffect(() => {
+    if (activeTab === 'inventory') loadItems();
+    else loadHistory();
+  }, [activeTab, loadItems, loadHistory]);
 
-  const filteredInventory = inventory.filter(item =>
+  const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.category || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const updateStock = async (productId, godownStock, counterStock) => {
-    try {
-      setLoading(true);
-      await window.electronAPI.updateStock(productId, godownStock, counterStock);
-      await loadInventory();
-      setEditingStock({ isOpen: false, product: null });
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to update stock:', error);
-      alert('Failed to update stock');
-    } finally {
-      setLoading(false);
-    }
+  const foodTypeIcon = (type) => {
+    if (type === 'veg') return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
+    if (type === 'non-veg') return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
+    return null;
   };
 
-  const transferStock = async (productId, quantity, fromLocation, toLocation) => {
-    try {
-      setLoading(true);
-      await window.electronAPI.transferStock(productId, quantity, fromLocation, toLocation);
-      await loadInventory();
-      setTransferModal({ open: false, product: null });
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to transfer stock:', error);
-      alert('Failed to transfer stock');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const TransferModal = ({ product, onClose, onTransfer }) => {
-    const [quantity, setQuantity] = useState('');
-    const [fromLocation, setFromLocation] = useState('godown');
-    const [toLocation, setToLocation] = useState('counter');
-
-    const handleTransfer = () => {
-      if (!quantity || quantity <= 0) {
-        alert('Please enter a valid quantity');
-        return;
-      }
-
-      const maxQuantity = fromLocation === 'godown' ? product.godown_stock : product.counter_stock;
-      if (parseInt(quantity) > maxQuantity) {
-        alert(`Insufficient stock in ${fromLocation}. Available: ${maxQuantity}`);
-        return;
-      }
-
-      onTransfer(product.id, parseInt(quantity), fromLocation, toLocation);
-    };
-
-    return (
-      <div className="modal-overlay">
-        <div className="modal">
-          <div className="modal-header">
-            <h3>Transfer Stock - {product.name}</h3>
-            <button onClick={onClose} className="close-btn">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="modal-content">
-            <div className="current-stock">
-              <p>Godown Stock: {product.godown_stock}</p>
-              <p>Counter Stock: {product.counter_stock}</p>
-            </div>
-            <div className="transfer-form">
-              <label>
-                From Location:
-                <select 
-                  value={fromLocation} 
-                  onChange={(e) => setFromLocation(e.target.value)}
-                >
-                  <option value="godown">Godown</option>
-                  <option value="counter">Counter</option>
-                </select>
-              </label>
-              <label>
-                To Location:
-                <select 
-                  value={toLocation} 
-                  onChange={(e) => setToLocation(e.target.value)}
-                >
-                  <option value={fromLocation === 'godown' ? 'counter' : 'godown'}>
-                    {fromLocation === 'godown' ? 'Counter' : 'Godown'}
-                  </option>
-                </select>
-              </label>
-              <label>
-                Quantity:
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  min="1"
-                  max={fromLocation === 'godown' ? product.godown_stock : product.counter_stock}
-                />
-              </label>
-            </div>
-          </div>
-          <div className="modal-actions">
-            <button onClick={handleTransfer} className="btn btn-primary">
-              Transfer Stock
-            </button>
-            <button onClick={onClose} className="btn btn-secondary">
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  TransferModal.propTypes = {
-    product: PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-      name: PropTypes.string.isRequired,
-      godown_stock: PropTypes.number.isRequired,
-      counter_stock: PropTypes.number.isRequired,
-    }).isRequired,
-    onClose: PropTypes.func.isRequired,
-    onTransfer: PropTypes.func.isRequired,
-  };
-
-  const getLowStockItems = () => {
-    return inventory.filter(item => 
-      (item.godown_stock + item.counter_stock) <= item.min_stock_level
-    );
-  };
-
-  const exportStockReport = async (reportType) => {
-    try {
-      setLoading(true);
-      const reportData = {
-        inventory: inventory.map(item => ({
-          ...item,
-          total_stock: item.godown_stock + item.counter_stock
-        })),
-        barSettings
-      };
-      
-      const result = await window.electronAPI.exportStockReport(reportData, reportType);
-      if (result.success) {
-        alert(`${reportType} stock report exported successfully to ${result.filePath}`);
-      } else {
-        alert('Failed to export report: ' + result.error);
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Export error:', error);
-      alert('Failed to export stock report');
-    } finally {
-      setLoading(false);
-    }
+  const formatDate = (val) => {
+    if (!val) return '-';
+    const d = val.toDate ? val.toDate() : new Date(val);
+    return d.toLocaleString();
   };
 
   return (
@@ -213,224 +60,248 @@ const InventoryManagement = () => {
       <div className="page-header">
         <h1><Package size={24} /> Inventory Management</h1>
         <div className="tab-navigation">
-          <button 
+          <button
             className={`btn tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
             onClick={() => setActiveTab('inventory')}
           >
-            <Package size={16} />
-            Current Inventory
+            <Package size={16} /> Stock
           </button>
-          <button 
+          <button
             className={`btn tab-btn ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => setActiveTab('history')}
           >
-            <History size={16} />
-            Movement History
+            <History size={16} /> Purchase History
           </button>
         </div>
       </div>
 
-      {/* Render content based on active tab */}
-      {activeTab === 'inventory' ? (
+      {activeTab === 'inventory' && (
         <>
-          {/* Summary Cards - Moved to top for quick access */}
-          <div className="summary-cards">
-        <div className="summary-card">
-          <h3>Total Products</h3>
-          <div className="value">{inventory.length}</div>
-        </div>
-        <div className="summary-card warning">
-          <h3>Low Stock Items</h3>
-          <div className="value">{getLowStockItems().length}</div>
-        </div>
-        <div className="summary-card">
-          <h3>Inventory Investment Value</h3>
-          <div className="value">
-            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * (item.cost || 0)), 0).toFixed(2)}
+          <div className="search-section">
+            <div className="search-input-container">
+              <Search size={20} />
+              <input
+                type="text"
+                placeholder="Search by name or category..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
           </div>
-          <small style={{ color: '#7f8c8d', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
-            (At Cost Price - Money Invested)
-          </small>
-        </div>
-        <div className="summary-card">
-          <h3>Potential Revenue Value</h3>
-          <div className="value">
-            ₹{inventory.reduce((sum, item) => sum + (item.total_stock * (item.price || 0)), 0).toFixed(2)}
-          </div>
-          <small style={{ color: '#7f8c8d', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
-            (At Selling Price - If All Sold)
-          </small>
-        </div>
-      </div>
 
-      {/* Low Stock Alert */}
-      {getLowStockItems().length > 0 && (
-        <div className="alert alert-warning">
-          <AlertTriangle size={20} />
-          <span>
-            {getLowStockItems().length} item(s) are running low on stock!
-          </span>
-        </div>
+          {loading ? (
+            <div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>
+          ) : (
+            <div className="table-container">
+              <table className="inventory-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Godown Stock</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map(item => (
+                    <tr key={item.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {foodTypeIcon(item.foodType)}
+                          <strong>{item.name}</strong>
+                        </div>
+                        {item.subCategory && (
+                          <small style={{ color: '#888' }}>{item.subCategory}</small>
+                        )}
+                      </td>
+                      <td>{item.category || '-'}</td>
+                      <td>₹{item.price}</td>
+                      <td>
+                        <span style={{
+                          fontWeight: 700,
+                          color: item.godownStock === 0 ? '#e74c3c' : '#27ae60'
+                        }}>
+                          {item.godownStock}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => setAddStockModal({ open: true, item })}
+                        >
+                          <Plus size={14} /> Add Stock
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredItems.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
+                        No items found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Search Section */}
-      <div className="search-section">
-        <div className="search-input-container">
-          <Search size={20} />
-          <input
-            type="text"
-            placeholder="Search by product name or SKU..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-        </div>
-      </div>
-      
-      {/* Export Section */}
-      <div className="export-section" style={{ padding: '15px 30px', background: 'white', borderBottom: '1px solid #e9ecef' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-            <FileText size={16} /> Export Stock Reports
-          </h4>
-          <div className="export-buttons" style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={() => exportStockReport('godown')} 
-              className="btn btn-secondary btn-sm"
-              disabled={loading}
-            >
-              <Download size={14} />
-              Godown
-            </button>
-            <button 
-              onClick={() => exportStockReport('counter')} 
-              className="btn btn-secondary btn-sm"
-              disabled={loading}
-            >
-              <Download size={14} />
-              Counter
-            </button>
-            <button 
-              onClick={() => exportStockReport('total')} 
-              className="btn btn-primary btn-sm"
-              disabled={loading}
-            >
-              <Download size={14} />
-              Total
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Inventory Table */}
-      <div className="table-container">
-        <table className="inventory-table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>Pricing & Profit</th>
-              <th>Godown Stock</th>
-              <th>Counter Stock</th>
-              <th>Total Stock</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredInventory.map(item => {
-              const cost = item.cost || 0;
-              const price = item.price || 0;
-              const profit = price - cost;
-              
-              return (
-                <React.Fragment key={item.id}>
-                  <tr className={item.total_stock <= item.min_stock_level ? 'low-stock' : ''}>
-                    <td>
-                      <div className="product-info">
-                        <strong>{item.name}</strong>
-                        {item.variant && (
-                          <small style={{ display: 'block', color: '#667eea' }}>
-                            {item.variant}
-                          </small>
-                        )}
-                      </div>
-                    </td>
-                    <td>{item.sku}</td>
-                    <td>{item.category || '-'}</td>
-                    <td>
-                      <div className="pricing-info">
-                        <div style={{ fontSize: '0.85rem', marginBottom: '4px' }}>
-                          <strong>Cost:</strong> ₹{cost.toFixed(2)}
-                        </div>
-                        <div style={{ fontSize: '0.85rem', marginBottom: '4px' }}>
-                          <strong>Price:</strong> ₹{price.toFixed(2)}
-                        </div>
-                        <div className={`profit-mini ${profit >= 0 ? 'positive' : 'negative'}`}>
-                          <strong>Profit:</strong> ₹{profit.toFixed(2)}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="stock-cell">{item.godown_stock}</td>
-                    <td className="stock-cell">{item.counter_stock}</td>
-                    <td className="stock-cell total">{item.total_stock}</td>
-                    <td>
-                      {item.total_stock <= item.min_stock_level ? (
-                        <span className="status low-stock">Low Stock</span>
-                      ) : item.total_stock >= item.max_stock_level ? (
-                        <span className="status overstock">Overstock</span>
-                      ) : (
-                        <span className="status normal">Normal</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          onClick={() => setEditingStock({ isOpen: true, product: item })}
-                          className="btn btn-sm btn-secondary"
-                          title="Edit Stock"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => setTransferModal({ open: true, product: item })}
-                          className="btn btn-sm btn-primary"
-                          title="Transfer Stock"
-                        >
-                          <ArrowUpDown size={16} />
-                        </button>
-                      </div>
-                    </td>
+      {activeTab === 'history' && (
+        <>
+          {loading ? (
+            <div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>
+          ) : (
+            <div className="table-container">
+              <table className="inventory-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Item</th>
+                    <th>Qty Added</th>
+                    <th>Supplier</th>
+                    <th>Cost/Unit</th>
+                    <th>Notes</th>
                   </tr>
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                </thead>
+                <tbody>
+                  {purchaseHistory.map((rec, i) => (
+                    <tr key={rec.id || i}>
+                      <td>{formatDate(rec.addedAt)}</td>
+                      <td><strong>{rec.menuItemName}</strong></td>
+                      <td>{rec.quantityAdded}</td>
+                      <td>{rec.supplier || '-'}</td>
+                      <td>{rec.costPerUnit ? `₹${rec.costPerUnit}` : '-'}</td>
+                      <td>{rec.notes || '-'}</td>
+                    </tr>
+                  ))}
+                  {purchaseHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
+                        No purchase history yet
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
-      {/* Stock Edit Modal */}
-      <StockEditModal
-        product={editingStock.product}
-        onSave={updateStock}
-        onCancel={() => setEditingStock({ isOpen: false, product: null })}
-        isOpen={editingStock.isOpen}
-      />
-
-      {/* Transfer Modal */}
-      {transferModal.open && (
-        <TransferModal
-          product={transferModal.product}
-          onClose={() => setTransferModal({ open: false, product: null })}
-          onTransfer={transferStock}
+      {addStockModal.open && (
+        <AddStockModal
+          item={addStockModal.item}
+          onClose={() => setAddStockModal({ open: false, item: null })}
+          onSaved={() => {
+            setAddStockModal({ open: false, item: null });
+            loadItems();
+          }}
         />
       )}
-        </>
-      ) : (
-        <StockHistory />
-      )}
+    </div>
+  );
+};
 
+const AddStockModal = ({ item, onClose, onSaved }) => {
+  const [qty, setQty] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [costPerUnit, setCostPerUnit] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const quantity = parseFloat(qty);
+    if (!quantity || quantity <= 0) {
+      alert('Enter a valid quantity');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await window.electronAPI.addGodownStock({
+        menuItemId: item.id,
+        menuItemName: item.name,
+        quantityAdded: quantity,
+        supplier: supplier.trim(),
+        notes: notes.trim(),
+        costPerUnit: costPerUnit ? parseFloat(costPerUnit) : 0
+      });
+      if (res.success) {
+        onSaved();
+      } else {
+        alert('Failed: ' + res.error);
+      }
+    } catch (e) {
+      alert('Error: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-header">
+          <h3>Add Godown Stock — {item.name}</h3>
+          <button onClick={onClose} className="close-btn"><X size={20} /></button>
+        </div>
+        <div className="modal-content">
+          <div style={{ marginBottom: 12 }}>
+            <label>Quantity *</label>
+            <input
+              type="number"
+              className="form-input"
+              value={qty}
+              onChange={e => setQty(e.target.value)}
+              min="1"
+              placeholder="e.g. 10"
+              style={{ width: '100%', marginTop: 4 }}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label>Supplier</label>
+            <input
+              type="text"
+              className="form-input"
+              value={supplier}
+              onChange={e => setSupplier(e.target.value)}
+              placeholder="Supplier name"
+              style={{ width: '100%', marginTop: 4 }}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label>Cost per Unit (₹)</label>
+            <input
+              type="number"
+              className="form-input"
+              value={costPerUnit}
+              onChange={e => setCostPerUnit(e.target.value)}
+              placeholder="0"
+              style={{ width: '100%', marginTop: 4 }}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label>Notes</label>
+            <input
+              type="text"
+              className="form-input"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Optional notes"
+              style={{ width: '100%', marginTop: 4 }}
+            />
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Add Stock'}
+          </button>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
     </div>
   );
 };
