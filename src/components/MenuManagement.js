@@ -7,6 +7,7 @@ const MenuManagement = () => {
   const navigate = useNavigate();
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [stockMap, setStockMap] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSection, setFilterSection] = useState('bar');
   const [showModal, setShowModal] = useState(false);
@@ -109,6 +110,13 @@ const MenuManagement = () => {
       });
       if (result.success) {
         setMenuItems(result.items);
+      }
+      // load godown stock map
+      const stockRes = await window.electronAPI.getMenuItemsWithStock();
+      if (stockRes.success) {
+        const map = {};
+        for (const item of stockRes.items) map[item.id] = item.godownStock || 0;
+        setStockMap(map);
       }
     } catch (error) {
       console.error('Failed to load menu items:', error);
@@ -324,9 +332,15 @@ const MenuManagement = () => {
                     )}
                     <td className="description-cell">{item.description || '-'}</td>
                     <td>
-                      <span className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
-                        {item.isOutOfStock ? <><AlertCircle size={16} /> Out of Stock</> : <><CheckCircle size={16} /> In Stock</>}
-                      </span>
+                      {filterSection === 'bar' ? (
+                        (stockMap[item.id] || 0) > 0
+                          ? <span className="status-badge in-stock"><CheckCircle size={16} /> Available ({stockMap[item.id]})</span>
+                          : <span className="status-badge out-of-stock"><AlertCircle size={16} /> Not Available</span>
+                      ) : (
+                        <span className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
+                          {item.isOutOfStock ? <><AlertCircle size={16} /> Out of Stock</> : <><CheckCircle size={16} /> In Stock</>}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <div className="action-buttons">
