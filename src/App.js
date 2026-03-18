@@ -60,6 +60,7 @@ import "./App.css";
 import Dashboard from "./components/Dashboard";                   // Main dashboard
 import ProductManagement from "./components/ProductManagement";   // Product catalog
 import GodownStock from "./components/GodownStock";               // Godown stock
+import CounterStock from "./components/CounterStock";             // Counter stock
 import DailyTransfer from "./components/DailyTransfer";           // Stock transfers
 import POSSystem from "./components/POSSystem";                   // Point of sale
 import TableManagement from "./components/TableManagement";       // Table management
@@ -258,6 +259,7 @@ function AppContent() {
           <Route path="/failed-kots" element={<FailedKOTManagement />} />
           <Route path="/products" element={<ProductManagement />} />
           <Route path="/inventory" element={<GodownStock />} />
+          <Route path="/counter-stock" element={<CounterStock />} />
           <Route path="/transfer" element={<DailyTransfer />} />
           <Route path="/pos" element={<POSSystem />} />
           <Route path="/reports" element={<SalesReports />} />
