@@ -181,7 +181,6 @@ function AppContent() {
     { path: "/", name: "Dashboard", icon: BarChart3 },           // Main overview
     { path: "/tables", name: "Tables", icon: Coffee },             // Table management
     { path: "/products", name: "Products", icon: Package },        // Product catalog
-    { path: "/inventory", name: "Inventory", icon: Package },      // Stock monitoring
     { path: "/transfer", name: "Daily Transfer", icon: ArrowRight }, // Stock transfers
     { path: "/pos", name: "POS", icon: ShoppingCart },             // Point of sale
     { path: "/reports", name: "Reports", icon: BarChart3 },         // Sales reports
