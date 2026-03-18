@@ -280,40 +280,48 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   }, [orderItems.length]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
-  const scheduleUpsert = useCallback((oid, item, tableId, sub) => {
-    clearTimeout(debounceRefs.current[item.menuItemId]);
-    // Store latest pending upsert data so we can flush on unmount
-    pendingUpserts.current[item.menuItemId] = { oid, item, tableId, sub };
-    debounceRefs.current[item.menuItemId] = setTimeout(async () => {
-      delete pendingUpserts.current[item.menuItemId];
-      try {
-        const result = await window.electronAPI.upsertOrderItem(oid, {
-          ...item,
-          tableId,
-          subtotal: sub,
-        });
-
-        if (!result?.success) {
-          throw new Error(result?.error || 'Stock not available.');
-        }
-      } catch (e) {
-        console.error('Upsert failed:', e);
-        setError(e.message || 'Stock not available.');
-
-        // Re-sync after optimistic update failure (e.g., stock exhausted during race).
+  const scheduleUpsert = useCallback(
+    (oid, item, tableId, sub) => {
+      clearTimeout(debounceRefs.current[item.menuItemId]);
+      // Store latest pending upsert data so we can flush on unmount
+      pendingUpserts.current[item.menuItemId] = { oid, item, tableId, sub };
+      debounceRefs.current[item.menuItemId] = setTimeout(async () => {
+        delete pendingUpserts.current[item.menuItemId];
         try {
-          const latest = await window.electronAPI.invoke('firebase:get-order-items', {
-            orderId: oid,
+          const result = await window.electronAPI.upsertOrderItem(oid, {
+            ...item,
+            tableId,
+            subtotal: sub,
           });
-          if (latest?.success) {
-            setOrderItems(latest.items || []);
-          }
-        } catch (e) { console.warn('settle refresh:', e.message); }
 
-        loadMenu();
-      }
-    }, 500);
-  }, [loadMenu]);
+          if (!result?.success) {
+            throw new Error(result?.error || 'Stock not available.');
+          }
+        } catch (e) {
+          console.error('Upsert failed:', e);
+          setError(e.message || 'Stock not available.');
+
+          // Re-sync after optimistic update failure (e.g., stock exhausted during race).
+          try {
+            const latest = await window.electronAPI.invoke(
+              'firebase:get-order-items',
+              {
+                orderId: oid,
+              }
+            );
+            if (latest?.success) {
+              setOrderItems(latest.items || []);
+            }
+          } catch (e) {
+            console.warn('settle refresh:', e.message);
+          }
+
+          loadMenu();
+        }
+      }, 500);
+    },
+    [loadMenu]
+  );
 
   const ensureOrder = useCallback(async () => {
     if (orderId) return orderId;
