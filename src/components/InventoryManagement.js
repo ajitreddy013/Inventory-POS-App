@@ -64,16 +64,16 @@ const InventoryManagement = () => {
         <h1><Package size={24} /> Inventory Management</h1>
         <div className="tab-navigation">
           <button
-            className={`btn tab-btn ${activeTab === 'restaurant' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('restaurant'); setSearchTerm(''); }}
-          >
-            🍽️ Restaurant
-          </button>
-          <button
             className={`btn tab-btn ${activeTab === 'bar' ? 'active' : ''}`}
             onClick={() => { setActiveTab('bar'); setSearchTerm(''); }}
           >
-            🍺 Bar
+            Bar
+          </button>
+          <button
+            className={`btn tab-btn ${activeTab === 'restaurant' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('restaurant'); setSearchTerm(''); }}
+          >
+            Restaurant
           </button>
           <button
             className={`btn tab-btn ${activeTab === 'history' ? 'active' : ''}`}
