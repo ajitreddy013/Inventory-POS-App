@@ -48,6 +48,7 @@ function groupByDate(records) {
 
 const DailyTransfer = () => {
   const [activeTab, setActiveTab] = useState('transfer');
+  const [godownSection, setGodownSection] = useState('bar');
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [transfers, setTransfers] = useState([]);
@@ -85,10 +86,12 @@ const DailyTransfer = () => {
     if (activeTab === 'history') loadHistory();
   }, [activeTab, loadHistory]);
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = products
+    .filter(p => godownSection === 'bar' ? p.isBarItem : !p.isBarItem)
+    .filter(p =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   const addToTransfers = (product) => {
     setTransfers(prev => {
@@ -181,7 +184,27 @@ const DailyTransfer = () => {
               </div>
             </div>
             <div className="products-list">
-              <h3>Available in Godown</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <h3 style={{ margin: 0 }}>Available in Godown</h3>
+                {[{ key: 'bar', label: 'Bar' }, { key: 'restaurant', label: 'Restaurant' }].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    className="btn btn-sm"
+                    onClick={() => setGodownSection(key)}
+                    style={{
+                      background: godownSection === key ? '#4f46e5' : '#f0f0f0',
+                      color: godownSection === key ? '#fff' : '#333',
+                      border: 'none',
+                      fontWeight: godownSection === key ? 700 : 400,
+                      padding: '4px 12px',
+                      borderRadius: 6,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               {filteredProducts.length === 0 ? (
                 <p className="no-products">No items with godown stock</p>
               ) : (
@@ -195,10 +218,11 @@ const DailyTransfer = () => {
                       <div className="product-info">
                         <h4>{product.name}</h4>
                         {product.subCategory && <span className="variant">{product.subCategory}</span>}
-                        <p className="sku">{product.category}</p>
                       </div>
                       <div className="stock-info">
-                        <span className="godown-stock">Godown: {product.godownStock}</span>
+                        <span className="godown-stock" style={{ fontWeight: 700, fontSize: 16 }}>
+                          {product.godownStock}
+                        </span>
                       </div>
                       <button className="add-btn"><Plus size={16} /></button>
                     </div>
