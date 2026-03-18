@@ -8,11 +8,11 @@ const MenuManagement = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterSection, setFilterSection] = useState('bar');
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('disconnected'); // 'connected', 'syncing', 'disconnected'
+  const [syncStatus, setSyncStatus] = useState('disconnected');
 
   useEffect(() => {
     loadMenuItems();
@@ -128,12 +128,13 @@ const MenuManagement = () => {
     }
   };
 
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredItems = menuItems
+    .filter(item => filterSection === 'bar' ? item.isBarItem : !item.isBarItem)
+    .filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           item.category.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
+    });
 
   const handleAddItem = () => {
     console.log('Add Product button clicked');
@@ -261,19 +262,19 @@ const MenuManagement = () => {
           />
         </div>
         <div className="filter-buttons">
-          <button
-            className={filterCategory === 'all' ? 'active' : ''}
-            onClick={() => setFilterCategory('all')}
-          >
-            All Categories
-          </button>
-          {categories.map(category => (
+          {[{ key: 'bar', label: 'Bar' }, { key: 'restaurant', label: 'Restaurant' }].map(({ key, label }) => (
             <button
-              key={category}
-              className={filterCategory === category ? 'active' : ''}
-              onClick={() => setFilterCategory(category)}
+              key={key}
+              className={filterSection === key ? 'active' : ''}
+              onClick={() => setFilterSection(key)}
+              style={{
+                background: filterSection === key ? '#4f46e5' : '',
+                color: filterSection === key ? '#fff' : '',
+                borderColor: filterSection === key ? '#4f46e5' : '',
+                fontWeight: filterSection === key ? 700 : 400,
+              }}
             >
-              {category}
+              {label}
             </button>
           ))}
         </div>
@@ -287,8 +288,11 @@ const MenuManagement = () => {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Short Code</th>
                 <th>Category</th>
+                <th>Sub-Category</th>
                 <th>Price</th>
+                {filterSection === 'restaurant' && <th>Food Type</th>}
                 <th>Description</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -297,7 +301,7 @@ const MenuManagement = () => {
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="no-data">
+                  <td colSpan={filterSection === 'restaurant' ? 9 : 8} className="no-data">
                     No menu items found
                   </td>
                 </tr>
@@ -305,35 +309,28 @@ const MenuManagement = () => {
                 filteredItems.map((item) => (
                   <tr key={item.id}>
                     <td className="item-name">{item.name}</td>
-                    <td>
-                      <span className="category-badge">{item.category}</span>
-                    </td>
+                    <td><span className="category-badge">{item.shortCode || '-'}</span></td>
+                    <td><span className="category-badge">{item.category}</span></td>
+                    <td>{item.subCategory || '-'}</td>
                     <td className="price-cell">₹{item.price.toFixed(2)}</td>
-                    <td className="description-cell">
-                      {item.description || '-'}
-                    </td>
+                    {filterSection === 'restaurant' && (
+                      <td>
+                        {item.foodType === 'veg'
+                          ? <span style={{ color: '#27ae60', fontWeight: 700 }}>● Veg</span>
+                          : item.foodType === 'non-veg'
+                          ? <span style={{ color: '#e74c3c', fontWeight: 700 }}>● Non-Veg</span>
+                          : '-'}
+                      </td>
+                    )}
+                    <td className="description-cell">{item.description || '-'}</td>
                     <td>
                       <span className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
-                        {item.isOutOfStock ? (
-                          <>
-                            <AlertCircle size={16} />
-                            Out of Stock
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle size={16} />
-                            In Stock
-                          </>
-                        )}
+                        {item.isOutOfStock ? <><AlertCircle size={16} /> Out of Stock</> : <><CheckCircle size={16} /> In Stock</>}
                       </span>
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <button
-                          className="btn-icon"
-                          onClick={() => handleEditItem(item)}
-                          title="Edit item"
-                        >
+                        <button className="btn-icon" onClick={() => handleEditItem(item)} title="Edit item">
                           <Edit size={18} />
                         </button>
                         <button
@@ -343,11 +340,7 @@ const MenuManagement = () => {
                         >
                           {item.isOutOfStock ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
                         </button>
-                        <button
-                          className="btn-icon btn-danger"
-                          onClick={() => handleDeleteItem(item)}
-                          title="Delete item"
-                        >
+                        <button className="btn-icon btn-danger" onClick={() => handleDeleteItem(item)} title="Delete item">
                           <Trash2 size={18} />
                         </button>
                       </div>
