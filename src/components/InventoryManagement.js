@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Package, Search, Plus, History, X } from 'lucide-react';
 
 const InventoryManagement = () => {
-  const [activeTab, setActiveTab] = useState('restaurant');
+  const [activeTab, setActiveTab] = useState('bar');
   const [items, setItems] = useState([]);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [loading, setLoading] = useState(false);
