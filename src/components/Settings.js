@@ -484,6 +484,7 @@ const Settings = () => {
     { name: 'Waiters', path: '/waiters', icon: '👤', color: '#3498db' },
     { name: 'Managers', path: '/managers', icon: '👔', color: '#9b59b6' },
     { name: 'Menu', path: '/menu', icon: '📋', color: '#e67e22' },
+    { name: 'Godown Stock', path: '/inventory', icon: '📦', color: '#16a085' },
     { name: 'Failed KOT', path: '/failed-kots', icon: '⚠️', color: '#e74c3c' },
     { name: 'Printer', path: '/settings', icon: '🖨️', color: '#2c3e50' },
     { name: 'Email', path: '/settings', icon: '📧', color: '#27ae60' },
