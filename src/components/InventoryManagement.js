@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Package, Search, Plus, History, X } from 'lucide-react';
 
 const InventoryManagement = () => {
-  const [activeTab, setActiveTab] = useState('inventory');
+  const [activeTab, setActiveTab] = useState('restaurant');
   const [items, setItems] = useState([]);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,11 +34,14 @@ const InventoryManagement = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'inventory') loadItems();
-    else loadHistory();
+    if (activeTab === 'history') loadHistory();
+    else loadItems();
   }, [activeTab, loadItems, loadHistory]);
 
-  const filteredItems = items.filter(item =>
+  const restaurantItems = items.filter(item => !item.isBarItem);
+  const barItems = items.filter(item => item.isBarItem);
+
+  const visibleItems = (activeTab === 'bar' ? barItems : restaurantItems).filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.category || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -61,21 +64,27 @@ const InventoryManagement = () => {
         <h1><Package size={24} /> Inventory Management</h1>
         <div className="tab-navigation">
           <button
-            className={`btn tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inventory')}
+            className={`btn tab-btn ${activeTab === 'restaurant' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('restaurant'); setSearchTerm(''); }}
           >
-            <Package size={16} /> Stock
+            🍽️ Restaurant
+          </button>
+          <button
+            className={`btn tab-btn ${activeTab === 'bar' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('bar'); setSearchTerm(''); }}
+          >
+            🍺 Bar
           </button>
           <button
             className={`btn tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveTab('history')}
+            onClick={() => { setActiveTab('history'); setSearchTerm(''); }}
           >
             <History size={16} /> Purchase History
           </button>
         </div>
       </div>
 
-      {activeTab === 'inventory' && (
+      {(activeTab === 'restaurant' || activeTab === 'bar') && (
         <>
           <div className="search-section">
             <div className="search-input-container">
@@ -105,7 +114,7 @@ const InventoryManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map(item => (
+                  {visibleItems.map(item => (
                     <tr key={item.id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -136,7 +145,7 @@ const InventoryManagement = () => {
                       </td>
                     </tr>
                   ))}
-                  {filteredItems.length === 0 && (
+                  {visibleItems.length === 0 && (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
                         No items found
