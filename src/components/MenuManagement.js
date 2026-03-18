@@ -8,6 +8,7 @@ const MenuManagement = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stockMap, setStockMap] = useState({});
+  const [counterMap, setCounterMap] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSection, setFilterSection] = useState('bar');
   const [showModal, setShowModal] = useState(false);
@@ -106,7 +107,8 @@ const MenuManagement = () => {
     try {
       setLoading(true);
       const result = await window.electronAPI.invoke('firebase:get-menu-items', {
-        includeInactive: false
+        includeInactive: false,
+        includeOutOfStock: true
       });
       if (result.success) {
         setMenuItems(result.items);
@@ -117,6 +119,13 @@ const MenuManagement = () => {
         const map = {};
         for (const item of stockRes.items) map[item.id] = item.godownStock || 0;
         setStockMap(map);
+      }
+      // load counter stock map
+      const counterRes = await window.electronAPI.getCounterStock();
+      if (counterRes.success) {
+        const cmap = {};
+        for (const item of counterRes.items) cmap[item.id] = item.counterStock || 0;
+        setCounterMap(cmap);
       }
     } catch (error) {
       console.error('Failed to load menu items:', error);
@@ -302,6 +311,8 @@ const MenuManagement = () => {
                 <th>Price</th>
                 {filterSection === 'restaurant' && <th>Food Type</th>}
                 <th>Description</th>
+                {filterSection === 'bar' && <th>Godown</th>}
+                {filterSection === 'bar' && <th>Counter</th>}
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -309,7 +320,7 @@ const MenuManagement = () => {
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={filterSection === 'restaurant' ? 9 : 8} className="no-data">
+                  <td colSpan={filterSection === 'restaurant' ? 9 : 11} className="no-data">
                     No menu items found
                   </td>
                 </tr>
@@ -331,11 +342,25 @@ const MenuManagement = () => {
                       </td>
                     )}
                     <td className="description-cell">{item.description || '-'}</td>
+                    {filterSection === 'bar' && (
+                      <td>
+                        <span style={{ fontWeight: 700, color: (stockMap[item.id] || 0) > 0 ? '#27ae60' : '#e74c3c' }}>
+                          {stockMap[item.id] || 0}
+                        </span>
+                      </td>
+                    )}
+                    {filterSection === 'bar' && (
+                      <td>
+                        <span style={{ fontWeight: 700, color: (counterMap[item.id] || 0) > 0 ? '#27ae60' : '#e74c3c' }}>
+                          {counterMap[item.id] || 0}
+                        </span>
+                      </td>
+                    )}
                     <td>
                       {filterSection === 'bar' ? (
                         (stockMap[item.id] || 0) > 0
-                          ? <span className="status-badge in-stock"><CheckCircle size={16} /> Available</span>
-                          : <span className="status-badge out-of-stock"><AlertCircle size={16} /> Not Available</span>
+                          ? <span className="status-badge in-stock"><CheckCircle size={16} /> In Stock</span>
+                          : <span className="status-badge out-of-stock"><AlertCircle size={16} /> Out of Stock</span>
                       ) : (
                         <span className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
                           {item.isOutOfStock ? <><AlertCircle size={16} /> Out of Stock</> : <><CheckCircle size={16} /> In Stock</>}
@@ -347,13 +372,15 @@ const MenuManagement = () => {
                         <button className="btn-icon" onClick={() => handleEditItem(item)} title="Edit item">
                           <Edit size={18} />
                         </button>
-                        <button
-                          className={`btn-icon ${item.isOutOfStock ? 'btn-success' : 'btn-warning'}`}
-                          onClick={() => handleToggleOutOfStock(item)}
-                          title={item.isOutOfStock ? 'Mark in stock' : 'Mark out of stock'}
-                        >
-                          {item.isOutOfStock ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-                        </button>
+                        {filterSection === 'restaurant' && (
+                          <button
+                            className={`btn-icon ${item.isOutOfStock ? 'btn-success' : 'btn-warning'}`}
+                            onClick={() => handleToggleOutOfStock(item)}
+                            title={item.isOutOfStock ? 'Mark in stock' : 'Mark out of stock'}
+                          >
+                            {item.isOutOfStock ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                          </button>
+                        )}
                         <button className="btn-icon btn-danger" onClick={() => handleDeleteItem(item)} title="Delete item">
                           <Trash2 size={18} />
                         </button>
