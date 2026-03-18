@@ -48,6 +48,135 @@ function convertKeysToSnakeCase(obj: Record<string, any>): Record<string, any> {
   return result;
 }
 
+function toUnixMs(value: any, fallback: number): number {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsedNum = Number(value);
+    if (!Number.isNaN(parsedNum) && Number.isFinite(parsedNum)) return parsedNum;
+    const parsedDate = new Date(value).getTime();
+    if (!Number.isNaN(parsedDate)) return parsedDate;
+  }
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const parsedDate = new Date(value).getTime();
+  return Number.isNaN(parsedDate) ? fallback : parsedDate;
+}
+
+function toSQLiteBoolean(value: any, fallback = 0): number {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'number') return value ? 1 : 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return 1;
+    if (normalized === 'false' || normalized === '0') return 0;
+  }
+  return fallback;
+}
+
+function sanitizeForSqlite(tableName: string, raw: Record<string, any>): Record<string, any> {
+  const snake = convertKeysToSnakeCase(raw);
+  const now = Date.now();
+
+  const createdAt = toUnixMs(
+    snake.created_at ?? snake.createdAt,
+    now
+  );
+  const updatedAt = toUnixMs(
+    snake.updated_at ?? snake.updatedAt ?? snake.created_at ?? snake.createdAt,
+    createdAt
+  );
+
+  const common = {
+    id: String(raw.id ?? snake.id ?? ''),
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+
+  if (!common.id) return common;
+
+  switch (tableName) {
+    case 'sections':
+      return {
+        ...common,
+        name: String(snake.name ?? ''),
+        is_active: toSQLiteBoolean(snake.is_active ?? snake.isActive, 1),
+      };
+
+    case 'tables':
+      return {
+        ...common,
+        name: String(snake.name ?? ''),
+        section_id: String(snake.section_id ?? snake.sectionId ?? ''),
+        status: String(snake.status ?? 'available'),
+        capacity: Number(snake.capacity ?? 4),
+        is_active: toSQLiteBoolean(snake.is_active ?? snake.isActive, 1),
+        current_order_id: snake.current_order_id ?? snake.currentOrderId ?? null,
+        occupied_since: snake.occupied_since != null
+          ? toUnixMs(snake.occupied_since, 0)
+          : snake.occupiedSince != null
+            ? toUnixMs(snake.occupiedSince, 0)
+            : null,
+        created_at: common.created_at || Date.now(),
+        updated_at: common.updated_at || Date.now(),
+      };
+
+    case 'waiters':
+      return {
+        ...common,
+        name: String(snake.name ?? ''),
+        pin: String(snake.pin ?? ''),
+        is_active: toSQLiteBoolean(snake.is_active ?? snake.isActive, 1),
+      };
+
+    case 'menu_categories':
+      return {
+        ...common,
+        name: String(snake.name ?? ''),
+        display_order: Number(snake.display_order ?? 0),
+      };
+
+    case 'menu_items': {
+      let availableModifierIds = snake.available_modifier_ids;
+      const rawModifiers = snake.available_modifiers ?? snake.availableModifiers;
+      if (!availableModifierIds && Array.isArray(rawModifiers)) {
+        availableModifierIds = rawModifiers.join(',');
+      } else if (!availableModifierIds && typeof rawModifiers === 'string') {
+        availableModifierIds = rawModifiers;
+      }
+
+      return {
+        ...common,
+        name: String(snake.name ?? ''),
+        price: Number(snake.price ?? 0),
+        category_id: snake.category_id ?? snake.categoryId ?? null,
+        category: snake.category ?? null,
+        item_category: snake.item_category ?? snake.itemCategory ?? 'food',
+        is_out_of_stock: toSQLiteBoolean(snake.is_out_of_stock ?? snake.isOutOfStock, 0),
+        is_bar_item: toSQLiteBoolean(snake.is_bar_item ?? snake.isBarItem, 0),
+        available_modifier_ids: availableModifierIds ?? null,
+      };
+    }
+
+    case 'modifiers':
+      return {
+        ...common,
+        name: String(snake.name ?? ''),
+        type: String(snake.type ?? 'paid_addon'),
+        price: Number(snake.price ?? 0),
+      };
+
+    default:
+      return {
+        ...snake,
+        id: common.id,
+        created_at: createdAt,
+        updated_at: updatedAt,
+      };
+  }
+}
+
 export type SyncStatus = 'online' | 'offline' | 'syncing' | 'error';
 
 export interface SyncEngineConfig {
@@ -169,9 +298,14 @@ export class FirestoreSyncEngine {
   private async subscribeToCollections(): Promise<void> {
     // Do initial fetch only on app start
     await this.initialFetchAll();
-    
-    // Polling disabled - sync only happens on app start
-    // If you need to refresh data, restart the app or add a manual refresh button
+
+    // Keep SQLite in sync in real-time after initial hydration.
+    this.subscribeToCollection('sections', 'sections');
+    this.subscribeToCollection('tables', 'tables');
+    this.subscribeToCollection('waiters', 'waiters');
+    this.subscribeToCollection('menuCategories', 'menu_categories');
+    this.subscribeToCollection('menuItems', 'menu_items');
+    this.subscribeToCollection('modifiers', 'modifiers');
   }
 
   /**
@@ -225,23 +359,29 @@ export class FirestoreSyncEngine {
       const sections = await fetchCollection('sections');
       // Clear first to avoid stale duplicates, then re-insert
       getDatabase().runSync('DELETE FROM sections');
-      await bulkUpsert('sections', sections.map(convertKeysToSnakeCase));
+      await bulkUpsert('sections', sections.map((row) => sanitizeForSqlite('sections', row)));
 
       const tables = await fetchCollection('tables');
       getDatabase().runSync('DELETE FROM tables');
-      await bulkUpsert('tables', tables.map(convertKeysToSnakeCase));
+      for (const row of tables) {
+        try {
+          await upsert('tables', sanitizeForSqlite('tables', row));
+        } catch (e) {
+          console.warn('⚠️ Skipping table row:', row.id, e);
+        }
+      }
 
       const waiters = await fetchCollection('waiters');
-      await bulkUpsert('waiters', waiters.map(convertKeysToSnakeCase));
+      await bulkUpsert('waiters', waiters.map((row) => sanitizeForSqlite('waiters', row)));
 
       const categories = await fetchCollection('menuCategories');
-      await bulkUpsert('menu_categories', categories.map(convertKeysToSnakeCase));
+      await bulkUpsert('menu_categories', categories.map((row) => sanitizeForSqlite('menu_categories', row)));
 
       const items = await fetchCollection('menuItems');
-      await bulkUpsert('menu_items', items.map(convertKeysToSnakeCase));
+      await bulkUpsert('menu_items', items.map((row) => sanitizeForSqlite('menu_items', row)));
 
       const modifiers = await fetchCollection('modifiers');
-      await bulkUpsert('modifiers', modifiers.map(convertKeysToSnakeCase));
+      await bulkUpsert('modifiers', modifiers.map((row) => sanitizeForSqlite('modifiers', row)));
 
       console.log(`🔄 Sync complete: ${sections.length} sections, ${tables.length} tables, ${waiters.length} waiters, ${categories.length} categories, ${items.length} items, ${modifiers.length} modifiers`);
 
@@ -266,9 +406,13 @@ export class FirestoreSyncEngine {
         try {
           // Process all documents in the snapshot
           for (const doc of snapshot.docs) {
-            const firestoreData = doc.data();
-            const data = convertKeysToSnakeCase({ id: doc.id, ...firestoreData });
-            await upsert(sqliteTable, data);
+            try {
+              const firestoreData = doc.data();
+              const data = sanitizeForSqlite(sqliteTable, { id: doc.id, ...firestoreData });
+              await upsert(sqliteTable, data);
+            } catch (rowError) {
+              console.warn(`⚠️ Skipping ${firestoreCollection} doc ${doc.id}:`, rowError);
+            }
           }
 
           if (snapshot.docs.length > 0) {
