@@ -261,7 +261,7 @@ const DailyTransfer = () => {
                       }}>
                         {product.godownStock}
                       </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>in godown</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}></div>
                     </div>
                   ))}
                 </div>
