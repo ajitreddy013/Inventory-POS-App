@@ -1602,7 +1602,7 @@ function registerInventoryHandlers() {
     }
   });
 
-  // Get counter stock — joins menuItems with inventory.counterStock
+  // Get counter stock — sums inventoryMovements godown_to_counter per item
   ipcMain.handle('firebase:get-counter-stock', async () => {
     try {
       const items = await queryCollection('menuItems', [
@@ -1610,16 +1610,22 @@ function registerInventoryHandlers() {
       ], { orderBy: { field: 'name', direction: 'asc' } });
 
       const firestore = getAdminFirestore();
-      const invSnap = await firestore.collection('inventory').get();
-      const stockMap = {};
-      for (const doc of invSnap.docs) {
+
+      // Sum all godown_to_counter movements per menuItemId
+      const movSnap = await firestore.collection('inventoryMovements')
+        .where('movementType', '==', 'godown_to_counter')
+        .get();
+
+      const counterMap = {};
+      for (const doc of movSnap.docs) {
         const d = doc.data();
-        stockMap[d.menuItemId || doc.id] = d.counterStock || 0;
+        const id = d.menuItemId;
+        if (id) counterMap[id] = (counterMap[id] || 0) + (d.quantity || 0);
       }
 
       const result = items.map(item => ({
         ...item,
-        counterStock: stockMap[item.id] || 0
+        counterStock: counterMap[item.id] || 0
       }));
 
       return { success: true, items: result };
