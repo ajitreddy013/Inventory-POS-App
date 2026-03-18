@@ -1423,6 +1423,107 @@ function registerInventoryHandlers() {
       return { success: false, error: 'Failed to export movements' };
     }
   });
+
+  // Get all menu items joined with their godown stock
+  ipcMain.handle('firebase:get-menu-items-with-stock', async () => {
+    try {
+      const items = await queryCollection('menuItems', [
+        { field: 'isActive', operator: '==', value: true }
+      ], { orderBy: { field: 'name', direction: 'asc' } });
+
+      const inventoryRecords = await queryCollection('inventory', []);
+      const stockMap = {};
+      for (const rec of inventoryRecords) {
+        stockMap[rec.menuItemId || rec.id] = rec.quantity || 0;
+      }
+
+      const result = items.map(item => ({
+        ...item,
+        godownStock: stockMap[item.id] || 0
+      }));
+
+      return { success: true, items: result };
+    } catch (error) {
+      console.error('Error getting menu items with stock:', error);
+      return { success: false, error: 'Failed to get items with stock' };
+    }
+  });
+
+  // Add godown stock for a menu item and record purchase history
+  ipcMain.handle('firebase:add-godown-stock', async (event, data) => {
+    try {
+      const { menuItemId, menuItemName, quantityAdded, supplier, notes, costPerUnit } = data;
+
+      if (!menuItemId || !quantityAdded || quantityAdded <= 0) {
+        return { success: false, error: 'Valid menuItemId and quantityAdded are required' };
+      }
+
+      const firestore = getAdminFirestore();
+
+      await runTransaction(async (transaction) => {
+        const inventoryRef = firestore.collection('inventory').doc(menuItemId);
+        const inventoryDoc = await transaction.get(inventoryRef);
+        const currentQty = inventoryDoc.exists ? (inventoryDoc.data().quantity || 0) : 0;
+
+        transaction.set(inventoryRef, {
+          menuItemId,
+          quantity: currentQty + quantityAdded,
+          autoOutOfStock: true,
+          updatedAt: new Date()
+        }, { merge: true });
+
+        // Update menuItem isOutOfStock if it was 0
+        if (currentQty === 0) {
+          const menuItemRef = firestore.collection('menuItems').doc(menuItemId);
+          transaction.update(menuItemRef, { isOutOfStock: false, updatedAt: new Date() });
+        }
+
+        // Record purchase history
+        const historyId = `purchase_${Date.now()}`;
+        const historyRef = firestore.collection('purchaseHistory').doc(historyId);
+        transaction.set(historyRef, {
+          menuItemId,
+          menuItemName: menuItemName || '',
+          quantityAdded,
+          supplier: supplier || '',
+          notes: notes || '',
+          costPerUnit: costPerUnit || 0,
+          addedAt: new Date()
+        });
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding godown stock:', error);
+      return { success: false, error: 'Failed to add stock' };
+    }
+  });
+
+  // Get purchase history
+  ipcMain.handle('firebase:get-purchase-history', async () => {
+    try {
+      const records = await queryCollection('purchaseHistory', [], {
+        orderBy: { field: 'addedAt', direction: 'desc' }
+      });
+      return { success: true, records };
+    } catch (error) {
+      console.error('Error getting purchase history:', error);
+      // fallback: sort in memory if index missing
+      try {
+        const firestore = getAdminFirestore();
+        const snap = await firestore.collection('purchaseHistory').get();
+        const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        records.sort((a, b) => {
+          const ta = a.addedAt?.toDate ? a.addedAt.toDate() : new Date(a.addedAt);
+          const tb = b.addedAt?.toDate ? b.addedAt.toDate() : new Date(b.addedAt);
+          return tb - ta;
+        });
+        return { success: true, records };
+      } catch (e2) {
+        return { success: false, error: 'Failed to get purchase history' };
+      }
+    }
+  });
 }
 
 /**
