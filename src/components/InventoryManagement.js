@@ -130,24 +130,25 @@ const InventoryManagement = () => {
       <div className="page-header">
         <h1><Package size={24} /> Inventory Management</h1>
         <div className="tab-navigation">
-          <button
-            className={`btn tab-btn ${activeTab === 'bar' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('bar'); setSearchTerm(''); }}
-          >
-            Bar
-          </button>
-          <button
-            className={`btn tab-btn ${activeTab === 'restaurant' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('restaurant'); setSearchTerm(''); }}
-          >
-            Restaurant
-          </button>
-          <button
-            className={`btn tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('history'); setSearchTerm(''); }}
-          >
-            <History size={16} /> Purchase History
-          </button>
+          {[
+            { key: 'bar', label: 'Bar' },
+            { key: 'restaurant', label: 'Restaurant' },
+            { key: 'history', label: 'History' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              className="btn tab-btn"
+              onClick={() => { setActiveTab(key); setSearchTerm(''); }}
+              style={{
+                background: activeTab === key ? '#4f46e5' : '',
+                color: activeTab === key ? '#fff' : '',
+                borderColor: activeTab === key ? '#4f46e5' : '',
+                fontWeight: activeTab === key ? 700 : 400,
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
