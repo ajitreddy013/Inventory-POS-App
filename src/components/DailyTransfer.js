@@ -208,23 +208,60 @@ const DailyTransfer = () => {
               {filteredProducts.length === 0 ? (
                 <p className="no-products">No items with godown stock</p>
               ) : (
-                <div className="products-grid-container">
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                  gap: '1rem',
+                  marginTop: 8
+                }}>
                   {filteredProducts.map(product => (
                     <div
                       key={product.id}
-                      className="product-item grid-layout"
                       onClick={() => addToTransfers(product)}
+                      style={{
+                        background: '#fff',
+                        borderRadius: 12,
+                        padding: '1.25rem',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                        transition: 'transform 0.15s, box-shadow 0.15s',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.transform = 'translateY(-3px)';
+                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+                        e.currentTarget.style.borderColor = '#4f46e5';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.transform = '';
+                        e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)';
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                      }}
                     >
-                      <div className="product-info">
-                        <h4>{product.name}</h4>
-                        {product.subCategory && <span className="variant">{product.subCategory}</span>}
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b', lineHeight: 1.3 }}>
+                        {product.name}
                       </div>
-                      <div className="stock-info">
-                        <span className="godown-stock" style={{ fontWeight: 700, fontSize: 16 }}>
-                          {product.godownStock}
-                        </span>
+                      {product.subCategory && (
+                        <div style={{ fontSize: 12, color: '#64748b' }}>{product.subCategory}</div>
+                      )}
+                      <div style={{
+                        marginTop: 6,
+                        background: '#f0f4ff',
+                        color: '#4f46e5',
+                        fontWeight: 800,
+                        fontSize: 22,
+                        borderRadius: 8,
+                        padding: '4px 16px',
+                        minWidth: 48
+                      }}>
+                        {product.godownStock}
                       </div>
-                      <button className="add-btn"><Plus size={16} /></button>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>in godown</div>
                     </div>
                   ))}
                 </div>
