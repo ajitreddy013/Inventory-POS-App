@@ -5,8 +5,10 @@ const InventoryManagement = () => {
   const [activeTab, setActiveTab] = useState('bar');
   const [items, setItems] = useState([]);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
+  const [allSuppliers, setAllSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterDate, setFilterDate] = useState('');
   const [addStockModal, setAddStockModal] = useState({ open: false, item: null });
 
   const loadItems = useCallback(async () => {
@@ -25,7 +27,14 @@ const InventoryManagement = () => {
     setLoading(true);
     try {
       const res = await window.electronAPI.getPurchaseHistory();
-      if (res.success) setPurchaseHistory(res.records);
+      if (res.success) {
+        setPurchaseHistory(res.records);
+        // collect unique suppliers for autofill
+        const suppliers = [...new Set(
+          res.records.map(r => r.supplier).filter(Boolean)
+        )];
+        setAllSuppliers(suppliers);
+      }
     } catch (e) {
       console.error('Failed to load purchase history:', e);
     } finally {
@@ -38,6 +47,16 @@ const InventoryManagement = () => {
     else loadItems();
   }, [activeTab, loadItems, loadHistory]);
 
+  // also load suppliers once on mount for autofill in modal
+  useEffect(() => {
+    window.electronAPI.getPurchaseHistory().then(res => {
+      if (res.success) {
+        const suppliers = [...new Set(res.records.map(r => r.supplier).filter(Boolean))];
+        setAllSuppliers(suppliers);
+      }
+    }).catch(() => {});
+  }, []);
+
   const restaurantItems = items.filter(item => !item.isBarItem);
   const barItems = items.filter(item => item.isBarItem);
 
@@ -46,16 +65,26 @@ const InventoryManagement = () => {
     (item.category || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const foodTypeIcon = (type) => {
-    if (type === 'veg') return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
-    if (type === 'non-veg') return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
-    return null;
+  const toDateStr = (val) => {
+    if (!val) return '';
+    const d = val.toDate ? val.toDate() : new Date(val);
+    return d.toISOString().slice(0, 10); // YYYY-MM-DD
   };
+
+  const filteredHistory = filterDate
+    ? purchaseHistory.filter(r => toDateStr(r.addedAt) === filterDate)
+    : purchaseHistory;
 
   const formatDate = (val) => {
     if (!val) return '-';
     const d = val.toDate ? val.toDate() : new Date(val);
     return d.toLocaleString();
+  };
+
+  const foodTypeIcon = (type) => {
+    if (type === 'veg') return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
+    if (type === 'non-veg') return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
+    return null;
   };
 
   return (
@@ -161,6 +190,22 @@ const InventoryManagement = () => {
 
       {activeTab === 'history' && (
         <>
+          <div className="search-section" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Filter by date:</label>
+            <input
+              type="date"
+              className="form-input"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd' }}
+            />
+            {filterDate && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setFilterDate('')}>
+                Clear
+              </button>
+            )}
+          </div>
+
           {loading ? (
             <div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>
           ) : (
@@ -177,7 +222,7 @@ const InventoryManagement = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {purchaseHistory.map((rec, i) => (
+                  {filteredHistory.map((rec, i) => (
                     <tr key={rec.id || i}>
                       <td>{formatDate(rec.addedAt)}</td>
                       <td><strong>{rec.menuItemName}</strong></td>
@@ -187,10 +232,10 @@ const InventoryManagement = () => {
                       <td>{rec.notes || '-'}</td>
                     </tr>
                   ))}
-                  {purchaseHistory.length === 0 && (
+                  {filteredHistory.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
-                        No purchase history yet
+                        No purchase history {filterDate ? `for ${filterDate}` : 'yet'}
                       </td>
                     </tr>
                   )}
@@ -204,6 +249,7 @@ const InventoryManagement = () => {
       {addStockModal.open && (
         <AddStockModal
           item={addStockModal.item}
+          suppliers={allSuppliers}
           onClose={() => setAddStockModal({ open: false, item: null })}
           onSaved={() => {
             setAddStockModal({ open: false, item: null });
@@ -215,12 +261,25 @@ const InventoryManagement = () => {
   );
 };
 
-const AddStockModal = ({ item, onClose, onSaved }) => {
+const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
   const [qty, setQty] = useState('');
   const [supplier, setSupplier] = useState('');
+  const [supplierSuggestions, setSupplierSuggestions] = useState([]);
   const [costPerUnit, setCostPerUnit] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const handleSupplierChange = (val) => {
+    setSupplier(val);
+    if (val.trim()) {
+      const matches = suppliers.filter(s =>
+        s.toLowerCase().startsWith(val.toLowerCase())
+      );
+      setSupplierSuggestions(matches);
+    } else {
+      setSupplierSuggestions([]);
+    }
+  };
 
   const handleSave = async () => {
     const quantity = parseFloat(qty);
@@ -270,16 +329,40 @@ const AddStockModal = ({ item, onClose, onSaved }) => {
               style={{ width: '100%', marginTop: 4 }}
             />
           </div>
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 12, position: 'relative' }}>
             <label>Supplier</label>
             <input
               type="text"
               className="form-input"
               value={supplier}
-              onChange={e => setSupplier(e.target.value)}
+              onChange={e => handleSupplierChange(e.target.value)}
               placeholder="Supplier name"
               style={{ width: '100%', marginTop: 4 }}
+              autoComplete="off"
             />
+            {supplierSuggestions.length > 0 && (
+              <ul style={{
+                position: 'absolute', top: '100%', left: 0, right: 0,
+                background: '#fff', border: '1px solid #ddd', borderRadius: 6,
+                listStyle: 'none', margin: 0, padding: 0, zIndex: 100,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}>
+                {supplierSuggestions.map(s => (
+                  <li
+                    key={s}
+                    onClick={() => { setSupplier(s); setSupplierSuggestions([]); }}
+                    style={{
+                      padding: '8px 12px', cursor: 'pointer',
+                      borderBottom: '1px solid #f0f0f0'
+                    }}
+                    onMouseEnter={e => e.target.style.background = '#f5f5f5'}
+                    onMouseLeave={e => e.target.style.background = '#fff'}
+                  >
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div style={{ marginBottom: 12 }}>
             <label>Cost per Unit (₹)</label>
