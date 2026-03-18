@@ -1524,6 +1524,79 @@ function registerInventoryHandlers() {
       }
     }
   });
+
+  // Transfer items from godown to counter (no manager PIN required for daily transfer)
+  ipcMain.handle('firebase:transfer-to-counter', async (event, items) => {
+    // items: [{ menuItemId, menuItemName, quantity }]
+    try {
+      const firestore = getAdminFirestore();
+      const results = [];
+
+      for (const item of items) {
+        const { menuItemId, menuItemName, quantity } = item;
+        if (!menuItemId || !quantity || quantity <= 0) continue;
+
+        await runTransaction(async (transaction) => {
+          const inventoryRef = firestore.collection('inventory').doc(menuItemId);
+          const inventoryDoc = await transaction.get(inventoryRef);
+          const currentQty = inventoryDoc.exists ? (inventoryDoc.data().quantity || 0) : 0;
+          const newQty = Math.max(0, currentQty - quantity);
+
+          transaction.set(inventoryRef, {
+            menuItemId,
+            quantity: newQty,
+            autoOutOfStock: true,
+            updatedAt: new Date()
+          }, { merge: true });
+
+          if (newQty === 0) {
+            const menuItemRef = firestore.collection('menuItems').doc(menuItemId);
+            transaction.update(menuItemRef, { isOutOfStock: true, updatedAt: new Date() });
+          }
+
+          // Log movement
+          const movementId = `movement_${Date.now()}_${menuItemId}`;
+          const movementRef = firestore.collection('inventoryMovements').doc(movementId);
+          transaction.set(movementRef, {
+            menuItemId,
+            menuItemName: menuItemName || '',
+            movementType: 'godown_to_counter',
+            quantity,
+            fromLocation: 'godown',
+            toLocation: 'counter',
+            timestamp: new Date()
+          });
+        });
+
+        results.push({ menuItemId, success: true });
+      }
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('Error transferring to counter:', error);
+      return { success: false, error: 'Transfer failed' };
+    }
+  });
+
+  // Get godown-to-counter transfer history
+  ipcMain.handle('firebase:get-transfer-history', async () => {
+    try {
+      const firestore = getAdminFirestore();
+      const snap = await firestore.collection('inventoryMovements')
+        .where('movementType', '==', 'godown_to_counter')
+        .get();
+      const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      records.sort((a, b) => {
+        const ta = a.timestamp?._seconds || (a.timestamp?.toDate ? a.timestamp.toDate().getTime() / 1000 : 0);
+        const tb = b.timestamp?._seconds || (b.timestamp?.toDate ? b.timestamp.toDate().getTime() / 1000 : 0);
+        return tb - ta;
+      });
+      return { success: true, records };
+    } catch (error) {
+      console.error('Error getting transfer history:', error);
+      return { success: false, error: 'Failed to get transfer history' };
+    }
+  });
 }
 
 /**
