@@ -58,6 +58,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [isSavingPending, setIsSavingPending] = useState(false);
 
   const debounceRefs = useRef({});
+  const pendingUpserts = useRef({}); // menuItemId -> { oid, item, tableId, sub }
   const listBottomRef = useRef(null);
   const orderItemsUnsubRef = useRef(null);
 
@@ -135,25 +136,19 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     loadMenu();
     const oid = table?.currentOrderId || orderId;
     if (oid) subscribeToOrderItems(oid);
-    return () => { if (orderItemsUnsubRef.current) orderItemsUnsubRef.current(); };
-  }, [loadMenu, subscribeToOrderItems, table, orderId]);
-
-  // Auto-clear stale bill amount when order has no items after a short delay
-  useEffect(() => {
-    if (menuLoading) return;
-    const oid = table?.currentOrderId || orderId;
-    if (!oid) return;
-    // Wait 2s for subscription to settle, then if still empty, clear stale amount
-    const t = setTimeout(async () => {
-      if (orderItems.length === 0 && (table?.currentBillAmount || table?.current_bill_amount || 0) > 0) {
-        try {
-          await window.electronAPI.invoke('firebase:clear-table', table.id);
-          if (onTableUpdate) onTableUpdate({ ...table, status: 'available', currentOrderId: null, currentBillAmount: 0 });
-        } catch (e) { console.warn('clear stale table:', e.message); }
+    return () => {
+      if (orderItemsUnsubRef.current) orderItemsUnsubRef.current();
+      // Flush any pending debounced upserts immediately on unmount
+      Object.values(debounceRefs.current).forEach(t => clearTimeout(t));
+      const pending = Object.values(pendingUpserts.current);
+      if (pending.length > 0) {
+        pending.forEach(({ oid: o, item, tableId, sub }) => {
+          window.electronAPI.upsertOrderItem(o, { ...item, tableId, subtotal: sub }).catch(() => {});
+        });
+        pendingUpserts.current = {};
       }
-    }, 2500);
-    return () => clearTimeout(t);
-  }, [orderItems.length, menuLoading, table, orderId, onTableUpdate]);
+    };
+  }, [loadMenu, subscribeToOrderItems, table, orderId]);
 
   useEffect(() => {
     if (listBottomRef.current) listBottomRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -162,7 +157,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   // ─── Helpers ──────────────────────────────────────────────────────────────
   const scheduleUpsert = useCallback((oid, item, tableId, sub) => {
     clearTimeout(debounceRefs.current[item.menuItemId]);
+    // Store latest pending upsert data so we can flush on unmount
+    pendingUpserts.current[item.menuItemId] = { oid, item, tableId, sub };
     debounceRefs.current[item.menuItemId] = setTimeout(async () => {
+      delete pendingUpserts.current[item.menuItemId];
       try { await window.electronAPI.upsertOrderItem(oid, { ...item, tableId, subtotal: sub }); }
       catch (e) { console.error('Upsert failed:', e); }
     }, 500);
