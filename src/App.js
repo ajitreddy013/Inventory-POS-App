@@ -59,7 +59,7 @@ import "./App.css";
 // Business component imports
 import Dashboard from "./components/Dashboard";                   // Main dashboard
 import ProductManagement from "./components/ProductManagement";   // Product catalog
-import InventoryManagement from "./components/InventoryManagement"; // Stock monitoring
+import GodownStock from "./components/GodownStock";               // Godown stock
 import DailyTransfer from "./components/DailyTransfer";           // Stock transfers
 import POSSystem from "./components/POSSystem";                   // Point of sale
 import TableManagement from "./components/TableManagement";       // Table management
@@ -257,7 +257,7 @@ function AppContent() {
           <Route path="/menu" element={<MenuManagement />} />
           <Route path="/failed-kots" element={<FailedKOTManagement />} />
           <Route path="/products" element={<ProductManagement />} />
-          <Route path="/inventory" element={<InventoryManagement />} />
+          <Route path="/inventory" element={<GodownStock />} />
           <Route path="/transfer" element={<DailyTransfer />} />
           <Route path="/pos" element={<POSSystem />} />
           <Route path="/reports" element={<SalesReports />} />
