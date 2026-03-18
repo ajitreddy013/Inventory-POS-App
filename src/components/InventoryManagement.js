@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Package, Search, Plus, History, X } from 'lucide-react';
+import { Package, Search, Plus, History, X, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 // Handles Firestore Admin SDK timestamps: { _seconds, _nanoseconds }, { seconds, nanoseconds }, .toDate(), or ISO string
 function parseTimestamp(val) {
@@ -50,6 +51,7 @@ function groupByDate(records) {
 }
 
 const InventoryManagement = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('bar');
   const [items, setItems] = useState([]);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
@@ -128,7 +130,12 @@ const InventoryManagement = () => {
   return (
     <div className="inventory-management">
       <div className="page-header">
-        <h1><Package size={24} /> Inventory Management</h1>
+        <h1>
+          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'inline-flex', alignItems: 'center', color: '#4f46e5', verticalAlign: 'middle' }}>
+            <ArrowLeft size={22} />
+          </button>
+          <Package size={24} /> Inventory Management
+        </h1>
         <div className="tab-navigation">
           {[
             { key: 'bar', label: 'Bar' },

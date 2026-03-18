@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit, Search, UserCheck, UserX } from 'lucide-react';
+import { Users, Plus, Edit, Search, UserCheck, UserX, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './WaiterManagement.css';
 
 const WaiterManagement = () => {
+  const navigate = useNavigate();
   const [waiters, setWaiters] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -106,6 +108,9 @@ const WaiterManagement = () => {
     <div className="waiter-management">
       <div className="page-header">
         <div className="header-left">
+          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+            <ArrowLeft size={22} />
+          </button>
           <Users size={32} />
           <div>
             <h1>Waiter Management</h1>
