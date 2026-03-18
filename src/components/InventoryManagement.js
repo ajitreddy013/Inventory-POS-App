@@ -323,8 +323,8 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
   const [saving, setSaving] = useState(false);
 
   const suggestions = supplier.trim()
-    ? suppliers.filter(s => s.toLowerCase().includes(supplier.toLowerCase()))
-    : suppliers; // show all when field is focused but empty
+    ? suppliers.filter(s => s.toLowerCase().startsWith(supplier.toLowerCase()))
+    : [];
 
   const handleSave = async () => {
     const quantity = parseFloat(qty);
