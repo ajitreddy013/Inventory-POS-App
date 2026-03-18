@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Plus, Edit, Search, UserCheck, UserX, Key } from 'lucide-react';
+import { Shield, Plus, Edit, Search, UserCheck, UserX, Key, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './ManagerManagement.css';
 
 const ManagerManagement = () => {
+  const navigate = useNavigate();
   const [managers, setManagers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
@@ -126,6 +128,9 @@ const ManagerManagement = () => {
     <div className="manager-management">
       <div className="page-header">
         <div className="header-left">
+          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+            <ArrowLeft size={22} />
+          </button>
           <Shield size={32} />
           <div>
             <h1>Manager Accounts</h1>

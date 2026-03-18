@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { AlertCircle, RefreshCw, CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './FailedKOTManagement.css';
 
 /**
@@ -9,6 +10,7 @@ import './FailedKOTManagement.css';
  * Requirements: 22.4, 23.4
  */
 const FailedKOTManagement = () => {
+  const navigate = useNavigate();
   const [failedKOTs, setFailedKOTs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState({});
@@ -77,6 +79,9 @@ const FailedKOTManagement = () => {
     <div className="failed-kot-management">
       <div className="header">
         <div className="title-section">
+          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+            <ArrowLeft size={22} />
+          </button>
           <AlertCircle className="icon" size={24} />
           <h2>Failed KOT Management</h2>
         </div>

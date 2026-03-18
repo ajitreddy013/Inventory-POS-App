@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Edit, Search, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Package, Plus, Edit, Search, Trash2, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './MenuManagement.css';
 
 const MenuManagement = () => {
+  const navigate = useNavigate();
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -221,6 +223,9 @@ const MenuManagement = () => {
     <div className="menu-management">
       <div className="page-header">
         <div className="header-left">
+          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+            <ArrowLeft size={22} />
+          </button>
           <Package size={32} />
           <div>
             <h1>Menu Management</h1>
