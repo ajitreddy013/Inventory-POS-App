@@ -334,7 +334,7 @@ const MenuManagement = () => {
                     <td>
                       {filterSection === 'bar' ? (
                         (stockMap[item.id] || 0) > 0
-                          ? <span className="status-badge in-stock"><CheckCircle size={16} /> Available ({stockMap[item.id]})</span>
+                          ? <span className="status-badge in-stock"><CheckCircle size={16} /> Available</span>
                           : <span className="status-badge out-of-stock"><AlertCircle size={16} /> Not Available</span>
                       ) : (
                         <span className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
