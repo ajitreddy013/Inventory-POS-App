@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, Plus, Trash2, Layers } from 'lucide-react';
+import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, Plus, Trash2, Layers, Users, UserCheck, UtensilsCrossed, Package, ShoppingCart, AlertOctagon } from 'lucide-react';
 
 const Settings = () => {
   const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
@@ -481,12 +481,14 @@ const Settings = () => {
 
   // Menu items for the grid
   const menuItems = [
-    { name: 'Waiters', path: '/waiters', icon: '👤', color: '#3498db' },
-    { name: 'Managers', path: '/managers', icon: '👔', color: '#9b59b6' },
-    { name: 'Menu', path: '/menu', icon: '📋', color: '#e67e22' },
-    { name: 'Failed KOT', path: '/failed-kots', icon: '⚠️', color: '#e74c3c' },
-    { name: 'Printer', path: '/settings', icon: '🖨️', color: '#2c3e50' },
-    { name: 'Email', path: '/settings', icon: '📧', color: '#27ae60' },
+    { name: 'Waiters', path: '/waiters', icon: Users, color: '#3498db', desc: 'Manage waiter accounts' },
+    { name: 'Managers', path: '/managers', icon: UserCheck, color: '#9b59b6', desc: 'Manage manager accounts' },
+    { name: 'Menu', path: '/menu', icon: UtensilsCrossed, color: '#e67e22', desc: 'Menu items & pricing' },
+    { name: 'Godown Stock', path: '/inventory', icon: Package, color: '#16a085', desc: 'Godown inventory levels' },
+    { name: 'Counter Stock', path: '/counter-stock', icon: ShoppingCart, color: '#8e44ad', desc: 'Counter stock levels' },
+    { name: 'Failed KOT', path: '/failed-kots', icon: AlertOctagon, color: '#e74c3c', desc: 'View failed KOT entries' },
+    { name: 'Printer', path: '/settings', icon: Printer, color: '#2c3e50', desc: 'Printer configuration' },
+    { name: 'Email', path: '/settings', icon: Mail, color: '#27ae60', desc: 'Email report settings' },
   ];
 
   const handleMenuClick = (path) => {
@@ -503,38 +505,26 @@ const Settings = () => {
         
         {/* Quick Access Grid */}
         <div style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
-            gap: '15px' 
-          }}>
-            {menuItems.map((item) => (
-              <div
-                key={item.name}
-                onClick={() => handleMenuClick(item.path)}
-                style={{
-                  background: item.color,
-                  color: '#fff',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-3px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                }}
-              >
-                <div style={{ fontSize: '28px', marginBottom: '8px' }}>{item.icon}</div>
-                <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>{item.name}</div>
-              </div>
-            ))}
+          <div className="summary-cards">
+            {menuItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <div
+                  key={item.name}
+                  className="summary-card"
+                  onClick={() => handleMenuClick(item.path)}
+                  style={{ cursor: 'pointer', borderTop: `4px solid ${item.color}` }}
+                >
+                  <div className="card-icon" style={{ background: item.color + '18', color: item.color }}>
+                    <IconComponent size={24} />
+                  </div>
+                  <div className="card-content">
+                    <h3 style={{ color: '#2c3e50' }}>{item.name}</h3>
+                    <small style={{ color: '#7f8c8d' }}>{item.desc}</small>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

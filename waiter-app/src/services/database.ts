@@ -12,7 +12,9 @@ async function deleteDbFile(): Promise<void> {
       await FileSystem.deleteAsync(path, { idempotent: true });
     }
     console.log('Deleted stale DB files');
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getDatabase(): SQLite.SQLiteDatabase {
@@ -68,7 +70,8 @@ export async function initializeDatabase(): Promise<void> {
     )`,
     `CREATE TABLE IF NOT EXISTS menu_items (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, price REAL NOT NULL DEFAULT 0,
-      category_id TEXT, category TEXT, item_category TEXT DEFAULT 'food',
+      category_id TEXT, category TEXT, sub_category TEXT, item_category TEXT DEFAULT 'food',
+      is_active INTEGER NOT NULL DEFAULT 1,
       is_out_of_stock INTEGER NOT NULL DEFAULT 0, is_bar_item INTEGER NOT NULL DEFAULT 0,
       available_modifier_ids TEXT,
       created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0
@@ -112,10 +115,16 @@ export async function initializeDatabase(): Promise<void> {
     'ALTER TABLE tables ADD COLUMN is_active INTEGER DEFAULT 1',
     'ALTER TABLE tables ADD COLUMN occupied_since INTEGER',
     'ALTER TABLE menu_items ADD COLUMN category TEXT',
+    'ALTER TABLE menu_items ADD COLUMN sub_category TEXT',
+    'ALTER TABLE menu_items ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
     'ALTER TABLE menu_categories ADD COLUMN display_order INTEGER DEFAULT 0',
   ];
   for (const sql of migrations) {
-    try { db.execSync(sql); } catch { /* already exists */ }
+    try {
+      db.execSync(sql);
+    } catch {
+      /* already exists */
+    }
   }
 
   console.log('Database initialized successfully');
@@ -124,8 +133,16 @@ export async function initializeDatabase(): Promise<void> {
 export async function dropAllTables(): Promise<void> {
   const db = getDatabase();
   for (const table of [
-    'order_items', 'orders', 'menu_items', 'menu_categories',
-    'modifiers', 'tables', 'sections', 'waiters', 'sync_queue', 'device_info'
+    'order_items',
+    'orders',
+    'menu_items',
+    'menu_categories',
+    'modifiers',
+    'tables',
+    'sections',
+    'waiters',
+    'sync_queue',
+    'device_info',
   ]) {
     db.execSync(`DROP TABLE IF EXISTS ${table}`);
   }
@@ -137,15 +154,26 @@ export async function getDatabaseStats(): Promise<{
 }> {
   const db = getDatabase();
   const tableNames = [
-    'waiters', 'sections', 'tables', 'menu_categories',
-    'menu_items', 'modifiers', 'orders', 'order_items', 'sync_queue'
+    'waiters',
+    'sections',
+    'tables',
+    'menu_categories',
+    'menu_items',
+    'modifiers',
+    'orders',
+    'order_items',
+    'sync_queue',
   ];
-  const stats = tableNames.map(name => ({
+  const stats = tableNames.map((name) => ({
     name,
-    count: db.getFirstSync<{ count: number }>(`SELECT COUNT(*) as count FROM ${name}`)?.count || 0
+    count:
+      db.getFirstSync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM ${name}`
+      )?.count || 0,
   }));
-  const pendingSyncCount = db.getFirstSync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0'
-  )?.count || 0;
+  const pendingSyncCount =
+    db.getFirstSync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0'
+    )?.count || 0;
   return { tables: stats, pendingSyncCount };
 }
