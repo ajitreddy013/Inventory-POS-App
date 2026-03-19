@@ -22,7 +22,7 @@ import {
 import { getAll, query as dbQuery } from '../services/databaseHelpers';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 // Stitch-inspired fresh color palette
@@ -53,8 +53,10 @@ interface Table {
   id: string;
   name: string;
   section_id: string;
+  sectionId?: string;
   status: 'available' | 'occupied' | 'pending_bill';
   current_order_id?: string;
+  currentOrderId?: string;
   occupied_since?: number;
   billAmount?: number;
 }
@@ -77,6 +79,7 @@ const CARD_GAP = 10;
 const ACTION_CARD_WIDTH = (width - 64) / 2;
 const GRID_PADDING = 16;
 const cardWidth = Math.floor((width - GRID_PADDING * 2 - CARD_GAP * 2) / 3);
+let lastSelectedSectionId = 'all';
 
 export default function TableSelectionScreen({
   waiterId,
@@ -88,7 +91,9 @@ export default function TableSelectionScreen({
 }: TableSelectionScreenProps) {
   const [sections, setSections] = useState<Section[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('all');
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(
+    lastSelectedSectionId
+  );
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -98,24 +103,15 @@ export default function TableSelectionScreen({
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Load sections once from SQLite (synced on startup)
     const initLoad = async () => {
-      await loadSections();
+      await Promise.all([loadSections(), loadTables()]);
       setIsLoading(false);
     };
     initLoad();
 
-    // Real-time listener for tables — use snapshot data directly, no extra getDocs call
-    const unsubscribe = onSnapshot(collection(db, 'tables'), (snapshot) => {
-      const tablesData: Table[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      } as Table));
-      const tablesWithBills = tablesData.map(table => ({
-        ...table,
-        billAmount: (table as any).currentBillAmount || (table as any).current_bill_amount || 0,
-      }));
-      setTables(tablesWithBills.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
+    // Real-time Firestore listener for instant table updates
+    const unsubscribe = onSnapshot(collection(db, 'tables'), () => {
+      loadTables();
     });
 
     const timeInterval = setInterval(() => setCurrentTime(Date.now()), 60000);
@@ -127,20 +123,75 @@ export default function TableSelectionScreen({
   }, []);
 
   useEffect(() => {
-    if (sections.length > 0 && selectedSectionId === 'all') {
-      setSelectedSectionId(sections[0].id);
+    if (sections.length === 0) return;
+
+    const hasSelected = sections.some((s) => s.id === selectedSectionId);
+    if (!hasSelected) {
+      const hasLast = sections.some((s) => s.id === lastSelectedSectionId);
+      const next = hasLast ? lastSelectedSectionId : sections[0].id;
+      setSelectedSectionId(next);
+      lastSelectedSectionId = next;
     }
-  }, [sections]);
+  }, [sections, selectedSectionId]);
+
+  useEffect(() => {
+    if (!selectedSectionId || selectedSectionId === 'all') return;
+    lastSelectedSectionId = selectedSectionId;
+  }, [selectedSectionId]);
 
   const loadSections = async () => {
     try {
-      const data = await getAll<Section>('sections', 'name ASC');
-      setSections(data);
+      const snapshot = await getDocs(collection(db, 'sections'));
+      const data: Section[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        name: doc.data().name || '',
+        ...doc.data(),
+      }));
+      setSections(data.sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
-      console.error('Error loading sections from SQLite:', error);
+      console.error('Error loading sections:', error);
+      // Fallback to SQLite
+      try {
+        const data = await getAll<Section>('sections', 'name ASC');
+        setSections(data);
+      } catch {}
     }
   };
 
+  const loadTables = async () => {
+    try {
+      // Read directly from Firestore for real-time accuracy
+      const snapshot = await getDocs(collection(db, 'tables'));
+      const tablesData: Table[] = snapshot.docs.map(
+        (doc) =>
+          ({
+            id: doc.id,
+            ...doc.data(),
+          }) as Table
+      );
+
+      const tablesWithBills = tablesData.map((table) => {
+        const amount =
+          (table as any).currentBillAmount ||
+          (table as any).current_bill_amount ||
+          0;
+        return { ...table, billAmount: amount };
+      });
+
+      setTables(
+        tablesWithBills.sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { numeric: true })
+        )
+      );
+    } catch (error) {
+      console.error('Error loading tables:', error);
+      // Fallback to SQLite
+      try {
+        const data = await getAll<Table>('tables', 'name ASC');
+        setTables(data);
+      } catch {}
+    }
+  };
 
   const getElapsedTime = (table: Table): string | null => {
     const occupiedSince =
@@ -188,8 +239,18 @@ export default function TableSelectionScreen({
   };
 
   const handleTablePress = (table: Table) => {
+    const tableSectionId = table.section_id || table.sectionId;
+    if (tableSectionId) {
+      setSelectedSectionId(tableSectionId);
+      lastSelectedSectionId = tableSectionId;
+    }
+
     // Single tap should always open the order/menu screen.
-    onTableSelect(table.id, table.name, table.current_order_id);
+    onTableSelect(
+      table.id,
+      table.name,
+      table.current_order_id || table.currentOrderId
+    );
   };
 
   const handleTableLongPress = (table: Table) => {
@@ -224,7 +285,9 @@ export default function TableSelectionScreen({
   const filteredTables =
     selectedSectionId === 'all'
       ? tables
-      : tables.filter((t) => t.section_id === selectedSectionId);
+      : tables.filter(
+          (t) => (t.section_id || t.sectionId) === selectedSectionId
+        );
 
   // ─── Header ─────────────────────────────────────────────────────────────────
   const renderHeader = () => (
@@ -314,7 +377,10 @@ export default function TableSelectionScreen({
           <TouchableOpacity
             key={s.id}
             style={[styles.tab, selectedSectionId === s.id && styles.tabActive]}
-            onPress={() => setSelectedSectionId(s.id)}
+            onPress={() => {
+              setSelectedSectionId(s.id);
+              lastSelectedSectionId = s.id;
+            }}
           >
             <Text
               style={[
@@ -430,7 +496,8 @@ export default function TableSelectionScreen({
                   onViewKOT(
                     selectedTable.id,
                     selectedTable.name,
-                    selectedTable.current_order_id
+                    selectedTable.current_order_id ||
+                      selectedTable.currentOrderId
                   );
                 }}
               >
