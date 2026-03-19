@@ -483,7 +483,6 @@
 .order-item-row.sent-to-kitchen {
   background-color: #f8fafc;
   border-left: 4px solid #f59e0b;
-  opacity: 0.8;
 }
 
 .row-top-line {
@@ -570,8 +569,9 @@
 
 .price-unit-small {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: #ef4444; /* Match red theme */
   margin-top: 0.1rem;
+  opacity: 0.8;
 }
 
 .actions-cluster {
@@ -626,7 +626,7 @@
   border-top: 2px solid var(--border-color);
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--text-main);
+  color: var(--text-main); /* Back to black as requested */
 }
 
 /* Action Buttons */
