@@ -1,6 +1,6 @@
 /**
  * Menu Browser Component
- * 
+ *
  * Displays menu items with search, category filtering, and out-of-stock indicators
  */
 
@@ -13,9 +13,9 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
-  Pressable
+  Pressable,
 } from 'react-native';
-import { getAll, query as dbQuery } from '../services/databaseHelpers';
+import { getAll } from '../services/databaseHelpers';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -28,9 +28,16 @@ interface MenuItem {
   name: string;
   price: number;
   category_id: string;
+  category?: string;
+  sub_category?: string;
+  subCategory?: string;
   item_category: 'food' | 'drink';
+  is_active?: number;
+  isActive?: boolean;
   is_out_of_stock: number;
+  isOutOfStock?: boolean;
   is_bar_item: number;
+  isBarItem?: boolean;
   available_modifier_ids?: string;
 }
 
@@ -45,12 +52,20 @@ interface MenuBrowserProps {
   showSearch?: boolean;
 }
 
-export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBrowserProps) {
+export default function MenuBrowser({
+  onItemSelect,
+  showSearch = true,
+}: MenuBrowserProps) {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [counterStockMap, setCounterStockMap] = useState<
+    Record<string, number>
+  >({});
   const [searchQuery, setSearchQuery] = useState('');
   const [showCategoryDrawer, setShowCategoryDrawer] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     loadCategories();
@@ -66,7 +81,10 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
 
   const loadCategories = async () => {
     try {
-      const categoriesData = await getAll<MenuCategory>('menu_categories', 'display_order ASC');
+      const categoriesData = await getAll<MenuCategory>(
+        'menu_categories',
+        'display_order ASC'
+      );
       setCategories(categoriesData);
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -74,52 +92,174 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
   };
 
   const loadMenuItems = async () => {
+    const normalizeItem = (id: string, raw: any): MenuItem => ({
+      id,
+      name: String(raw.name ?? ''),
+      price: Number(raw.price ?? 0),
+      category_id: String(raw.category_id ?? raw.categoryId ?? ''),
+      category: raw.category ?? undefined,
+      sub_category: raw.sub_category ?? raw.subCategory ?? undefined,
+      subCategory: raw.subCategory ?? raw.sub_category ?? undefined,
+      item_category: (raw.item_category ?? raw.itemCategory ?? 'food') as
+        | 'food'
+        | 'drink',
+      is_active:
+        raw.is_active !== undefined
+          ? Number(raw.is_active)
+          : raw.isActive === false
+            ? 0
+            : 1,
+      isActive: raw.isActive,
+      is_out_of_stock:
+        raw.is_out_of_stock !== undefined
+          ? Number(raw.is_out_of_stock)
+          : raw.isOutOfStock
+            ? 1
+            : 0,
+      isOutOfStock: raw.isOutOfStock,
+      is_bar_item:
+        raw.is_bar_item !== undefined
+          ? Number(raw.is_bar_item)
+          : raw.isBarItem
+            ? 1
+            : 0,
+      isBarItem: raw.isBarItem,
+      available_modifier_ids:
+        raw.available_modifier_ids ??
+        (Array.isArray(raw.availableModifiers)
+          ? raw.availableModifiers.join(',')
+          : undefined),
+    });
+
     try {
-      const itemsData = await getAll<MenuItem>('menu_items', 'name ASC');
-      setMenuItems(itemsData);
+      // Read from SQLite (synced from Firestore on app startup)
+      const sqliteData = await getAll<MenuItem>('menu_items', 'name ASC');
+      setMenuItems(sqliteData.map((item) => normalizeItem(item.id, item)));
     } catch (error) {
-      console.error('Error loading menu items:', error);
+      console.error('Error loading menu items from SQLite:', error);
     }
   };
 
+  const loadCounterStock = async () => {
+    // Counter stock availability is reflected in menu_items.is_out_of_stock (synced from Firestore).
+    // No separate Firestore read needed — derive from the already-loaded menuItems.
+    // This is a no-op; getVisibleItems() uses is_out_of_stock from menu_items directly.
+    setCounterStockMap({});
+  };
+
+  const getVisibleItems = (): MenuItem[] => {
+    const visibleItems = menuItems.filter((item) => {
+      const isActive = item.is_active !== 0 && item.isActive !== false;
+      if (!isActive) return false;
+
+      const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
+      const isRestaurantAvailable =
+        item.is_out_of_stock !== 1 && item.isOutOfStock !== true;
+
+      const stockFromMap = Object.prototype.hasOwnProperty.call(
+        counterStockMap,
+        item.id
+      )
+        ? Number(counterStockMap[item.id])
+        : null;
+      const stockFromItem = Number(
+        (item as any).counterStock ?? (item as any).counter_stock
+      );
+      const resolvedCounterStock =
+        stockFromMap !== null
+          ? stockFromMap
+          : Number.isFinite(stockFromItem)
+            ? stockFromItem
+            : null;
+
+      // If stock value is unknown, fallback to out-of-stock flags instead of assuming zero.
+      const availableInCounter =
+        resolvedCounterStock !== null
+          ? resolvedCounterStock > 0
+          : item.is_out_of_stock !== 1 && item.isOutOfStock !== true;
+
+      // Desktop parity: show bar only when counter has stock; show restaurant only when available.
+      const isVisible = isBarItem ? availableInCounter : isRestaurantAvailable;
+      return isVisible;
+    });
+
+    // Keep every distinct item id (desktop parity), guard only against accidental duplicate rows.
+    const byId = new Map<string, MenuItem>();
+    visibleItems.forEach((item) => {
+      if (!byId.has(item.id)) {
+        byId.set(item.id, item);
+      }
+    });
+
+    return Array.from(byId.values());
+  };
+
+  const getSubCategoryName = (item: MenuItem): string => {
+    const explicitSubCategory = item.sub_category || item.subCategory;
+    if (explicitSubCategory && explicitSubCategory.trim()) {
+      return explicitSubCategory.trim();
+    }
+
+    // Keep mobile grouping strictly subcategory-based (no category fallback).
+    return 'Uncategorized';
+  };
+
   const getFilteredItems = (): MenuItem[] => {
-    let filtered = menuItems;
+    let filtered = getVisibleItems();
 
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(item =>
+      filtered = filtered.filter((item) =>
         item.name.toLowerCase().includes(query)
       );
     }
 
-    // Filter by category if selected
-    if (selectedCategoryId) {
-      filtered = filtered.filter(item => item.category_id === selectedCategoryId);
+    // Filter by subcategory if selected
+    if (selectedSubCategory) {
+      filtered = filtered.filter(
+        (item) => getSubCategoryName(item) === selectedSubCategory
+      );
     }
 
     return filtered;
   };
 
-  const getItemsByCategory = (): { category: MenuCategory | null; items: MenuItem[] }[] => {
-    const filtered = getFilteredItems();
-    
-    if (searchQuery.trim() || selectedCategoryId) {
-      // When searching or filtering, show all matching items under one group
-      return [{ category: null, items: filtered }];
-    }
+  const getSubCategoryOptions = (): string[] => {
+    const options = new Set<string>();
+    getVisibleItems().forEach((item) => {
+      options.add(getSubCategoryName(item));
+    });
+    return Array.from(options).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+  };
 
-    // Group by category
-    const grouped: { category: MenuCategory; items: MenuItem[] }[] = [];
-    
-    categories.forEach(category => {
-      const categoryItems = filtered.filter(item => item.category_id === category.id);
-      if (categoryItems.length > 0) {
-        grouped.push({ category, items: categoryItems });
+  const getItemsBySubCategory = (): {
+    heading: string;
+    items: MenuItem[];
+  }[] => {
+    const filtered = getFilteredItems();
+
+    const groupedMap = new Map<string, MenuItem[]>();
+    filtered.forEach((item) => {
+      const heading = getSubCategoryName(item);
+      if (!groupedMap.has(heading)) {
+        groupedMap.set(heading, []);
       }
+      groupedMap.get(heading)!.push(item);
     });
 
-    return grouped;
+    return Array.from(groupedMap.entries())
+      .sort(([a], [b]) => {
+        return a.localeCompare(b, undefined, { sensitivity: 'base' });
+      })
+      .map(([heading, items]) => ({
+        heading,
+        items: [...items].sort((x, y) =>
+          x.name.localeCompare(y.name, undefined, { sensitivity: 'base' })
+        ),
+      }));
   };
 
   const handleItemPress = (item: MenuItem) => {
@@ -130,52 +270,59 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
     onItemSelect(item);
   };
 
-  const handleCategorySelect = (categoryId: string) => {
-    setSelectedCategoryId(categoryId);
+  const handleCategorySelect = (subCategory: string) => {
+    setSelectedSubCategory(subCategory);
     setShowCategoryDrawer(false);
   };
 
-  const renderCategoryHeader = (category: MenuCategory) => {
+  const renderCategoryHeader = (heading: string) => {
     return (
       <View style={styles.categoryHeader}>
         <View style={styles.categoryAccent} />
-        <Text style={styles.categoryHeaderText}>{category.name}</Text>
+        <Text style={styles.categoryHeaderText}>{heading}</Text>
       </View>
     );
   };
 
-  const renderMenuItem = (item: MenuItem) => {
+  const renderMenuItem = (item: MenuItem, index: number) => {
+    const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
     const isVeg = item.item_category === 'food'; // Simplified - should check actual veg/non-veg flag
     const isOutOfStock = item.is_out_of_stock === 1;
+    const isEndOfRow = (index + 1) % 3 === 0;
 
     return (
       <TouchableOpacity
         key={item.id}
         style={[
           styles.menuItemCard,
-          isOutOfStock && styles.menuItemCardDisabled
+          !isEndOfRow && styles.menuItemCardWithGap,
+          isOutOfStock && styles.menuItemCardDisabled,
         ]}
         onPress={() => handleItemPress(item)}
         disabled={isOutOfStock}
       >
-        {/* Price - top left */}
-        <Text style={styles.itemPrice}>₹{item.price}</Text>
-
-        {/* Veg/Non-veg indicator - top right */}
-        <View style={[
-          styles.vegIndicator,
-          { borderColor: isVeg ? VEG_GREEN : NON_VEG_RED }
-        ]}>
-          <View style={[
-            styles.vegDot,
-            { backgroundColor: isVeg ? VEG_GREEN : NON_VEG_RED }
-          ]} />
-        </View>
-
-        {/* Item name - center */}
         <Text style={styles.itemName} numberOfLines={2}>
           {item.name}
         </Text>
+
+        <View style={styles.itemCardTopRow}>
+          <Text style={styles.itemPrice}>₹{item.price}</Text>
+          {!isBarItem && (
+            <View
+              style={[
+                styles.vegIndicator,
+                { borderColor: isVeg ? VEG_GREEN : NON_VEG_RED },
+              ]}
+            >
+              <View
+                style={[
+                  styles.vegDot,
+                  { backgroundColor: isVeg ? VEG_GREEN : NON_VEG_RED },
+                ]}
+              />
+            </View>
+          )}
+        </View>
 
         {/* Out of stock indicator */}
         {isOutOfStock && (
@@ -208,20 +355,20 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
               <TouchableOpacity
                 style={styles.drawerItem}
                 onPress={() => {
-                  setSelectedCategoryId(null);
+                  setSelectedSubCategory(null);
                   setShowCategoryDrawer(false);
                 }}
               >
                 <Text style={styles.drawerItemText}>All Items</Text>
               </TouchableOpacity>
 
-              {categories.map(category => (
+              {getSubCategoryOptions().map((subCategory) => (
                 <TouchableOpacity
-                  key={category.id}
+                  key={subCategory}
                   style={styles.drawerItem}
-                  onPress={() => handleCategorySelect(category.id)}
+                  onPress={() => handleCategorySelect(subCategory)}
                 >
-                  <Text style={styles.drawerItemText}>{category.name}</Text>
+                  <Text style={styles.drawerItemText}>{subCategory}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -238,7 +385,17 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
     );
   };
 
-  const groupedItems = getItemsByCategory();
+  const groupedItems = getItemsBySubCategory();
+
+  useEffect(() => {
+    loadCounterStock();
+
+    const stockInterval = setInterval(() => {
+      loadCounterStock();
+    }, 10000);
+
+    return () => clearInterval(stockInterval);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -262,10 +419,12 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
       >
         {groupedItems.map((group, groupIndex) => (
           <View key={groupIndex}>
-            {group.category && renderCategoryHeader(group.category)}
-            
+            {renderCategoryHeader(group.heading)}
+
             <View style={styles.menuGrid}>
-              {group.items.map(item => renderMenuItem(item))}
+              {group.items.map((item, itemIndex) =>
+                renderMenuItem(item, itemIndex)
+              )}
             </View>
           </View>
         ))}
@@ -294,13 +453,13 @@ export default function MenuBrowser({ onItemSelect, showSearch = true }: MenuBro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: '#FFFFFF',
   },
   searchContainer: {
     padding: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0'
+    borderBottomColor: '#E0E0E0',
   },
   searchInput: {
     height: 48,
@@ -308,106 +467,111 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: DARK_GRAY
+    color: DARK_GRAY,
   },
   menuScroll: {
-    flex: 1
+    flex: 1,
   },
   menuScrollContent: {
-    padding: 12,
-    paddingBottom: 80 // Space for FAB
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 80, // Space for FAB
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 12
+    marginTop: 10,
+    marginBottom: 8,
   },
   categoryAccent: {
-    width: 4,
-    height: 24,
+    width: 3,
+    height: 18,
     backgroundColor: BRAND_RED,
-    marginRight: 12
+    marginRight: 8,
   },
   categoryHeaderText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: BRAND_RED
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND_RED,
   },
   menuGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8
+    marginBottom: 4,
   },
   menuItemCard: {
-    width: '48%',
+    width: '32%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 120,
-    elevation: 2,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    minHeight: 74,
+    elevation: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    position: 'relative'
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    marginBottom: 6,
+  },
+  menuItemCardWithGap: {
+    marginRight: '2%',
   },
   menuItemCardDisabled: {
-    opacity: 0.5
+    opacity: 0.5,
+  },
+  itemCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
   itemPrice: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    fontSize: 12,
-    color: '#666666'
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#5F6368',
   },
   vegIndicator: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 16,
-    height: 16,
-    borderWidth: 2,
+    width: 13,
+    height: 13,
+    borderWidth: 1.5,
     borderRadius: 2,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   vegDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   itemName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: DARK_GRAY,
-    textAlign: 'center',
-    marginTop: 24,
-    marginBottom: 8
+    textAlign: 'left',
+    lineHeight: 15,
+    minHeight: 30,
   },
   outOfStockBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    right: 8,
+    marginTop: 4,
     backgroundColor: BRAND_RED,
-    paddingVertical: 4,
-    borderRadius: 4
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   outOfStockText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
-    textAlign: 'center'
+    textAlign: 'center',
   },
   emptyState: {
     padding: 48,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#999999'
+    color: '#999999',
   },
   fab: {
     position: 'absolute',
@@ -423,55 +587,55 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8
+    shadowRadius: 8,
   },
   fabIcon: {
-    fontSize: 24
+    fontSize: 24,
   },
   drawerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   drawer: {
     width: '80%',
     maxHeight: '70%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    overflow: 'hidden'
+    overflow: 'hidden',
   },
   drawerHeader: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   drawerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: DARK_GRAY
+    color: DARK_GRAY,
   },
   drawerContent: {
-    maxHeight: 400
+    maxHeight: 400,
   },
   drawerItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0'
+    borderBottomColor: '#F0F0F0',
   },
   drawerItemText: {
     fontSize: 16,
-    color: DARK_GRAY
+    color: DARK_GRAY,
   },
   drawerCloseButton: {
     padding: 16,
     backgroundColor: BRAND_RED,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   drawerCloseButtonText: {
     color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });

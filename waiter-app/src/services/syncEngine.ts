@@ -1,6 +1,6 @@
 /**
  * Firestore Sync Engine for WaiterFlow Mobile App
- * 
+ *
  * Manages real-time synchronization between Firestore and local SQLite database.
  * Handles offline scenarios and automatic sync on reconnection.
  */
@@ -13,7 +13,7 @@ import {
   Unsubscribe,
   enableIndexedDbPersistence,
   enableNetwork,
-  disableNetwork
+  disableNetwork,
 } from 'firebase/firestore';
 import NetInfo from '@react-native-community/netinfo';
 import { db } from './firebase';
@@ -26,7 +26,7 @@ import {
   getPendingSyncItems,
   markSynced,
   getDeviceInfo,
-  setDeviceInfo
+  setDeviceInfo,
 } from './databaseHelpers';
 import { getDatabase } from './database';
 
@@ -34,7 +34,7 @@ import { getDatabase } from './database';
  * Convert camelCase to snake_case
  */
 function camelToSnake(str: string): string {
-  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
 /**
@@ -53,7 +53,8 @@ function toUnixMs(value: any, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
     const parsedNum = Number(value);
-    if (!Number.isNaN(parsedNum) && Number.isFinite(parsedNum)) return parsedNum;
+    if (!Number.isNaN(parsedNum) && Number.isFinite(parsedNum))
+      return parsedNum;
     const parsedDate = new Date(value).getTime();
     if (!Number.isNaN(parsedDate)) return parsedDate;
   }
@@ -75,14 +76,14 @@ function toSQLiteBoolean(value: any, fallback = 0): number {
   return fallback;
 }
 
-function sanitizeForSqlite(tableName: string, raw: Record<string, any>): Record<string, any> {
+function sanitizeForSqlite(
+  tableName: string,
+  raw: Record<string, any>
+): Record<string, any> {
   const snake = convertKeysToSnakeCase(raw);
   const now = Date.now();
 
-  const createdAt = toUnixMs(
-    snake.created_at ?? snake.createdAt,
-    now
-  );
+  const createdAt = toUnixMs(snake.created_at ?? snake.createdAt, now);
   const updatedAt = toUnixMs(
     snake.updated_at ?? snake.updatedAt ?? snake.created_at ?? snake.createdAt,
     createdAt
@@ -112,12 +113,14 @@ function sanitizeForSqlite(tableName: string, raw: Record<string, any>): Record<
         status: String(snake.status ?? 'available'),
         capacity: Number(snake.capacity ?? 4),
         is_active: toSQLiteBoolean(snake.is_active ?? snake.isActive, 1),
-        current_order_id: snake.current_order_id ?? snake.currentOrderId ?? null,
-        occupied_since: snake.occupied_since != null
-          ? toUnixMs(snake.occupied_since, 0)
-          : snake.occupiedSince != null
-            ? toUnixMs(snake.occupiedSince, 0)
-            : null,
+        current_order_id:
+          snake.current_order_id ?? snake.currentOrderId ?? null,
+        occupied_since:
+          snake.occupied_since != null
+            ? toUnixMs(snake.occupied_since, 0)
+            : snake.occupiedSince != null
+              ? toUnixMs(snake.occupiedSince, 0)
+              : null,
         created_at: common.created_at || Date.now(),
         updated_at: common.updated_at || Date.now(),
       };
@@ -139,7 +142,8 @@ function sanitizeForSqlite(tableName: string, raw: Record<string, any>): Record<
 
     case 'menu_items': {
       let availableModifierIds = snake.available_modifier_ids;
-      const rawModifiers = snake.available_modifiers ?? snake.availableModifiers;
+      const rawModifiers =
+        snake.available_modifiers ?? snake.availableModifiers;
       if (!availableModifierIds && Array.isArray(rawModifiers)) {
         availableModifierIds = rawModifiers.join(',');
       } else if (!availableModifierIds && typeof rawModifiers === 'string') {
@@ -152,8 +156,13 @@ function sanitizeForSqlite(tableName: string, raw: Record<string, any>): Record<
         price: Number(snake.price ?? 0),
         category_id: snake.category_id ?? snake.categoryId ?? null,
         category: snake.category ?? null,
+        sub_category: snake.sub_category ?? snake.subCategory ?? null,
         item_category: snake.item_category ?? snake.itemCategory ?? 'food',
-        is_out_of_stock: toSQLiteBoolean(snake.is_out_of_stock ?? snake.isOutOfStock, 0),
+        is_active: toSQLiteBoolean(snake.is_active ?? snake.isActive, 1),
+        is_out_of_stock: toSQLiteBoolean(
+          snake.is_out_of_stock ?? snake.isOutOfStock,
+          0
+        ),
         is_bar_item: toSQLiteBoolean(snake.is_bar_item ?? snake.isBarItem, 0),
         available_modifier_ids: availableModifierIds ?? null,
       };
@@ -243,9 +252,9 @@ export class FirestoreSyncEngine {
    * Set up network status monitoring
    */
   private setupNetworkMonitoring(): void {
-    this.netInfoUnsubscribe = NetInfo.addEventListener(state => {
+    this.netInfoUnsubscribe = NetInfo.addEventListener((state) => {
       const isConnected = state.isConnected && state.isInternetReachable;
-      
+
       if (isConnected) {
         this.handleOnline();
       } else {
@@ -296,16 +305,12 @@ export class FirestoreSyncEngine {
    * Subscribe to all Firestore collections
    */
   private async subscribeToCollections(): Promise<void> {
-    // Do initial fetch only on app start
+    // Do initial fetch only on app start (static data: menu, sections, waiters)
     await this.initialFetchAll();
 
-    // Keep SQLite in sync in real-time after initial hydration.
-    this.subscribeToCollection('sections', 'sections');
+    // Only keep real-time listener for tables — status changes frequently.
+    // Static collections (menu, sections, waiters) are fetched once on startup.
     this.subscribeToCollection('tables', 'tables');
-    this.subscribeToCollection('waiters', 'waiters');
-    this.subscribeToCollection('menuCategories', 'menu_categories');
-    this.subscribeToCollection('menuItems', 'menu_items');
-    this.subscribeToCollection('modifiers', 'modifiers');
   }
 
   /**
@@ -323,10 +328,12 @@ export class FirestoreSyncEngine {
     // Helper to fetch a collection via REST API
     const fetchCollection = async (collectionName: string) => {
       const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionName}?key=${apiKey}`;
-      
+
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${collectionName}: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch ${collectionName}: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -336,20 +343,25 @@ export class FirestoreSyncEngine {
       return documents.map((doc: any) => {
         const id = doc.name.split('/').pop();
         const fields = doc.fields || {};
-        
+
         // Convert Firestore field format to simple key-value pairs
         const obj: Record<string, any> = { id };
         for (const [key, value] of Object.entries(fields)) {
           const fieldValue = value as any;
           // Extract the actual value based on type
-          if (fieldValue.stringValue !== undefined) obj[key] = fieldValue.stringValue;
-          else if (fieldValue.integerValue !== undefined) obj[key] = parseInt(fieldValue.integerValue);
-          else if (fieldValue.doubleValue !== undefined) obj[key] = fieldValue.doubleValue;
-          else if (fieldValue.booleanValue !== undefined) obj[key] = fieldValue.booleanValue;
-          else if (fieldValue.timestampValue !== undefined) obj[key] = fieldValue.timestampValue;
+          if (fieldValue.stringValue !== undefined)
+            obj[key] = fieldValue.stringValue;
+          else if (fieldValue.integerValue !== undefined)
+            obj[key] = parseInt(fieldValue.integerValue);
+          else if (fieldValue.doubleValue !== undefined)
+            obj[key] = fieldValue.doubleValue;
+          else if (fieldValue.booleanValue !== undefined)
+            obj[key] = fieldValue.booleanValue;
+          else if (fieldValue.timestampValue !== undefined)
+            obj[key] = fieldValue.timestampValue;
           else if (fieldValue.nullValue !== undefined) obj[key] = null;
         }
-        
+
         return obj;
       });
     };
@@ -359,7 +371,10 @@ export class FirestoreSyncEngine {
       const sections = await fetchCollection('sections');
       // Clear first to avoid stale duplicates, then re-insert
       getDatabase().runSync('DELETE FROM sections');
-      await bulkUpsert('sections', sections.map((row) => sanitizeForSqlite('sections', row)));
+      await bulkUpsert(
+        'sections',
+        sections.map((row) => sanitizeForSqlite('sections', row))
+      );
 
       const tables = await fetchCollection('tables');
       getDatabase().runSync('DELETE FROM tables');
@@ -372,19 +387,32 @@ export class FirestoreSyncEngine {
       }
 
       const waiters = await fetchCollection('waiters');
-      await bulkUpsert('waiters', waiters.map((row) => sanitizeForSqlite('waiters', row)));
+      await bulkUpsert(
+        'waiters',
+        waiters.map((row) => sanitizeForSqlite('waiters', row))
+      );
 
       const categories = await fetchCollection('menuCategories');
-      await bulkUpsert('menu_categories', categories.map((row) => sanitizeForSqlite('menu_categories', row)));
+      await bulkUpsert(
+        'menu_categories',
+        categories.map((row) => sanitizeForSqlite('menu_categories', row))
+      );
 
       const items = await fetchCollection('menuItems');
-      await bulkUpsert('menu_items', items.map((row) => sanitizeForSqlite('menu_items', row)));
+      await bulkUpsert(
+        'menu_items',
+        items.map((row) => sanitizeForSqlite('menu_items', row))
+      );
 
       const modifiers = await fetchCollection('modifiers');
-      await bulkUpsert('modifiers', modifiers.map((row) => sanitizeForSqlite('modifiers', row)));
+      await bulkUpsert(
+        'modifiers',
+        modifiers.map((row) => sanitizeForSqlite('modifiers', row))
+      );
 
-      console.log(`🔄 Sync complete: ${sections.length} sections, ${tables.length} tables, ${waiters.length} waiters, ${categories.length} categories, ${items.length} items, ${modifiers.length} modifiers`);
-
+      console.log(
+        `🔄 Sync complete: ${sections.length} sections, ${tables.length} tables, ${waiters.length} waiters, ${categories.length} categories, ${items.length} items, ${modifiers.length} modifiers`
+      );
     } catch (error) {
       console.error('❌ Error fetching data:', error);
       throw error;
@@ -408,15 +436,23 @@ export class FirestoreSyncEngine {
           for (const doc of snapshot.docs) {
             try {
               const firestoreData = doc.data();
-              const data = sanitizeForSqlite(sqliteTable, { id: doc.id, ...firestoreData });
+              const data = sanitizeForSqlite(sqliteTable, {
+                id: doc.id,
+                ...firestoreData,
+              });
               await upsert(sqliteTable, data);
             } catch (rowError) {
-              console.warn(`⚠️ Skipping ${firestoreCollection} doc ${doc.id}:`, rowError);
+              console.warn(
+                `⚠️ Skipping ${firestoreCollection} doc ${doc.id}:`,
+                rowError
+              );
             }
           }
 
           if (snapshot.docs.length > 0) {
-            console.log(`✅ Synced ${snapshot.docs.length} ${firestoreCollection} to ${sqliteTable}`);
+            console.log(
+              `✅ Synced ${snapshot.docs.length} ${firestoreCollection} to ${sqliteTable}`
+            );
           }
         } catch (error) {
           console.error(`❌ Error syncing ${firestoreCollection}:`, error);
@@ -425,10 +461,13 @@ export class FirestoreSyncEngine {
       },
       (error) => {
         // Silently ignore "Target ID already exists" errors during development
-        if (error.message && error.message.includes('Target ID already exists')) {
+        if (
+          error.message &&
+          error.message.includes('Target ID already exists')
+        ) {
           return;
         }
-        
+
         console.error(`Error in ${firestoreCollection} listener:`, error);
         this.config.onError?.(error);
       }
@@ -490,28 +529,25 @@ export class FirestoreSyncEngine {
   private async syncOrderItems(orderId: string): Promise<void> {
     const orderItemsRef = collection(db, 'orders', orderId, 'items');
 
-    const unsubscribe = onSnapshot(
-      orderItemsRef,
-      async (snapshot) => {
-        try {
-          for (const change of snapshot.docChanges()) {
-            const data = {
-              id: change.doc.id,
-              order_id: orderId,
-              ...change.doc.data()
-            };
+    const unsubscribe = onSnapshot(orderItemsRef, async (snapshot) => {
+      try {
+        for (const change of snapshot.docChanges()) {
+          const data = {
+            id: change.doc.id,
+            order_id: orderId,
+            ...change.doc.data(),
+          };
 
-            if (change.type === 'added' || change.type === 'modified') {
-              await upsert('order_items', data);
-            } else if (change.type === 'removed') {
-              await deleteRecord('order_items', change.doc.id);
-            }
+          if (change.type === 'added' || change.type === 'modified') {
+            await upsert('order_items', data);
+          } else if (change.type === 'removed') {
+            await deleteRecord('order_items', change.doc.id);
           }
-        } catch (error) {
-          console.error(`Error syncing order items for ${orderId}:`, error);
         }
+      } catch (error) {
+        console.error(`Error syncing order items for ${orderId}:`, error);
       }
-    );
+    });
 
     this.unsubscribers.push(unsubscribe);
   }
@@ -600,7 +636,7 @@ export class FirestoreSyncEngine {
     }
 
     // Unsubscribe from all Firestore listeners
-    this.unsubscribers.forEach(unsubscribe => unsubscribe());
+    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
 
     // Unsubscribe from network monitoring
@@ -616,14 +652,14 @@ export class FirestoreSyncEngine {
    */
   reset(): void {
     this.shutdown();
-    
+
     // Clear subscription markers
-    Object.keys(this).forEach(key => {
+    Object.keys(this).forEach((key) => {
       if (key.startsWith('_subscription_')) {
         delete (this as any)[key];
       }
     });
-    
+
     console.log('Sync engine reset');
   }
 }
@@ -631,7 +667,9 @@ export class FirestoreSyncEngine {
 /**
  * Initialize sync engine - creates a new instance each time
  */
-export async function initializeSyncEngine(config?: SyncEngineConfig): Promise<FirestoreSyncEngine> {
+export async function initializeSyncEngine(
+  config?: SyncEngineConfig
+): Promise<FirestoreSyncEngine> {
   console.log('Creating new sync engine instance...');
   const engine = new FirestoreSyncEngine(config);
   await engine.initialize();

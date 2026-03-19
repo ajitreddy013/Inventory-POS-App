@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import PropTypes from "prop-types";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import {
   Search,
   Plus,
@@ -11,17 +11,17 @@ import {
   ArrowLeft,
   Clock,
   Save,
-} from "lucide-react";
-import { getLocalDateTimeString } from "../utils/dateUtils";
-import { addPendingBill } from "../services/billService";
+} from 'lucide-react';
+import { getLocalDateTimeString } from '../utils/dateUtils';
+import { addPendingBill } from '../services/billService';
 
 const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [discount, setDiscount] = useState(0);
   const [tax, setTax] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -34,8 +34,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
       const tableOrder = await window.electronAPI.getTableOrder(table.id);
       if (tableOrder) {
         setCart(tableOrder.items || []);
-        setCustomerName(tableOrder.customer_name || "");
-        setCustomerPhone(tableOrder.customer_phone || "");
+        setCustomerName(tableOrder.customer_name || '');
+        setCustomerPhone(tableOrder.customer_phone || '');
         setDiscount(tableOrder.discount || 0);
         setTax(tableOrder.tax || 0);
       }
@@ -74,7 +74,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     }
   };
 
-
   const filteredProducts = products.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,7 +94,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         );
         setCart(newCart);
       } else {
-        alert("Insufficient stock!");
+        alert('Insufficient stock!');
         return;
       }
     } else {
@@ -115,7 +114,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     // Auto-save the order after adding product
     await autoSaveOrder(newCart);
 
-    setSearchTerm("");
+    setSearchTerm('');
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
@@ -124,7 +123,10 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
   const autoSaveOrder = async (currentCart) => {
     setAutoSaving(true);
     try {
-      const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const subtotal = currentCart.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
       const taxAmount = (subtotal * tax) / 100;
       const discountAmount = (subtotal * discount) / 100;
       const total = subtotal + taxAmount - discountAmount;
@@ -136,7 +138,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         items: currentCart,
         discount,
         tax,
-        notes: "",
+        notes: '',
         subtotal,
         total,
         kot_printed: false,
@@ -146,7 +148,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       // Update table status
       const tableUpdate = {
-        status: currentCart.length > 0 ? "occupied" : "available",
+        status: currentCart.length > 0 ? 'occupied' : 'available',
         current_bill_amount: total,
       };
 
@@ -167,7 +169,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
     const product = cart.find((item) => item.id === productId);
     if (newQuantity > product.maxStock) {
-      alert("Insufficient stock!");
+      alert('Insufficient stock!');
       return;
     }
 
@@ -208,8 +210,8 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
   const generateSaleNumber = async () => {
     const now = new Date();
-    const day = now.getDate().toString().padStart(2, "0");
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const day = now.getDate().toString().padStart(2, '0');
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const year = now.getFullYear().toString().slice(-2);
 
     // Generate a random 3-digit number
@@ -220,26 +222,31 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
   const savePendingBill = async () => {
     if (cart.length === 0) {
-      alert("Cart is empty!");
+      alert('Cart is empty!');
       return;
     }
 
     // Validate required fields for pending bills
     const errors = [];
-    
-    if (!customerName || customerName.trim() === "") {
-      errors.push("Customer name");
+
+    if (!customerName || customerName.trim() === '') {
+      errors.push('Customer name');
     }
 
-    if (!customerPhone || customerPhone.trim() === "") {
-      errors.push("Customer phone number");
-    } else if (customerPhone.trim().length !== 10 || !/^\d{10}$/.test(customerPhone.trim())) {
-      alert("Phone number must be exactly 10 digits!");
+    if (!customerPhone || customerPhone.trim() === '') {
+      errors.push('Customer phone number');
+    } else if (
+      customerPhone.trim().length !== 10 ||
+      !/^\d{10}$/.test(customerPhone.trim())
+    ) {
+      alert('Phone number must be exactly 10 digits!');
       return;
     }
 
     if (errors.length > 0) {
-      alert(`${errors.join(" and ")} ${errors.length > 1 ? 'are' : 'is'} mandatory for pending bills!`);
+      alert(
+        `${errors.join(' and ')} ${errors.length > 1 ? 'are' : 'is'} mandatory for pending bills!`
+      );
       return;
     }
 
@@ -247,7 +254,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     try {
       const billData = {
         billNumber: await generateSaleNumber(),
-        saleType: "table",
+        saleType: 'table',
         tableNumber: table.name,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
@@ -263,32 +270,32 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         discountAmount: calculateDiscountAmount(),
         totalAmount: calculateTotal(),
         paymentMethod,
-        notes: "",
+        notes: '',
       };
 
       await addPendingBill(billData);
-      alert("Bill saved as pending!");
+      alert('Bill saved as pending!');
 
       // Clear cart and customer info
       setCart([]);
-      setCustomerName("");
-      setCustomerPhone("");
+      setCustomerName('');
+      setCustomerPhone('');
       setDiscount(0);
       setTax(0);
-      
+
       // Clear table order
       await window.electronAPI.clearTableOrder(table.id);
-      
+
       // Update table status
       await window.electronAPI.updateTable(table.id, {
-        status: "available",
+        status: 'available',
         current_bill_amount: 0,
       });
-      
-      onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
+
+      onTableUpdate({ ...table, status: 'available', current_bill_amount: 0 });
     } catch (error) {
       // Failed to save pending bill
-      alert("Failed to save pending bill. Please try again.");
+      alert('Failed to save pending bill. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -303,7 +310,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         items: cart,
         discount,
         tax,
-        notes: "",
+        notes: '',
         subtotal: calculateSubtotal(),
         total: calculateTotal(),
         kot_printed: false,
@@ -313,24 +320,23 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       // Update table status
       const tableUpdate = {
-        status: cart.length > 0 ? "occupied" : "available",
+        status: cart.length > 0 ? 'occupied' : 'available',
         current_bill_amount: calculateTotal(),
       };
 
       await window.electronAPI.updateTable(table.id, tableUpdate);
       onTableUpdate({ ...table, ...tableUpdate });
 
-      alert("Order saved successfully!");
+      alert('Order saved successfully!');
     } catch (error) {
       // Failed to save table order
-      alert("Failed to save order. Please try again.");
+      alert('Failed to save order. Please try again.');
     }
   };
 
-
   const processSale = async () => {
     if (cart.length === 0) {
-      alert("Cart is empty!");
+      alert('Cart is empty!');
       return;
     }
 
@@ -340,7 +346,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         saleNumber: await generateSaleNumber(),
         tableId: table.id,
         tableName: table.name,
-        customerName: customerName || "Table Customer",
+        customerName: customerName || 'Table Customer',
         customerPhone,
         items: cart.map((item) => ({
           productId: item.id,
@@ -354,7 +360,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
         discountAmount: calculateDiscountAmount(),
         totalAmount: calculateTotal(),
         paymentMethod,
-        notes: "",
+        notes: '',
         saleDate: getLocalDateTimeString(),
         barSettings,
       };
@@ -366,7 +372,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       // Update table status
       await window.electronAPI.updateTable(table.id, {
-        status: "available",
+        status: 'available',
         current_bill_amount: 0,
       });
 
@@ -375,19 +381,19 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
 
       // Clear cart and customer info
       setCart([]);
-      setCustomerName("");
-      setCustomerPhone("");
+      setCustomerName('');
+      setCustomerPhone('');
       setDiscount(0);
       setTax(0);
 
       await loadProducts();
-      onTableUpdate({ ...table, status: "available", current_bill_amount: 0 });
+      onTableUpdate({ ...table, status: 'available', current_bill_amount: 0 });
 
       // Trigger dashboard refresh by dispatching a custom event
-      window.dispatchEvent(new CustomEvent("saleCompleted"));
+      window.dispatchEvent(new CustomEvent('saleCompleted'));
     } catch (error) {
       // Failed to process sale
-      alert("Failed to process sale. Please try again.");
+      alert('Failed to process sale. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -397,32 +403,18 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     try {
       const result = await window.electronAPI.printBill(billData);
       if (result.success) {
-        alert("Bill printed successfully!");
+        alert('Bill printed successfully!');
       } else {
         alert(`Print failed: ${result.error}`);
       }
     } catch (error) {
       // Print error
-      alert("Failed to print bill");
-    }
-  };
-
-  const exportPDF = async (billData) => {
-    try {
-      const result = await window.electronAPI.exportPDF(billData);
-      if (result.success) {
-        alert(`PDF saved to: ${result.filePath}`);
-      } else {
-        alert(`PDF export failed: ${result.error}`);
-      }
-    } catch (error) {
-      // PDF export error
-      alert("Failed to export PDF");
+      alert('Failed to print bill');
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === "Enter" && filteredProducts.length > 0) {
+    if (e.key === 'Enter' && filteredProducts.length > 0) {
       addToCart(filteredProducts[0]);
     }
   };
@@ -437,12 +429,12 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
           </button>
           <h1>
             <ShoppingCart size={24} />
-            {table.name} - {table.area === "restaurant" ? "Restaurant" : "Bar"}
+            {table.name} - {table.area === 'restaurant' ? 'Restaurant' : 'Bar'}
           </h1>
         </div>
         <div className="header-right">
           <div className="table-status">
-            Status:{" "}
+            Status:{' '}
             <span className={`status-badge ${table.status}`}>
               {table.status}
             </span>
@@ -580,7 +572,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 ))
               )}
             </div>
-
           </div>
 
           <div className="billing-section">
@@ -666,7 +657,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 className="btn btn-secondary save-pending-btn"
               >
                 {loading ? (
-                  "Saving..."
+                  'Saving...'
                 ) : (
                   <>
                     <Clock size={20} />
@@ -681,7 +672,7 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
                 className="btn btn-primary process-sale-btn"
               >
                 {loading ? (
-                  "Processing..."
+                  'Processing...'
                 ) : (
                   <>
                     <Calculator size={20} />
@@ -696,7 +687,6 @@ const TablePOS = ({ table, onBack, onTableUpdate }) => {
     </div>
   );
 };
-
 
 TablePOS.propTypes = {
   table: PropTypes.shape({

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './App.css';
@@ -11,9 +12,7 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-  componentDidCatch(error, info) {
-    console.error('React render error:', error, info);
-  }
+  componentDidCatch() {}
   render() {
     if (this.state.hasError) {
       return (
@@ -34,3 +33,6 @@ root.render(
     <App />
   </ErrorBoundary>
 );
+
+// eslint-disable-next-line no-console
+if (process.env.DEBUG) console.log('App initialized');

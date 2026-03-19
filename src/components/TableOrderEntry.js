@@ -1,7 +1,7 @@
+/* eslint-disable react/prop-types */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
-  Lock,
   Plus,
   Minus,
   Loader,
@@ -10,7 +10,6 @@ import {
   Percent,
   X,
   Search,
-  Info,
   Send,
   ShoppingCart,
   Coffee,
@@ -19,7 +18,6 @@ import {
   Wine,
   UtensilsCrossed,
   ChefHat,
-  ChevronRight,
   Trash2,
   History,
   User,
@@ -45,7 +43,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [counterStockMap, setCounterStockMap] = useState({});
   const [godownStockMap, setGodownStockMap] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [menuError, setMenuError] = useState(null);
+  const [, setMenuError] = useState(null);
 
   const [orderId, setOrderId] = useState(resolveTableOrderId(table));
   const [orderItems, setOrderItems] = useState([]);
@@ -91,6 +89,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   useEffect(() => {
     setOrderId(resolveTableOrderId(table));
     setOrderItems([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table?.id, table?.currentOrderId, table?.current_order_id]);
 
   // ─── Load menu ────────────────────────────────────────────────────────────
@@ -143,6 +142,9 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
           cats.push(sc);
         }
       }
+      cats.sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
       setCategories(cats);
       setSelectedCategory(null);
     } catch (e) {
@@ -216,21 +218,23 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       });
 
       return sorted[0]?.id || null;
-    } catch (error) {
-      console.error('Failed to resolve active order for table:', error);
+    } catch (_) {
       return null;
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    const debounceTimersRef = debounceRefs.current;
+    const pendingUpsertsRef = pendingUpserts.current;
     loadMenu();
 
     const initOrderSubscription = async () => {
       let oid = resolveTableOrderId(table) || orderId;
+      const isTableAvailable = (table?.status || 'available') === 'available';
 
       // Fallback for legacy/stale table docs that don't carry currentOrderId fields.
-      if (!oid && table?.id) {
+      if (!oid && table?.id && !isTableAvailable) {
         oid = await resolveActiveOrderIdForTable(table.id);
         if (cancelled) return;
         if (oid) {
@@ -254,8 +258,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       cancelled = true;
       if (orderItemsUnsubRef.current) orderItemsUnsubRef.current();
       // Flush any pending debounced upserts immediately on unmount
-      Object.values(debounceRefs.current).forEach((t) => clearTimeout(t));
-      const pending = Object.values(pendingUpserts.current);
+      const debounceTimers = debounceTimersRef;
+      const pendingUpsertMap = pendingUpsertsRef;
+      Object.values(debounceTimers).forEach((t) => clearTimeout(t));
+      const pending = Object.values(pendingUpsertMap);
       if (pending.length > 0) {
         pending.forEach(({ oid: o, item, tableId, sub }) => {
           window.electronAPI
@@ -298,7 +304,6 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
             throw new Error(result?.error || 'Stock not available.');
           }
         } catch (e) {
-          console.error('Upsert failed:', e);
           setError(e.message || 'Stock not available.');
 
           // Re-sync after optimistic update failure (e.g., stock exhausted during race).
@@ -312,8 +317,8 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
             if (latest?.success) {
               setOrderItems(latest.items || []);
             }
-          } catch (e) {
-            console.warn('settle refresh:', e.message);
+          } catch (_) {
+            // Ignore settle refresh errors.
           }
 
           loadMenu();
@@ -352,13 +357,15 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const payableTotal = Math.max(0, subtotal - discountAmount);
 
   const kotGroups = (() => {
-    const sorted = [...orderItems].sort(
-      (a, b) => (a.created_at || 0) - (b.created_at || 0)
+    const sentItems = orderItems.filter((item) => (item.sentQty || 0) > 0);
+    const sorted = [...sentItems].sort(
+      (a, b) =>
+        (a.sent_at || a.created_at || 0) - (b.sent_at || b.created_at || 0)
     );
     const groups = [];
     let n = 1;
     for (const item of sorted) {
-      const t = item.created_at || 0;
+      const t = item.sent_at || item.created_at || 0;
       const last = groups[groups.length - 1];
       if (!last || t - last.sentAt > 30000)
         groups.push({ kotNumber: n++, sentAt: t, items: [item] });
@@ -373,7 +380,12 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       // Check counter stock cap for bar items BEFORE updating state
       if (menuItem.isBarItem) {
         const availableQty = counterStockMap[menuItem.id] || 0;
-        if (availableQty <= 0) {
+        const existing = orderItems.find((i) => i.menuItemId === menuItem.id);
+        const pendingQty = existing
+          ? Math.max(0, existing.currentQty - existing.sentQty)
+          : 0;
+
+        if (availableQty <= 0 || pendingQty >= availableQty) {
           const inGodown = godownStockMap[menuItem.id] || 0;
           setError(
             inGodown > 0
@@ -389,13 +401,6 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       } catch (e) {
         setError(e.message);
         return;
-      }
-
-      if (menuItem.isBarItem) {
-        setCounterStockMap((prev) => ({
-          ...prev,
-          [menuItem.id]: Math.max(0, (prev[menuItem.id] || 0) - 1),
-        }));
       }
 
       setOrderItems((prev) => {
@@ -447,7 +452,11 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       const isBarItem = orderItem?.isBarItem || menuItem?.isBarItem || false;
       if (isBarItem) {
         const availableQty = counterStockMap[menuItemId] || 0;
-        if (availableQty <= 0) {
+        const pendingQty = orderItem
+          ? Math.max(0, orderItem.currentQty - orderItem.sentQty)
+          : 0;
+
+        if (availableQty <= 0 || pendingQty >= availableQty) {
           const inGodown = godownStockMap[menuItemId] || 0;
           setError(
             inGodown > 0
@@ -463,13 +472,6 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       } catch (e) {
         setError(e.message);
         return;
-      }
-
-      if (isBarItem) {
-        setCounterStockMap((prev) => ({
-          ...prev,
-          [menuItemId]: Math.max(0, (prev[menuItemId] || 0) - 1),
-        }));
       }
 
       setOrderItems((prev) => {
@@ -512,18 +514,9 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         const item = prev.find((i) => i.menuItemId === menuItemId);
         if (!item) return prev;
 
-        if (item.isBarItem) {
-          setCounterStockMap((stockPrev) => ({
-            ...stockPrev,
-            [menuItemId]: (stockPrev[menuItemId] || 0) + 1,
-          }));
-        }
-
         const pendingQty = item.currentQty - item.sentQty;
         if (pendingQty <= 1 && item.sentQty === 0) {
-          window.electronAPI
-            .deleteOrderItem(oid, menuItemId)
-            .catch(console.error);
+          window.electronAPI.deleteOrderItem(oid, menuItemId).catch(() => {});
           return prev.filter((i) => i.menuItemId !== menuItemId);
         }
         const updated = prev.map((i) =>
@@ -557,22 +550,8 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         const item = prev.find((i) => i.menuItemId === menuItemId);
         if (!item) return prev;
 
-        const restoredQty =
-          item.sentQty === 0
-            ? item.currentQty
-            : Math.max(0, item.currentQty - item.sentQty);
-
-        if (item.isBarItem && restoredQty > 0) {
-          setCounterStockMap((stockPrev) => ({
-            ...stockPrev,
-            [menuItemId]: (stockPrev[menuItemId] || 0) + restoredQty,
-          }));
-        }
-
         if (item.sentQty === 0) {
-          window.electronAPI
-            .deleteOrderItem(oid, menuItemId)
-            .catch(console.error);
+          window.electronAPI.deleteOrderItem(oid, menuItemId).catch(() => {});
           return prev.filter((i) => i.menuItemId !== menuItemId);
         }
         const updated = prev.map((i) =>
@@ -629,13 +608,34 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     }
   }, [orderItems, orderId, table, onTableUpdate, loadMenu]);
 
+  const hasPendingItems = useCallback(
+    () => orderItems.some((i) => i.currentQty - i.sentQty > 0),
+    [orderItems]
+  );
+
+  const handleBackNavigation = useCallback(() => {
+    if (hasPendingItems()) {
+      setError(
+        'Send KOT is required before switching tables so stock is updated.'
+      );
+      return;
+    }
+    onBack();
+  }, [hasPendingItems, onBack]);
+
   const handleKeepPending = useCallback(async () => {
+    if (hasPendingItems()) {
+      setError(
+        'Send KOT is required before switching tables so stock is updated.'
+      );
+      return;
+    }
     if (orderItems.length === 0) {
       onBack();
       return;
     }
     setShowCustomerModal(true);
-  }, [orderItems, onBack]);
+  }, [hasPendingItems, orderItems, onBack]);
 
   const onConfirmPending = async () => {
     if (!customerName.trim() || !customerPhone.trim()) {
@@ -839,7 +839,11 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       {/* Header */}
       <header className="order-header">
         <div className="header-left">
-          <button className="btn-back" onClick={onBack} title="Go Back">
+          <button
+            className="btn-back"
+            onClick={handleBackNavigation}
+            title="Go Back"
+          >
             <ArrowLeft size={20} />
           </button>
           <h1>

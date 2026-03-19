@@ -3997,6 +3997,10 @@ function registerTableOrderHandlers() {
                 isBarItem: d.isBarItem || false,
                 created_at:
                   d.created_at || d.updatedAt?.toMillis?.() || Date.now(),
+                sent_at:
+                  d.sent_at ||
+                  d.sentAt?.toMillis?.() ||
+                  (d.sentQty > 0 ? d.updatedAt?.toMillis?.() || Date.now() : 0),
               };
             });
             event.sender.send(`order-items-update:${orderId}`, items);
@@ -4045,6 +4049,11 @@ function registerTableOrderHandlers() {
             (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
           category: d.category || '',
           isBarItem: d.isBarItem || false,
+          created_at: d.created_at || d.updatedAt?.toMillis?.() || Date.now(),
+          sent_at:
+            d.sent_at ||
+            d.sentAt?.toMillis?.() ||
+            (d.sentQty > 0 ? d.updatedAt?.toMillis?.() || Date.now() : 0),
         };
       });
       return { success: true, items };
@@ -4067,54 +4076,6 @@ function registerTableOrderHandlers() {
           .doc(item.menuItemId);
         const now = new Date();
 
-        // Get previous qty to calculate delta for counter stock adjustment
-        const prevSnap = await itemRef.get();
-        const prevQty = prevSnap.exists ? prevSnap.data().currentQty || 0 : 0;
-        const newQty = item.currentQty || 0;
-        const delta = newQty - prevQty; // positive = added more, negative = removed
-
-        // Adjust counter stock immediately for bar items with hard availability guard.
-        if (delta !== 0) {
-          const menuItemDoc = await firestore
-            .collection('menuItems')
-            .doc(item.menuItemId)
-            .get();
-          if (menuItemDoc.exists && menuItemDoc.data().isBarItem) {
-            const invRef = firestore
-              .collection('inventory')
-              .doc(item.menuItemId);
-            await firestore.runTransaction(async (tx) => {
-              const invDoc = await tx.get(invRef);
-              const current = invDoc.exists
-                ? invDoc.data().counterStock || 0
-                : 0;
-
-              if (delta > 0 && current < delta) {
-                throw new Error('Stock not available.');
-              }
-
-              const newCounter = current - delta;
-              tx.set(
-                invRef,
-                {
-                  menuItemId: item.menuItemId,
-                  counterStock: newCounter,
-                  updatedAt: new Date(),
-                },
-                { merge: true }
-              );
-              // Update isOutOfStock on menuItem
-              tx.update(
-                firestore.collection('menuItems').doc(item.menuItemId),
-                {
-                  isOutOfStock: newCounter === 0,
-                  updatedAt: new Date(),
-                }
-              );
-            });
-          }
-        }
-
         await itemRef.set(
           {
             menuItemId: item.menuItemId,
@@ -4132,14 +4093,6 @@ function registerTableOrderHandlers() {
         const snap = await itemRef.get();
         if (snap.exists && !snap.data().created_at) {
           await itemRef.update({ created_at: Date.now() });
-        }
-        // Also update table's currentBillAmount
-        if (item.tableId && item.subtotal !== undefined) {
-          await firestore.collection('tables').doc(item.tableId).update({
-            currentBillAmount: item.subtotal,
-            current_bill_amount: item.subtotal,
-            updatedAt: new Date(),
-          });
         }
 
         return { success: true, itemId: item.menuItemId };
@@ -4162,37 +4115,54 @@ function registerTableOrderHandlers() {
           .collection('items')
           .doc(menuItemId);
 
-        // Get current qty before deleting to restore counter stock
-        const snap = await itemRef.get();
-        const qty = snap.exists ? snap.data().currentQty || 0 : 0;
-
         await itemRef.delete();
 
-        // Restore counter stock for bar items
-        if (qty > 0) {
-          const menuItemDoc = await firestore
-            .collection('menuItems')
-            .doc(menuItemId)
-            .get();
-          if (menuItemDoc.exists && menuItemDoc.data().isBarItem) {
-            const invRef = firestore.collection('inventory').doc(menuItemId);
-            await firestore.runTransaction(async (tx) => {
-              const invDoc = await tx.get(invRef);
-              const current = invDoc.exists
-                ? invDoc.data().counterStock || 0
-                : 0;
-              const newCounter = current + qty;
-              tx.set(
-                invRef,
-                { menuItemId, counterStock: newCounter, updatedAt: new Date() },
-                { merge: true }
-              );
-              if (newCounter > 0) {
-                tx.update(firestore.collection('menuItems').doc(menuItemId), {
-                  isOutOfStock: false,
-                  updatedAt: new Date(),
-                });
-              }
+        // Recalculate remaining order value and automatically free table if no items remain.
+        const orderRef = firestore.collection('orders').doc(orderId);
+        const orderSnap = await orderRef.get();
+        const orderData = orderSnap.exists ? orderSnap.data() || {} : {};
+        const tableId = orderData.tableId || orderData.table_id;
+
+        const remainingItemsSnap = await firestore
+          .collection('orders')
+          .doc(orderId)
+          .collection('items')
+          .get();
+
+        const committedSubtotal = remainingItemsSnap.docs.reduce((sum, d) => {
+          const row = d.data() || {};
+          const qtyVal = row.sentQty ?? 0;
+          const priceVal = row.unitPrice ?? row.base_price ?? 0;
+          return sum + Number(qtyVal) * Number(priceVal);
+        }, 0);
+
+        if (tableId) {
+          if (remainingItemsSnap.empty) {
+            await firestore.collection('tables').doc(tableId).update({
+              status: 'available',
+              currentOrderId: null,
+              current_order_id: null,
+              currentBillAmount: 0,
+              current_bill_amount: 0,
+              occupiedSince: null,
+              occupied_since: null,
+              updatedAt: new Date(),
+            });
+
+            if (orderSnap.exists && orderData.status !== 'completed') {
+              await orderRef.update({
+                status: 'cancelled',
+                updatedAt: new Date(),
+              });
+            }
+          } else {
+            await firestore.collection('tables').doc(tableId).update({
+              status: 'occupied',
+              currentOrderId: orderId,
+              current_order_id: orderId,
+              currentBillAmount: committedSubtotal,
+              current_bill_amount: committedSubtotal,
+              updatedAt: new Date(),
             });
           }
         }
@@ -4214,37 +4184,147 @@ function registerTableOrderHandlers() {
           return { success: false, error: 'No items to send' };
         }
         const firestore = getAdminFirestore();
-        const batch = firestore.batch();
-
-        // For each KOT item, set sentQty = currentQty
-        for (const kotItem of kotItems) {
-          const itemRef = firestore
+        const now = new Date();
+        const nowMs = now.getTime();
+        await firestore.runTransaction(async (tx) => {
+          const orderItemsRef = firestore
             .collection('orders')
             .doc(orderId)
-            .collection('items')
-            .doc(kotItem.menuItemId);
-          batch.update(itemRef, {
-            sentQty: kotItem.currentQty,
-            updatedAt: new Date(),
+            .collection('items');
+
+          const itemsToSend = [];
+          const barReadMap = new Map();
+
+          // Read phase: collect all required docs before any writes.
+          for (const kotItem of kotItems) {
+            const itemRef = orderItemsRef.doc(kotItem.menuItemId);
+            const itemSnap = await tx.get(itemRef);
+            if (!itemSnap.exists) continue;
+
+            const itemData = itemSnap.data() || {};
+            const currentQty = Number(itemData.currentQty || 0);
+            const sentQty = Number(itemData.sentQty || 0);
+            const qtyToSend = Math.max(0, currentQty - sentQty);
+
+            if (qtyToSend <= 0) continue;
+
+            itemsToSend.push({
+              menuItemId: kotItem.menuItemId,
+              itemRef,
+              currentQty,
+              qtyToSend,
+              isBarItem: !!itemData.isBarItem,
+            });
+
+            if (itemData.isBarItem && !barReadMap.has(kotItem.menuItemId)) {
+              const invRef = firestore
+                .collection('inventory')
+                .doc(kotItem.menuItemId);
+              const invSnap = await tx.get(invRef);
+              const currentStock = Number(
+                invSnap.exists ? invSnap.data().counterStock || 0 : 0
+              );
+              barReadMap.set(kotItem.menuItemId, { invRef, currentStock });
+            }
+          }
+
+          const allItemsSnap = await tx.get(orderItemsRef);
+
+          if (itemsToSend.length === 0) {
+            throw new Error('No items to send');
+          }
+
+          // Validate and prepare stock adjustments for bar items.
+          const barQtyMap = new Map();
+          for (const item of itemsToSend) {
+            if (!item.isBarItem) continue;
+            barQtyMap.set(
+              item.menuItemId,
+              (barQtyMap.get(item.menuItemId) || 0) + item.qtyToSend
+            );
+          }
+
+          for (const [menuItemId, qty] of barQtyMap.entries()) {
+            const barState = barReadMap.get(menuItemId);
+            const currentStock = Number(barState?.currentStock || 0);
+            if (currentStock < qty) {
+              throw new Error('Stock not available.');
+            }
+          }
+
+          // Write phase: all tx updates/sets happen after reads and validation.
+          for (const item of itemsToSend) {
+            tx.update(item.itemRef, {
+              sentQty: item.currentQty,
+              sent_at: nowMs,
+              sentAt: now,
+              updatedAt: now,
+            });
+          }
+
+          const sentQtyByItemId = new Map();
+          for (const docSnap of allItemsSnap.docs) {
+            const data = docSnap.data() || {};
+            const menuItemId =
+              data.menuItemId || data.menu_item_id || docSnap.id;
+            const currentQty = Number(data.currentQty ?? data.quantity ?? 0);
+            const sentQty = Number(data.sentQty ?? 0);
+            const qtyToSend = Math.max(0, currentQty - sentQty);
+            const finalSentQty = itemsToSend.some(
+              (i) => i.menuItemId === menuItemId
+            )
+              ? currentQty
+              : sentQty;
+            sentQtyByItemId.set(menuItemId, {
+              qty: finalSentQty,
+              unitPrice: Number(data.unitPrice ?? data.base_price ?? 0),
+            });
+          }
+
+          let committedTotal = 0;
+          for (const { qty, unitPrice } of sentQtyByItemId.values()) {
+            committedTotal += qty * unitPrice;
+          }
+
+          for (const [menuItemId, qty] of barQtyMap.entries()) {
+            const { invRef, currentStock } = barReadMap.get(menuItemId);
+            const newCounterStock = currentStock - qty;
+
+            tx.set(
+              invRef,
+              {
+                menuItemId,
+                counterStock: newCounterStock,
+                updatedAt: now,
+              },
+              { merge: true }
+            );
+
+            tx.set(
+              firestore.collection('menuItems').doc(menuItemId),
+              {
+                isOutOfStock: newCounterStock === 0,
+                updatedAt: now,
+              },
+              { merge: true }
+            );
+          }
+
+          const orderRef = firestore.collection('orders').doc(orderId);
+          tx.update(orderRef, { status: 'submitted', updatedAt: now });
+
+          const tableRef = firestore.collection('tables').doc(tableId);
+          tx.update(tableRef, {
+            status: 'occupied',
+            currentOrderId: orderId,
+            current_order_id: orderId,
+            currentBillAmount: committedTotal,
+            current_bill_amount: committedTotal,
+            occupiedSince: now,
+            occupied_since: now,
+            updatedAt: now,
           });
-        }
-
-        // Update order status
-        const orderRef = firestore.collection('orders').doc(orderId);
-        batch.update(orderRef, { status: 'submitted', updatedAt: new Date() });
-
-        // Update table status
-        const tableRef = firestore.collection('tables').doc(tableId);
-        batch.update(tableRef, {
-          status: 'occupied',
-          currentOrderId: orderId,
-          current_order_id: orderId,
-          occupiedSince: new Date(),
-          occupied_since: new Date(),
-          updatedAt: new Date(),
         });
-
-        await batch.commit();
 
         return { success: true };
       } catch (error) {
