@@ -26,10 +26,47 @@ import {
 import './DesktopOrderEntry.css';
 
 // ─── Theme (matches desktop TableManagement) ─────────────────────────────────
-// Food type dot is now handled via CSS or simplified component
+const normalizeFoodType = (value) => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim().toLowerCase().replace(/_/g, '-');
+  if (!normalized) return null;
+
+  if (normalized === 'veg' || normalized === 'vegetarian') return 'veg';
+  if (
+    normalized === 'non-veg' ||
+    normalized === 'nonveg' ||
+    normalized === 'non vegetarian' ||
+    normalized === 'non-vegetarian'
+  ) {
+    return 'non-veg';
+  }
+
+  return null;
+};
+
+const resolveFoodTypeFromItem = (item) => {
+  const direct =
+    normalizeFoodType(item?.foodType) ||
+    normalizeFoodType(item?.food_type) ||
+    normalizeFoodType(item?.foodtype);
+  if (direct) return direct;
+
+  // Fallback for legacy records that may encode it in category/subcategory text.
+  return (
+    normalizeFoodType(item?.subCategory) ||
+    normalizeFoodType(item?.sub_category) ||
+    normalizeFoodType(item?.category)
+  );
+};
+
 const FoodTypeDot = ({ type }) => {
-  if (!type) return null;
-  return <span className={`food-dot ${type}`} />;
+  const normalizedType = normalizeFoodType(type);
+  if (!normalizedType) return null;
+  return (
+    <span className={`food-type-indicator ${normalizedType}`}>
+      <span className="food-type-indicator-dot" />
+    </span>
+  );
 };
 
 const resolveTableOrderId = (table) =>
@@ -1083,40 +1120,44 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
                   <p>Loading menu...</p>
                 </div>
               ) : (
-                visibleItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="item-card"
-                    onClick={() => handleAddItem(item)}
-                  >
-                    <div>
-                      <div
-                        className="item-footer"
-                        style={{ marginBottom: '0.5rem' }}
-                      >
-                        <span className="item-tag">
-                          {item.subCategory || item.category || 'Other'}
+                visibleItems.map((item) => {
+                  const foodType = resolveFoodTypeFromItem(item);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="item-card"
+                      onClick={() => handleAddItem(item)}
+                    >
+                      <div>
+                        <div
+                          className="item-footer"
+                          style={{ marginBottom: '0.5rem' }}
+                        >
+                          <span className="item-tag">
+                            {item.subCategory || item.category || 'Other'}
+                          </span>
+                          <FoodTypeDot type={foodType} />
+                        </div>
+                        <h4>{item.name}</h4>
+                        {item.description && (
+                          <p className="item-desc">{item.description}</p>
+                        )}
+                      </div>
+                      <div className="item-footer">
+                        <span className="item-price">
+                          ₹{Number(item.price).toFixed(2)}
                         </span>
-                        <FoodTypeDot type={item.foodType} />
-                      </div>
-                      <h4>{item.name}</h4>
-                      {item.description && (
-                        <p className="item-desc">{item.description}</p>
-                      )}
-                    </div>
-                    <div className="item-footer">
-                      <span className="item-price">
-                        ₹{Number(item.price).toFixed(2)}
-                      </span>
-                      <div
-                        className="btn-qty"
-                        style={{ width: '32px', height: '32px' }}
-                      >
-                        <Plus size={18} />
+                        <div
+                          className="btn-qty"
+                          style={{ width: '32px', height: '32px' }}
+                        >
+                          <Plus size={18} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               {!menuLoading && visibleItems.length === 0 && (
                 <div className="empty-state" style={{ gridColumn: '1/-1' }}>
