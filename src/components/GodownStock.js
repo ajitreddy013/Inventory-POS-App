@@ -1,5 +1,7 @@
+/* eslint-disable no-console */
+/* eslint-disable react/prop-types */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Package, Search, Plus, History, X, ArrowLeft } from 'lucide-react';
+import { Package, Search, Plus, X, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // Handles Firestore Admin SDK timestamps: { _seconds, _nanoseconds }, { seconds, nanoseconds }, .toDate(), or ISO string
@@ -15,13 +17,22 @@ function parseTimestamp(val) {
 function formatTime(val) {
   const d = parseTimestamp(val);
   if (!d) return '-';
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 function formatDateLabel(val) {
   const d = parseTimestamp(val);
   if (!d) return 'Unknown Date';
-  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function toDateKey(val) {
@@ -35,7 +46,8 @@ function groupByDate(records) {
   const map = {};
   for (const rec of records) {
     const key = toDateKey(rec.addedAt);
-    if (!map[key]) map[key] = { key, label: formatDateLabel(rec.addedAt), items: [] };
+    if (!map[key])
+      map[key] = { key, label: formatDateLabel(rec.addedAt), items: [] };
     map[key].items.push(rec);
   }
   // sort each group by time asc
@@ -59,16 +71,23 @@ const GodownStock = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
-  const [addStockModal, setAddStockModal] = useState({ open: false, item: null });
+  const [addStockModal, setAddStockModal] = useState({
+    open: false,
+    item: null,
+  });
 
   const loadSuppliers = useCallback(async () => {
     try {
       const res = await window.electronAPI.getPurchaseHistory();
       if (res.success) {
-        const suppliers = [...new Set(res.records.map(r => r.supplier).filter(Boolean))];
+        const suppliers = [
+          ...new Set(res.records.map((r) => r.supplier).filter(Boolean)),
+        ];
         setAllSuppliers(suppliers);
       }
-    } catch (e) { /* silent */ }
+    } catch (e) {
+      /* silent */
+    }
   }, []);
 
   const loadItems = useCallback(async () => {
@@ -89,7 +108,9 @@ const GodownStock = () => {
       const res = await window.electronAPI.getPurchaseHistory();
       if (res.success) {
         setPurchaseHistory(res.records);
-        const suppliers = [...new Set(res.records.map(r => r.supplier).filter(Boolean))];
+        const suppliers = [
+          ...new Set(res.records.map((r) => r.supplier).filter(Boolean)),
+        ];
         setAllSuppliers(suppliers);
       }
     } catch (e) {
@@ -100,30 +121,37 @@ const GodownStock = () => {
   }, []);
 
   // load suppliers on mount so autofill works immediately
-  useEffect(() => { loadSuppliers(); }, [loadSuppliers]);
+  useEffect(() => {
+    loadSuppliers();
+  }, [loadSuppliers]);
 
   useEffect(() => {
     if (activeTab === 'history') loadHistory();
     else loadItems();
   }, [activeTab, loadItems, loadHistory]);
 
-  const restaurantItems = items.filter(item => !item.isBarItem);
-  const barItems = items.filter(item => item.isBarItem);
+  const restaurantItems = items.filter((item) => !item.isBarItem);
+  const barItems = items.filter((item) => item.isBarItem);
 
-  const visibleItems = (activeTab === 'bar' ? barItems : restaurantItems).filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+  const visibleItems = (
+    activeTab === 'bar' ? barItems : restaurantItems
+  ).filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.category || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredHistory = filterDate
-    ? purchaseHistory.filter(r => toDateKey(r.addedAt) === filterDate)
+    ? purchaseHistory.filter((r) => toDateKey(r.addedAt) === filterDate)
     : purchaseHistory;
 
   const groupedHistory = groupByDate(filteredHistory);
 
   const foodTypeIcon = (type) => {
-    if (type === 'veg') return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
-    if (type === 'non-veg') return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
+    if (type === 'veg')
+      return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
+    if (type === 'non-veg')
+      return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
     return null;
   };
 
@@ -131,7 +159,19 @@ const GodownStock = () => {
     <div className="inventory-management">
       <div className="page-header">
         <h1>
-          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'inline-flex', alignItems: 'center', color: '#4f46e5', verticalAlign: 'middle' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: 8,
+              display: 'inline-flex',
+              alignItems: 'center',
+              color: '#4f46e5',
+              verticalAlign: 'middle',
+            }}
+          >
             <ArrowLeft size={22} />
           </button>
           <Package size={24} /> Godown Stock
@@ -145,7 +185,10 @@ const GodownStock = () => {
             <button
               key={key}
               className="btn tab-btn"
-              onClick={() => { setActiveTab(key); setSearchTerm(''); }}
+              onClick={() => {
+                setActiveTab(key);
+                setSearchTerm('');
+              }}
               style={{
                 background: activeTab === key ? '#4f46e5' : '',
                 color: activeTab === key ? '#fff' : '',
@@ -189,24 +232,35 @@ const GodownStock = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleItems.map(item => (
+                  {visibleItems.map((item) => (
                     <tr key={item.id}>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
                           {foodTypeIcon(item.foodType)}
                           <strong>{item.name}</strong>
                         </div>
                         {item.subCategory && (
-                          <small style={{ color: '#888' }}>{item.subCategory}</small>
+                          <small style={{ color: '#888' }}>
+                            {item.subCategory}
+                          </small>
                         )}
                       </td>
                       <td>{item.category || '-'}</td>
                       <td>₹{item.price}</td>
                       <td>
-                        <span style={{
-                          fontWeight: 700,
-                          color: item.godownStock === 0 ? '#e74c3c' : '#27ae60'
-                        }}>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color:
+                              item.godownStock === 0 ? '#e74c3c' : '#27ae60',
+                          }}
+                        >
                           {item.godownStock}
                         </span>
                       </td>
@@ -222,7 +276,14 @@ const GodownStock = () => {
                   ))}
                   {visibleItems.length === 0 && (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: 24, color: '#888' }}>
+                      <td
+                        colSpan={5}
+                        style={{
+                          textAlign: 'center',
+                          padding: 24,
+                          color: '#888',
+                        }}
+                      >
                         No items found
                       </td>
                     </tr>
@@ -236,16 +297,34 @@ const GodownStock = () => {
 
       {activeTab === 'history' && (
         <>
-          <div style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #eee' }}>
-            <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Filter by date:</label>
+          <div
+            style={{
+              padding: '12px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              borderBottom: '1px solid #eee',
+            }}
+          >
+            <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Filter by date:
+            </label>
             <input
               type="date"
               value={filterDate}
-              onChange={e => setFilterDate(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 14 }}
+              onChange={(e) => setFilterDate(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid #ddd',
+                fontSize: 14,
+              }}
             />
             {filterDate && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setFilterDate('')}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setFilterDate('')}
+              >
                 Clear
               </button>
             )}
@@ -259,23 +338,28 @@ const GodownStock = () => {
             </div>
           ) : (
             <div style={{ padding: '0 24px 24px' }}>
-              {groupedHistory.map(group => (
+              {groupedHistory.map((group) => (
                 <div key={group.key} style={{ marginTop: 24 }}>
                   {/* Date header */}
-                  <div style={{
-                    background: '#f0f4ff',
-                    border: '1px solid #d0d9f0',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    fontWeight: 700,
-                    fontSize: 15,
-                    color: '#3a4a8a',
-                    marginBottom: 8
-                  }}>
+                  <div
+                    style={{
+                      background: '#f0f4ff',
+                      border: '1px solid #d0d9f0',
+                      borderRadius: 8,
+                      padding: '8px 16px',
+                      fontWeight: 700,
+                      fontSize: 15,
+                      color: '#3a4a8a',
+                      marginBottom: 8,
+                    }}
+                  >
                     {group.label}
                   </div>
 
-                  <table className="inventory-table" style={{ marginBottom: 0 }}>
+                  <table
+                    className="inventory-table"
+                    style={{ marginBottom: 0 }}
+                  >
                     <thead>
                       <tr>
                         <th>Time</th>
@@ -289,11 +373,17 @@ const GodownStock = () => {
                     <tbody>
                       {group.items.map((rec, i) => (
                         <tr key={rec.id || i}>
-                          <td style={{ whiteSpace: 'nowrap' }}>{formatTime(rec.addedAt)}</td>
-                          <td><strong>{rec.menuItemName}</strong></td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            {formatTime(rec.addedAt)}
+                          </td>
+                          <td>
+                            <strong>{rec.menuItemName}</strong>
+                          </td>
                           <td>{rec.quantityAdded}</td>
                           <td>{rec.supplier || '-'}</td>
-                          <td>{rec.costPerUnit ? `₹${rec.costPerUnit}` : '-'}</td>
+                          <td>
+                            {rec.costPerUnit ? `₹${rec.costPerUnit}` : '-'}
+                          </td>
                           <td>{rec.notes || '-'}</td>
                         </tr>
                       ))}
@@ -331,7 +421,9 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
   const [saving, setSaving] = useState(false);
 
   const suggestions = supplier.trim()
-    ? suppliers.filter(s => s.toLowerCase().startsWith(supplier.toLowerCase()))
+    ? suppliers.filter((s) =>
+        s.toLowerCase().startsWith(supplier.toLowerCase())
+      )
     : [];
 
   const handleSave = async () => {
@@ -348,7 +440,7 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
         quantityAdded: quantity,
         supplier: supplier.trim(),
         notes: notes.trim(),
-        costPerUnit: costPerUnit ? parseFloat(costPerUnit) : 0
+        costPerUnit: costPerUnit ? parseFloat(costPerUnit) : 0,
       });
       if (res.success) {
         onSaved();
@@ -367,7 +459,9 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
       <div className="modal">
         <div className="modal-header">
           <h3>Add Godown Stock — {item.name}</h3>
-          <button onClick={onClose} className="close-btn"><X size={20} /></button>
+          <button onClick={onClose} className="close-btn">
+            <X size={20} />
+          </button>
         </div>
         <div className="modal-content">
           <div style={{ marginBottom: 12 }}>
@@ -376,7 +470,7 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               type="number"
               className="form-input"
               value={qty}
-              onChange={e => setQty(e.target.value)}
+              onChange={(e) => setQty(e.target.value)}
               min="1"
               placeholder="e.g. 10"
               style={{ width: '100%', marginTop: 4 }}
@@ -389,7 +483,10 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               type="text"
               className="form-input"
               value={supplier}
-              onChange={e => { setSupplier(e.target.value); setShowSuggestions(true); }}
+              onChange={(e) => {
+                setSupplier(e.target.value);
+                setShowSuggestions(true);
+              }}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
               placeholder="Supplier name"
@@ -397,19 +494,36 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               autoComplete="off"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <ul style={{
-                position: 'absolute', top: '100%', left: 0, right: 0,
-                background: '#fff', border: '1px solid #ddd', borderRadius: 6,
-                listStyle: 'none', margin: 0, padding: 0, zIndex: 200,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.12)', maxHeight: 160, overflowY: 'auto'
-              }}>
-                {suggestions.map(s => (
+              <ul
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#fff',
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: 0,
+                  zIndex: 200,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                  maxHeight: 160,
+                  overflowY: 'auto',
+                }}
+              >
+                {suggestions.map((s) => (
                   <li
                     key={s}
-                    onMouseDown={() => { setSupplier(s); setShowSuggestions(false); }}
+                    onMouseDown={() => {
+                      setSupplier(s);
+                      setShowSuggestions(false);
+                    }}
                     style={{
-                      padding: '8px 12px', cursor: 'pointer',
-                      borderBottom: '1px solid #f0f0f0', fontSize: 14
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f0f0f0',
+                      fontSize: 14,
                     }}
                   >
                     {s}
@@ -425,7 +539,7 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               type="number"
               className="form-input"
               value={costPerUnit}
-              onChange={e => setCostPerUnit(e.target.value)}
+              onChange={(e) => setCostPerUnit(e.target.value)}
               placeholder="0"
               style={{ width: '100%', marginTop: 4 }}
             />
@@ -436,17 +550,23 @@ const AddStockModal = ({ item, suppliers, onClose, onSaved }) => {
               type="text"
               className="form-input"
               value={notes}
-              onChange={e => setNotes(e.target.value)}
+              onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional notes"
               style={{ width: '100%', marginTop: 4 }}
             />
           </div>
         </div>
         <div className="modal-actions">
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+          >
             {saving ? 'Saving...' : 'Add Stock'}
           </button>
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
         </div>
       </div>
     </div>
