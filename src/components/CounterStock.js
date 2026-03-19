@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import React, { useState, useEffect, useCallback } from 'react';
 import { ShoppingBag, Search, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -21,13 +22,16 @@ const CounterStock = () => {
     }
   }, []);
 
-  useEffect(() => { loadItems(); }, [loadItems]);
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
 
   const visibleItems = items
-    .filter(i => activeSection === 'bar' ? i.isBarItem : !i.isBarItem)
-    .filter(i =>
-      i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+    .filter((i) => (activeSection === 'bar' ? i.isBarItem : !i.isBarItem))
+    .filter(
+      (i) =>
+        i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (i.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
   const tabStyle = (key) => ({
@@ -37,12 +41,14 @@ const CounterStock = () => {
     fontWeight: activeSection === key ? 700 : 400,
     padding: '5px 16px',
     borderRadius: 6,
-    cursor: 'pointer'
+    cursor: 'pointer',
   });
 
   const foodTypeIcon = (type) => {
-    if (type === 'veg') return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
-    if (type === 'non-veg') return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
+    if (type === 'veg')
+      return <span style={{ color: '#27ae60', fontWeight: 700 }}>●</span>;
+    if (type === 'non-veg')
+      return <span style={{ color: '#e74c3c', fontWeight: 700 }}>●</span>;
     return null;
   };
 
@@ -50,14 +56,37 @@ const CounterStock = () => {
     <div className="inventory-management">
       <div className="page-header">
         <h1>
-          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'inline-flex', alignItems: 'center', color: '#4f46e5', verticalAlign: 'middle' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: 8,
+              display: 'inline-flex',
+              alignItems: 'center',
+              color: '#4f46e5',
+              verticalAlign: 'middle',
+            }}
+          >
             <ArrowLeft size={22} />
           </button>
           <ShoppingBag size={24} /> Counter Stock
         </h1>
         <div className="tab-navigation">
-          {[{ key: 'bar', label: 'Bar' }, { key: 'restaurant', label: 'Restaurant' }].map(({ key, label }) => (
-            <button key={key} className="btn tab-btn" style={tabStyle(key)} onClick={() => { setActiveSection(key); setSearchTerm(''); }}>
+          {[
+            { key: 'bar', label: 'Bar' },
+            { key: 'restaurant', label: 'Restaurant' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              className="btn tab-btn"
+              style={tabStyle(key)}
+              onClick={() => {
+                setActiveSection(key);
+                setSearchTerm('');
+              }}
+            >
               {label}
             </button>
           ))}
@@ -71,7 +100,7 @@ const CounterStock = () => {
             type="text"
             placeholder="Search by name or category..."
             value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
         </div>
@@ -91,19 +120,30 @@ const CounterStock = () => {
               </tr>
             </thead>
             <tbody>
-              {visibleItems.map(item => (
+              {visibleItems.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
                       {foodTypeIcon(item.foodType)}
                       <strong>{item.name}</strong>
                     </div>
-                    {item.subCategory && <small style={{ color: '#888' }}>{item.subCategory}</small>}
+                    {item.subCategory && (
+                      <small style={{ color: '#888' }}>
+                        {item.subCategory}
+                      </small>
+                    )}
                   </td>
                   <td>{item.category || '-'}</td>
                   <td>₹{item.price}</td>
                   <td>
-                    <span style={{ fontWeight: 700, color: item.counterStock === 0 ? '#e74c3c' : '#27ae60' }}>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: item.counterStock === 0 ? '#e74c3c' : '#27ae60',
+                      }}
+                    >
                       {item.counterStock}
                     </span>
                   </td>
@@ -111,7 +151,12 @@ const CounterStock = () => {
               ))}
               {visibleItems.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: 24, color: '#888' }}>No items found</td>
+                  <td
+                    colSpan={4}
+                    style={{ textAlign: 'center', padding: 24, color: '#888' }}
+                  >
+                    No items found
+                  </td>
                 </tr>
               )}
             </tbody>

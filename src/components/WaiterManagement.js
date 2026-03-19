@@ -8,6 +8,7 @@ import {
   UserCheck,
   UserX,
   ArrowLeft,
+  Trash2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './WaiterManagement.css';
@@ -96,27 +97,39 @@ const WaiterManagement = () => {
 
   const handleToggleStatus = async (waiter) => {
     try {
-      if (waiter.isActive) {
-        const result = await window.electronAPI.invoke(
-          'firebase:deactivate-waiter',
-          waiter.id
-        );
-        if (result.success) {
-          await loadWaiters();
-        }
+      const result = await window.electronAPI.invoke(
+        'firebase:deactivate-waiter',
+        waiter.id,
+        !waiter.isActive
+      );
+      if (result.success) {
+        await loadWaiters();
       } else {
-        // Reactivate waiter
-        const result = await window.electronAPI.invoke(
-          'firebase:update-waiter-pin',
-          waiter.id,
-          waiter.pin
-        );
-        if (result.success) {
-          await loadWaiters();
-        }
+        alert(result.error || 'Failed to update waiter status');
       }
     } catch (_) {
-      // Ignore status toggle errors silently.
+      alert('Failed to update waiter status');
+    }
+  };
+
+  const handleDeleteWaiter = async (waiter) => {
+    const confirmed = window.confirm(
+      `Delete waiter "${waiter.name}" permanently?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = await window.electronAPI.invoke(
+        'firebase:delete-waiter',
+        waiter.id
+      );
+      if (result.success) {
+        await loadWaiters();
+      } else {
+        alert(result.error || 'Failed to delete waiter');
+      }
+    } catch (_) {
+      alert('Failed to delete waiter');
     }
   };
 
@@ -126,22 +139,17 @@ const WaiterManagement = () => {
         <div className="header-left">
           <button
             onClick={() => navigate('/settings')}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              marginRight: 8,
-              display: 'flex',
-              alignItems: 'center',
-              color: '#4f46e5',
-            }}
+            className="back-button"
+            title="Back to Settings"
           >
-            <ArrowLeft size={22} />
+            <ArrowLeft size={20} />
           </button>
-          <Users size={32} />
+          <div className="header-icon">
+            <Users size={24} />
+          </div>
           <div>
             <h1>Waiter Management</h1>
-            <p>Manage waiter accounts and PINs</p>
+            <p>Manage waiter accounts, PINs, and access status</p>
           </div>
         </div>
         <button className="btn-primary" onClick={handleAddWaiter}>
@@ -150,9 +158,9 @@ const WaiterManagement = () => {
         </button>
       </div>
 
-      <div className="filters-section">
-        <div className="search-box">
-          <Search size={20} />
+      <div className="controls-section">
+        <div className="search-container">
+          <Search size={18} className="search-icon" />
           <input
             type="text"
             placeholder="Search by name or PIN..."
@@ -160,7 +168,7 @@ const WaiterManagement = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="filter-buttons">
+        <div className="filter-segmented-control">
           <button
             className={filterStatus === 'all' ? 'active' : ''}
             onClick={() => setFilterStatus('all')}
@@ -182,64 +190,80 @@ const WaiterManagement = () => {
         </div>
       </div>
 
-      <div className="waiters-table">
-        <table>
+      <div className="waiters-table-container">
+        <table className="waiters-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>PIN</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>Waiter Name</th>
+              <th>Access PIN</th>
+              <th>Current Status</th>
+              <th className="actions-cell">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredWaiters.length === 0 ? (
               <tr>
                 <td colSpan="4" className="no-data">
-                  No waiters found
+                  No waiters found matching your search
                 </td>
               </tr>
             ) : (
               filteredWaiters.map((waiter) => (
                 <tr key={waiter.id}>
-                  <td>{waiter.name}</td>
-                  <td className="pin-cell">{waiter.pin}</td>
+                  <td>
+                    <div className="waiter-name-cell">
+                      <div className="waiter-avatar">
+                        {waiter.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      {waiter.name}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="pin-badge">{waiter.pin}</span>
+                  </td>
                   <td>
                     <span
-                      className={`status-badge ${waiter.isActive ? 'active' : 'inactive'}`}
+                      className={`status-pill ${waiter.isActive ? 'active' : 'inactive'}`}
                     >
                       {waiter.isActive ? (
                         <>
-                          <UserCheck size={16} />
+                          <UserCheck size={14} />
                           Active
                         </>
                       ) : (
                         <>
-                          <UserX size={16} />
+                          <UserX size={14} />
                           Inactive
                         </>
                       )}
                     </span>
                   </td>
-                  <td>
-                    <div className="action-buttons">
+                  <td className="actions-cell">
+                    <div className="actions-group">
                       <button
-                        className="btn-icon"
+                        className="icon-button"
                         onClick={() => handleEditWaiter(waiter)}
                         title="Edit PIN"
                       >
-                        <Edit size={18} />
+                        <Edit size={16} />
                       </button>
                       <button
-                        className={`btn-icon ${waiter.isActive ? 'btn-danger' : 'btn-success'}`}
+                        className={`icon-button ${waiter.isActive ? 'toggle-off' : 'toggle-on'}`}
                         onClick={() => handleToggleStatus(waiter)}
-                        title={waiter.isActive ? 'Deactivate' : 'Activate'}
+                        title={waiter.isActive ? 'Deactivate Waiter' : 'Activate Waiter'}
                       >
                         {waiter.isActive ? (
-                          <UserX size={18} />
+                          <UserX size={16} />
                         ) : (
-                          <UserCheck size={18} />
+                          <UserCheck size={16} />
                         )}
+                      </button>
+                      <button
+                        className="icon-button delete"
+                        onClick={() => handleDeleteWaiter(waiter)}
+                        title="Delete Waiter"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -312,13 +336,13 @@ const WaiterModal = ({ waiter, onClose, onSave }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal-content">
         <div className="modal-header">
           <h3>
-            <Users size={24} />
+            <Users size={22} />
             {waiter ? 'Edit Waiter PIN' : 'Add New Waiter'}
           </h3>
-          <button onClick={onClose} className="close-btn" type="button">
+          <button onClick={onClose} className="btn-close" type="button">
             ×
           </button>
         </div>

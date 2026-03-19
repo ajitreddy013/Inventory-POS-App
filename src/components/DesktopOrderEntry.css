@@ -394,7 +394,7 @@
 .item-price {
   font-weight: 700;
   font-size: 1.125rem;
-  color: var(--primary);
+  color: #ef4444; /* Vibrant Red */
 }
 
 .item-tag {
@@ -405,6 +405,34 @@
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.food-type-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1.5px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.food-type-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.food-type-indicator.veg {
+  color: #22c55e;
+  border-color: #16a34a;
+}
+
+.food-type-indicator.non-veg {
+  color: #ef4444;
+  border-color: #dc2626;
 }
 
 /* Column 3: Billing Area (Glassmorphism) */
@@ -455,7 +483,6 @@
 .order-item-row.sent-to-kitchen {
   background-color: #f8fafc;
   border-left: 4px solid #f59e0b;
-  opacity: 0.8;
 }
 
 .row-top-line {
@@ -499,7 +526,7 @@
   border-radius: 50%;
   border: none;
   background: white;
-  color: var(--primary-color);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -536,14 +563,15 @@
 .price-total-main {
   font-size: 1.4rem;
   font-weight: 800;
-  color: var(--primary-color);
+  color: #ef4444; /* Vibrant Red */
   line-height: 1;
 }
 
 .price-unit-small {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: #ef4444; /* Match red theme */
   margin-top: 0.1rem;
+  opacity: 0.8;
 }
 
 .actions-cluster {
@@ -598,7 +626,7 @@
   border-top: 2px solid var(--border-color);
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--text-main);
+  color: var(--text-main); /* Back to black as requested */
 }
 
 /* Action Buttons */
