@@ -52,12 +52,41 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [error, setError] = useState(null);
   const [kotSending, setKotSending] = useState(false);
 
+  const playDesktopErrorSound = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(820, ctx.currentTime);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.21);
+
+      setTimeout(() => {
+        if (typeof ctx.close === 'function') ctx.close().catch(() => {});
+      }, 260);
+    } catch (_) {
+      // Ignore audio failures silently.
+    }
+  }, []);
+
   // Auto-dismiss error after 7 seconds
   useEffect(() => {
     if (!error) return;
+    playDesktopErrorSound();
     const t = setTimeout(() => setError(null), 7000);
     return () => clearTimeout(t);
-  }, [error]);
+  }, [error, playDesktopErrorSound]);
 
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountType, setDiscountType] = useState('fixed');
@@ -70,6 +99,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [paying, setPaying] = useState(false);
 
   const [showKOTHistory, setShowKOTHistory] = useState(false);
+  const [kotHistory, setKotHistory] = useState([]);
 
   // Pending Customer Modal States
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -89,6 +119,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   useEffect(() => {
     setOrderId(resolveTableOrderId(table));
     setOrderItems([]);
+    setKotHistory([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table?.id, table?.currentOrderId, table?.current_order_id]);
 
@@ -187,6 +218,23 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       .catch(() => {});
   }, []);
 
+  const loadKotHistory = useCallback(async (oid) => {
+    if (!oid) {
+      setKotHistory([]);
+      return;
+    }
+    try {
+      const res = await window.electronAPI.invoke('firebase:get-kot-history', {
+        orderId: oid,
+      });
+      if (res?.success) {
+        setKotHistory(res.kots || []);
+      }
+    } catch (_) {
+      // Ignore history fetch failures and keep fallback rendering.
+    }
+  }, []);
+
   const resolveActiveOrderIdForTable = useCallback(async (tableId) => {
     if (!tableId) return null;
     try {
@@ -250,6 +298,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       }
 
       if (oid) subscribeToOrderItems(oid);
+      if (oid) loadKotHistory(oid);
     };
 
     initOrderSubscription();
@@ -274,6 +323,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   }, [
     loadMenu,
     subscribeToOrderItems,
+    loadKotHistory,
     table,
     orderId,
     resolveActiveOrderIdForTable,
@@ -284,6 +334,12 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     if (listBottomRef.current)
       listBottomRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [orderItems.length]);
+
+  useEffect(() => {
+    if (showKOTHistory && orderId) {
+      loadKotHistory(orderId);
+    }
+  }, [showKOTHistory, orderId, loadKotHistory]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
   const scheduleUpsert = useCallback(
@@ -356,7 +412,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   );
   const payableTotal = Math.max(0, subtotal - discountAmount);
 
-  const kotGroups = (() => {
+  const derivedKotGroups = (() => {
     const sentItems = orderItems.filter((item) => (item.sentQty || 0) > 0);
     const sorted = [...sentItems].sort(
       (a, b) =>
@@ -373,6 +429,8 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     }
     return groups;
   })();
+
+  const kotGroups = kotHistory.length > 0 ? kotHistory : derivedKotGroups;
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleAddItem = useCallback(
@@ -589,6 +647,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         kotItems,
       });
       if (!res?.success) throw new Error(res?.error || 'KOT failed');
+      await loadKotHistory(orderId);
       setOrderItems((prev) =>
         prev.map((i) => ({ ...i, sentQty: i.currentQty }))
       );
@@ -606,7 +665,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     } finally {
       setKotSending(false);
     }
-  }, [orderItems, orderId, table, onTableUpdate, loadMenu]);
+  }, [orderItems, orderId, table, onTableUpdate, loadMenu, loadKotHistory]);
 
   const hasPendingItems = useCallback(
     () => orderItems.some((i) => i.currentQty - i.sentQty > 0),
@@ -886,45 +945,6 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         </div>
       </header>
 
-      {/* Error toast — fixed overlay, auto-dismisses */}
-      {error && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '1.5rem',
-            right: '1.5rem',
-            zIndex: 9999,
-            background: '#fee2e2',
-            color: '#991b1b',
-            padding: '0.85rem 1.25rem',
-            borderRadius: '10px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            fontSize: '0.875rem',
-            maxWidth: '380px',
-          }}
-        >
-          <AlertCircle size={16} style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-              fontSize: '1.25rem',
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            &times;
-          </button>
-        </div>
-      )}
-
       {/* Body */}
       <div className="order-layout">
         {/* Column 1: Categories Sidebar */}
@@ -976,7 +996,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
                 ) : (
                   <div className="kot-list-grid">
                     {kotGroups.map((kot) => (
-                      <div key={kot.kotNumber} className="kot-card-premium">
+                      <div
+                        key={kot.kotNumber || `${kot.sentAt}`}
+                        className="kot-card-premium"
+                      >
                         <div className="kot-card-header">
                           <div className="kot-id">KOT #{kot.kotNumber}</div>
                           <div className="kot-time">
@@ -993,30 +1016,57 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
                           </div>
                         </div>
                         <div className="kot-card-body">
-                          {kot.items.map((item) => (
-                            <div key={item.menuItemId} className="kot-item-row">
-                              <span className="kot-item-qty">
-                                {item.currentQty}×
-                              </span>
-                              <span className="kot-item-name">
-                                {item.menuItemName}
-                              </span>
-                              <span className="kot-item-price">
-                                ₹{(item.currentQty * item.unitPrice).toFixed(2)}
-                              </span>
-                            </div>
-                          ))}
+                          {(kot.items || []).map((item, idx) => {
+                            const qty =
+                              Number(item.qty) ||
+                              Number(item.sentQty) ||
+                              Number(item.currentQty) ||
+                              0;
+                            const unitPrice =
+                              Number(item.unitPrice ?? item.base_price ?? 0) ||
+                              0;
+                            const menuItemName =
+                              item.menuItemName ||
+                              item.menu_item_name ||
+                              'Item';
+
+                            return (
+                              <div
+                                key={
+                                  item.menuItemId ||
+                                  item.id ||
+                                  `${kot.kotNumber}-${idx}`
+                                }
+                                className="kot-item-row"
+                              >
+                                <span className="kot-item-qty">{qty}×</span>
+                                <span className="kot-item-name">
+                                  {menuItemName}
+                                </span>
+                                <span className="kot-item-price">
+                                  ₹{(qty * unitPrice).toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                         <div className="kot-card-footer">
                           <span>Total</span>
                           <span>
                             ₹
-                            {kot.items
-                              .reduce(
-                                (s, i) => s + i.currentQty * i.unitPrice,
-                                0
-                              )
-                              .toFixed(2)}
+                            {(
+                              Number(kot.subtotal) ||
+                              (kot.items || []).reduce((s, i) => {
+                                const qty =
+                                  Number(i.qty) ||
+                                  Number(i.sentQty) ||
+                                  Number(i.currentQty) ||
+                                  0;
+                                const unitPrice =
+                                  Number(i.unitPrice ?? i.base_price ?? 0) || 0;
+                                return s + qty * unitPrice;
+                              }, 0)
+                            ).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -1416,6 +1466,27 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
           </div>
         </aside>
       </div>
+
+      {error && (
+        <div className="items-error-banner">
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              fontSize: '1.25rem',
+              lineHeight: 1,
+              padding: 0,
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Pending Customer Details Modal */}
       {showCustomerModal && (

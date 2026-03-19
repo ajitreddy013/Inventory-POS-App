@@ -15,7 +15,9 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import { collection, getDocs } from 'firebase/firestore';
 import { getAll } from '../services/databaseHelpers';
+import { db } from '../services/firebase';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -132,19 +134,111 @@ export default function MenuBrowser({
     });
 
     try {
-      // Read from SQLite (synced from Firestore on app startup)
-      const sqliteData = await getAll<MenuItem>('menu_items', 'name ASC');
-      setMenuItems(sqliteData.map((item) => normalizeItem(item.id, item)));
+      // Desktop parity: read current menu directly from Firestore first.
+      const snapshot = await getDocs(collection(db, 'menuItems'));
+      const itemsData = snapshot.docs.map((docSnap) =>
+        normalizeItem(docSnap.id, docSnap.data())
+      );
+      setMenuItems(
+        itemsData.sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        )
+      );
     } catch (error) {
-      console.error('Error loading menu items from SQLite:', error);
+      console.error(
+        'Error loading menu items from Firestore, falling back to SQLite:',
+        error
+      );
+      try {
+        const fallbackData = await getAll<MenuItem>('menu_items', 'name ASC');
+        setMenuItems(fallbackData.map((item) => normalizeItem(item.id, item)));
+      } catch (fallbackError) {
+        console.error(
+          'Error loading menu items from SQLite fallback:',
+          fallbackError
+        );
+      }
     }
   };
 
   const loadCounterStock = async () => {
-    // Counter stock availability is reflected in menu_items.is_out_of_stock (synced from Firestore).
-    // No separate Firestore read needed — derive from the already-loaded menuItems.
-    // This is a no-op; getVisibleItems() uses is_out_of_stock from menu_items directly.
-    setCounterStockMap({});
+    try {
+      const snapshot = await getDocs(collection(db, 'inventory'));
+      const stockMap: Record<string, number> = {};
+      const hasExplicitCounter = new Set<string>();
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        const menuItemId = data.menuItemId || data.menu_item_id || docSnap.id;
+        const hasCounterValue =
+          (data.counterStock !== undefined && data.counterStock !== null) ||
+          (data.counter_stock !== undefined && data.counter_stock !== null);
+        const counterCamel = Number(data.counterStock);
+        const counterSnake = Number(data.counter_stock);
+        const counter = Math.max(
+          Number.isFinite(counterCamel) ? counterCamel : 0,
+          Number.isFinite(counterSnake) ? counterSnake : 0
+        );
+        if (menuItemId) {
+          stockMap[String(menuItemId)] = Number.isFinite(counter) ? counter : 0;
+          if (hasCounterValue) {
+            hasExplicitCounter.add(String(menuItemId));
+          }
+        }
+      });
+
+      // Desktop parity fallback: if counter stock is missing in inventory, use transfer movements sum.
+      const movementSnap = await getDocs(collection(db, 'inventoryMovements'));
+      movementSnap.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        if (data.movementType !== 'godown_to_counter') return;
+
+        const menuItemId = data.menuItemId || data.menu_item_id;
+        if (!menuItemId) return;
+
+        const key = String(menuItemId);
+        if (hasExplicitCounter.has(key)) return;
+
+        const qty = Number(data.quantity ?? 0);
+        if (!Number.isFinite(qty)) return;
+
+        stockMap[key] = (stockMap[key] || 0) + qty;
+      });
+
+      setCounterStockMap(stockMap);
+    } catch (error) {
+      console.error('Error loading counter stock:', error);
+      // Keep last known map if fetch fails.
+    }
+  };
+
+  const getResolvedCounterStock = (item: MenuItem): number | null => {
+    const stockFromMap = Object.prototype.hasOwnProperty.call(
+      counterStockMap,
+      item.id
+    )
+      ? Number(counterStockMap[item.id])
+      : null;
+    const stockFromItem = Number(
+      (item as any).counterStock ?? (item as any).counter_stock
+    );
+
+    if (stockFromMap !== null) return stockFromMap;
+    return Number.isFinite(stockFromItem) ? stockFromItem : null;
+  };
+
+  const isItemOutOfStock = (item: MenuItem): boolean => {
+    const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
+    const flagOutOfStock =
+      item.is_out_of_stock === 1 || item.isOutOfStock === true;
+
+    if (!isBarItem) return flagOutOfStock;
+
+    const resolvedCounterStock = getResolvedCounterStock(item);
+    // If stock is unknown, fall back to flag; otherwise trust counter stock.
+    return resolvedCounterStock === null
+      ? flagOutOfStock
+      : resolvedCounterStock <= 0;
   };
 
   const getVisibleItems = (): MenuItem[] => {
@@ -152,35 +246,7 @@ export default function MenuBrowser({
       const isActive = item.is_active !== 0 && item.isActive !== false;
       if (!isActive) return false;
 
-      const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
-      const isRestaurantAvailable =
-        item.is_out_of_stock !== 1 && item.isOutOfStock !== true;
-
-      const stockFromMap = Object.prototype.hasOwnProperty.call(
-        counterStockMap,
-        item.id
-      )
-        ? Number(counterStockMap[item.id])
-        : null;
-      const stockFromItem = Number(
-        (item as any).counterStock ?? (item as any).counter_stock
-      );
-      const resolvedCounterStock =
-        stockFromMap !== null
-          ? stockFromMap
-          : Number.isFinite(stockFromItem)
-            ? stockFromItem
-            : null;
-
-      // If stock value is unknown, fallback to out-of-stock flags instead of assuming zero.
-      const availableInCounter =
-        resolvedCounterStock !== null
-          ? resolvedCounterStock > 0
-          : item.is_out_of_stock !== 1 && item.isOutOfStock !== true;
-
-      // Desktop parity: show bar only when counter has stock; show restaurant only when available.
-      const isVisible = isBarItem ? availableInCounter : isRestaurantAvailable;
-      return isVisible;
+      return !isItemOutOfStock(item);
     });
 
     // Keep every distinct item id (desktop parity), guard only against accidental duplicate rows.
@@ -263,7 +329,7 @@ export default function MenuBrowser({
   };
 
   const handleItemPress = (item: MenuItem) => {
-    if (item.is_out_of_stock) {
+    if (isItemOutOfStock(item)) {
       // Don't allow selection of out-of-stock items
       return;
     }
@@ -287,7 +353,7 @@ export default function MenuBrowser({
   const renderMenuItem = (item: MenuItem, index: number) => {
     const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
     const isVeg = item.item_category === 'food'; // Simplified - should check actual veg/non-veg flag
-    const isOutOfStock = item.is_out_of_stock === 1;
+    const isOutOfStock = isItemOutOfStock(item);
     const isEndOfRow = (index + 1) % 3 === 0;
 
     return (

@@ -25,15 +25,16 @@ const WHITE = '#FFFFFF';
 const BORDER = '#e2e8f0';
 
 interface OrderItem {
-  id: string;
-  order_id: string;
-  menu_item_name: string;
+  menuItemId?: string;
+  menuItemName?: string;
+  menu_item_name?: string;
   quantity: number;
+  qty?: number;
   base_price: number;
+  unitPrice?: number;
   total_price: number;
-  sent_to_kitchen: number;
-  created_at: number;
-  modifiers?: string;
+  lineTotal?: number;
+  modifiers?: string | any[];
   category: 'food' | 'drink';
 }
 
@@ -65,52 +66,76 @@ export default function KOTHistoryScreen({
 
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, 'orders', orderId, 'items'), orderBy('created_at', 'asc'));
-    unsubRef.current = onSnapshot(q, snapshot => {
-      const items: OrderItem[] = snapshot.docs.map(d => {
-        const data = d.data() as any;
-        const qty = data.currentQty ?? data.quantity ?? 0;
-        const price = data.unitPrice ?? data.base_price ?? 0;
-        return {
-          id: d.id,
-          order_id: orderId,
-          menu_item_name: data.menuItemName || data.menu_item_name || '',
-          quantity: qty,
-          base_price: price,
-          total_price: qty * price,
-          sent_to_kitchen: data.sentQty > 0 || !!data.sent_to_kitchen ? 1 : 0,
-          created_at: data.created_at || data.updatedAt?.toMillis?.() || Date.now(),
-          modifiers: data.modifiers || '',
-          category: data.category || 'food',
-        };
-      });
+    const q = query(
+      collection(db, 'orders', orderId, 'kotHistory'),
+      orderBy('kotNumber', 'asc')
+    );
+    unsubRef.current = onSnapshot(
+      q,
+      (snapshot) => {
+        const kotGroups: KOT[] = snapshot.docs.map((d) => {
+          const data = d.data() as any;
+          const sentAt = Number(
+            data.sent_at ||
+              data.sentAt?.toMillis?.() ||
+              data.createdAt?.toMillis?.() ||
+              Date.now()
+          );
+          const rawItems = Array.isArray(data.items) ? data.items : [];
+          const items: OrderItem[] = rawItems.map((item: any) => {
+            const qty = Number(item.qty ?? item.quantity ?? 0);
+            const unitPrice = Number(item.unitPrice ?? item.base_price ?? 0);
+            const lineTotal = Number(item.lineTotal ?? qty * unitPrice);
+            return {
+              menuItemId: item.menuItemId,
+              menuItemName: item.menuItemName,
+              menu_item_name: item.menu_item_name,
+              quantity: qty,
+              qty,
+              base_price: unitPrice,
+              unitPrice,
+              total_price: lineTotal,
+              lineTotal,
+              modifiers: item.modifiers || [],
+              category: item.category || 'food',
+            };
+          });
 
-      // Group into KOTs by 30-second clusters
-      const kotGroups: KOT[] = [];
-      let kotNumber = 1;
-      for (const item of items) {
-        const lastKot = kotGroups[kotGroups.length - 1];
-        const itemTime = item.created_at || 0;
-        if (!lastKot || itemTime - lastKot.sentAt > 30000) {
-          kotGroups.push({ kotNumber: kotNumber++, sentAt: itemTime, items: [item], subtotal: item.total_price });
-        } else {
-          lastKot.items.push(item);
-          lastKot.subtotal += item.total_price;
-        }
-      }
-      setKots(kotGroups);
-      setGrandTotal(items.reduce((s, i) => s + (i.total_price || 0), 0));
-      setLoading(false);
-    }, () => setLoading(false));
+          return {
+            kotNumber: Number(data.kotNumber || 0),
+            sentAt,
+            items,
+            subtotal: Number(
+              data.subtotal ||
+                items.reduce(
+                  (sum, item) => sum + Number(item.total_price || 0),
+                  0
+                )
+            ),
+          };
+        });
 
-    return () => { if (unsubRef.current) unsubRef.current(); };
+        setKots(kotGroups);
+        setGrandTotal(
+          kotGroups.reduce((sum, kot) => sum + Number(kot.subtotal || 0), 0)
+        );
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return () => {
+      if (unsubRef.current) unsubRef.current();
+    };
   }, [orderId]);
-
 
   const formatTime = (ts: number): string => {
     if (!ts) return '';
     const d = new Date(ts);
-    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
 
   const renderKOT = (kot: KOT) => (
@@ -129,19 +154,37 @@ export default function KOTHistoryScreen({
 
       {/* Items */}
       {kot.items.map((item) => {
-        const mods = item.modifiers ? (() => { try { return JSON.parse(item.modifiers!); } catch { return []; } })() : [];
+        const mods = item.modifiers
+          ? (() => {
+              try {
+                return Array.isArray(item.modifiers)
+                  ? item.modifiers
+                  : JSON.parse(item.modifiers as string);
+              } catch {
+                return [];
+              }
+            })()
+          : [];
+        const qty = Number(item.qty ?? item.quantity ?? 0);
+        const lineTotal = Number(item.lineTotal ?? item.total_price ?? 0);
+        const itemName = item.menuItemName || item.menu_item_name || 'Item';
         return (
-          <View key={item.id} style={styles.kotItem}>
+          <View
+            key={`${kot.kotNumber}-${item.menuItemId || itemName}`}
+            style={styles.kotItem}
+          >
             <View style={styles.kotItemLeft}>
-              <Text style={styles.kotItemQty}>{item.quantity}×</Text>
+              <Text style={styles.kotItemQty}>{qty}×</Text>
               <View>
-                <Text style={styles.kotItemName}>{item.menu_item_name}</Text>
+                <Text style={styles.kotItemName}>{itemName}</Text>
                 {mods.length > 0 && (
-                  <Text style={styles.kotItemMods}>{mods.map((m: any) => m.name).join(', ')}</Text>
+                  <Text style={styles.kotItemMods}>
+                    {mods.map((m: any) => m.name).join(', ')}
+                  </Text>
                 )}
               </View>
             </View>
-            <Text style={styles.kotItemPrice}>₹{item.total_price.toFixed(2)}</Text>
+            <Text style={styles.kotItemPrice}>₹{lineTotal.toFixed(2)}</Text>
           </View>
         );
       })}
@@ -160,7 +203,9 @@ export default function KOTHistoryScreen({
           <Text style={styles.headerSub}>{tableName}</Text>
         </View>
         <View style={styles.headerRight}>
-          <Text style={styles.kotCount}>{kots.length} KOT{kots.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.kotCount}>
+            {kots.length} KOT{kots.length !== 1 ? 's' : ''}
+          </Text>
         </View>
       </View>
 
@@ -173,7 +218,9 @@ export default function KOTHistoryScreen({
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>🍽️</Text>
           <Text style={styles.emptyTitle}>No KOTs yet</Text>
-          <Text style={styles.emptySubtitle}>No items have been sent to the kitchen for this table.</Text>
+          <Text style={styles.emptySubtitle}>
+            No items have been sent to the kitchen for this table.
+          </Text>
         </View>
       ) : (
         <>

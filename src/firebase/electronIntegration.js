@@ -3958,6 +3958,7 @@ function registerTableOrderHandlers() {
   // Remove any stale handlers from previous registrations to avoid duplicate-handler errors
   [
     'firebase:get-order-items',
+    'firebase:get-kot-history',
     'firebase:upsert-order-item',
     'firebase:delete-order-item',
     'firebase:send-kot',
@@ -3971,6 +3972,57 @@ function registerTableOrderHandlers() {
 
   // Subscribe to real-time order items updates — pushes normalized items to renderer
   const orderItemsListeners = new Map(); // orderId -> unsubscribe fn
+  const normalizeOrderItems = (docs) => {
+    const byMenuItemId = new Map();
+
+    for (const docSnap of docs) {
+      const d = docSnap.data() || {};
+      const menuItemId = d.menuItemId || d.menu_item_id || docSnap.id;
+      if (!menuItemId) continue;
+
+      const currentQty = Number(d.currentQty ?? d.quantity ?? 0);
+      const sentQty = Number(
+        d.sentQty ?? (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0)
+      );
+      const unitPrice = Number(d.unitPrice ?? d.base_price ?? 0);
+      const createdAt =
+        d.created_at || d.updatedAt?.toMillis?.() || d.updated_at || Date.now();
+      const sentAt =
+        d.sent_at ||
+        d.sentAt?.toMillis?.() ||
+        (sentQty > 0 ? d.updatedAt?.toMillis?.() || Date.now() : 0);
+
+      const existing = byMenuItemId.get(menuItemId);
+      if (!existing) {
+        byMenuItemId.set(menuItemId, {
+          id: menuItemId,
+          menuItemId,
+          menuItemName: d.menuItemName || d.menu_item_name || '',
+          unitPrice,
+          currentQty,
+          sentQty,
+          category: d.category || '',
+          isBarItem: !!(d.isBarItem || d.is_bar_item),
+          created_at: createdAt,
+          sent_at: sentAt,
+        });
+      } else {
+        existing.currentQty += currentQty;
+        existing.sentQty += sentQty;
+        existing.unitPrice = existing.unitPrice || unitPrice;
+        existing.created_at = Math.min(
+          existing.created_at || createdAt,
+          createdAt
+        );
+        existing.sent_at = Math.max(existing.sent_at || 0, sentAt || 0);
+        if (!existing.menuItemName)
+          existing.menuItemName = d.menuItemName || d.menu_item_name || '';
+      }
+    }
+
+    return Array.from(byMenuItemId.values());
+  };
+
   ipcMain.handle(
     'firebase:subscribe-order-items',
     async (event, { orderId }) => {
@@ -3982,27 +4034,7 @@ function registerTableOrderHandlers() {
           .doc(orderId)
           .collection('items')
           .onSnapshot((snapshot) => {
-            const items = snapshot.docs.map((doc) => {
-              const d = doc.data();
-              return {
-                id: doc.id,
-                menuItemId: d.menuItemId || d.menu_item_id || doc.id,
-                menuItemName: d.menuItemName || d.menu_item_name || '',
-                unitPrice: d.unitPrice ?? d.base_price ?? 0,
-                currentQty: d.currentQty ?? d.quantity ?? 0,
-                sentQty:
-                  d.sentQty ??
-                  (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
-                category: d.category || '',
-                isBarItem: d.isBarItem || false,
-                created_at:
-                  d.created_at || d.updatedAt?.toMillis?.() || Date.now(),
-                sent_at:
-                  d.sent_at ||
-                  d.sentAt?.toMillis?.() ||
-                  (d.sentQty > 0 ? d.updatedAt?.toMillis?.() || Date.now() : 0),
-              };
-            });
+            const items = normalizeOrderItems(snapshot.docs);
             event.sender.send(`order-items-update:${orderId}`, items);
           });
         orderItemsListeners.set(orderId, unsubscribe);
@@ -4034,31 +4066,44 @@ function registerTableOrderHandlers() {
         .doc(orderId)
         .collection('items')
         .get();
-      const items = snapshot.docs.map((doc) => {
-        const d = doc.data();
-        // Normalize: mobile uses quantity/menu_item_name/base_price/sent_to_kitchen
-        //            desktop uses currentQty/menuItemName/unitPrice/sentQty
-        return {
-          id: doc.id,
-          menuItemId: d.menuItemId || d.menu_item_id || doc.id,
-          menuItemName: d.menuItemName || d.menu_item_name || '',
-          unitPrice: d.unitPrice ?? d.base_price ?? 0,
-          currentQty: d.currentQty ?? d.quantity ?? 0,
-          sentQty:
-            d.sentQty ??
-            (d.sent_to_kitchen ? (d.currentQty ?? d.quantity ?? 0) : 0),
-          category: d.category || '',
-          isBarItem: d.isBarItem || false,
-          created_at: d.created_at || d.updatedAt?.toMillis?.() || Date.now(),
-          sent_at:
-            d.sent_at ||
-            d.sentAt?.toMillis?.() ||
-            (d.sentQty > 0 ? d.updatedAt?.toMillis?.() || Date.now() : 0),
-        };
-      });
+      const items = normalizeOrderItems(snapshot.docs);
       return { success: true, items };
     } catch (error) {
       console.error('Error getting order items:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('firebase:get-kot-history', async (event, { orderId }) => {
+    try {
+      const firestore = getAdminFirestore();
+      const snapshot = await firestore
+        .collection('orders')
+        .doc(orderId)
+        .collection('kotHistory')
+        .orderBy('kotNumber', 'asc')
+        .get();
+
+      const kots = snapshot.docs.map((doc) => {
+        const data = doc.data() || {};
+        return {
+          id: doc.id,
+          kotNumber: Number(data.kotNumber || 0),
+          sentAt:
+            data.sent_at ||
+            data.sentAt?.toMillis?.() ||
+            data.createdAt?.toMillis?.() ||
+            0,
+          subtotal: Number(data.subtotal || 0),
+          tableId: data.tableId || '',
+          tableName: data.tableName || '',
+          items: Array.isArray(data.items) ? data.items : [],
+        };
+      });
+
+      return { success: true, kots };
+    } catch (error) {
+      console.error('Error getting KOT history:', error);
       return { success: false, error: error.message };
     }
   });
@@ -4186,11 +4231,18 @@ function registerTableOrderHandlers() {
         const firestore = getAdminFirestore();
         const now = new Date();
         const nowMs = now.getTime();
+        let assignedKotNumber = 0;
         await firestore.runTransaction(async (tx) => {
           const orderItemsRef = firestore
             .collection('orders')
             .doc(orderId)
             .collection('items');
+          const counterRef = firestore.collection('counters').doc('kot');
+          const counterSnap = await tx.get(counterRef);
+          const lastKotNumber = Number(
+            counterSnap.exists ? counterSnap.data().lastKotNumber || 0 : 0
+          );
+          assignedKotNumber = lastKotNumber + 1;
 
           const itemsToSend = [];
           const barReadMap = new Map();
@@ -4214,6 +4266,10 @@ function registerTableOrderHandlers() {
               currentQty,
               qtyToSend,
               isBarItem: !!itemData.isBarItem,
+              menuItemName:
+                itemData.menuItemName || itemData.menu_item_name || '',
+              unitPrice: Number(itemData.unitPrice ?? itemData.base_price ?? 0),
+              category: itemData.category || '',
             });
 
             if (itemData.isBarItem && !barReadMap.has(kotItem.menuItemId)) {
@@ -4256,6 +4312,7 @@ function registerTableOrderHandlers() {
           for (const item of itemsToSend) {
             tx.update(item.itemRef, {
               sentQty: item.currentQty,
+              kotNumber: assignedKotNumber,
               sent_at: nowMs,
               sentAt: now,
               updatedAt: now,
@@ -4285,6 +4342,53 @@ function registerTableOrderHandlers() {
           for (const { qty, unitPrice } of sentQtyByItemId.values()) {
             committedTotal += qty * unitPrice;
           }
+
+          const kotSubtotal = itemsToSend.reduce(
+            (sum, i) =>
+              sum + Number(i.qtyToSend || 0) * Number(i.unitPrice || 0),
+            0
+          );
+
+          tx.set(
+            firestore
+              .collection('orders')
+              .doc(orderId)
+              .collection('kotHistory')
+              .doc(String(assignedKotNumber)),
+            {
+              kotNumber: assignedKotNumber,
+              orderId,
+              tableId,
+              tableName: tableName || '',
+              sentAt: now,
+              sent_at: nowMs,
+              subtotal: kotSubtotal,
+              totalItems: itemsToSend.reduce(
+                (sum, i) => sum + Number(i.qtyToSend || 0),
+                0
+              ),
+              items: itemsToSend.map((i) => ({
+                menuItemId: i.menuItemId,
+                menuItemName: i.menuItemName,
+                qty: i.qtyToSend,
+                unitPrice: i.unitPrice,
+                category: i.category,
+                lineTotal: Number(i.qtyToSend || 0) * Number(i.unitPrice || 0),
+              })),
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+
+          tx.set(
+            counterRef,
+            {
+              lastKotNumber: assignedKotNumber,
+              updatedAt: now,
+            },
+            { merge: true }
+          );
 
           for (const [menuItemId, qty] of barQtyMap.entries()) {
             const { invRef, currentStock } = barReadMap.get(menuItemId);
@@ -4326,7 +4430,7 @@ function registerTableOrderHandlers() {
           });
         });
 
-        return { success: true };
+        return { success: true, kotNumber: assignedKotNumber };
       } catch (error) {
         console.error('Error sending KOT:', error);
         return { success: false, error: error.message };
