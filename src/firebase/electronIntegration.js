@@ -71,19 +71,91 @@ async function initializeFirebaseAdmin() {
  * The desktop app validates PINs and generates tokens for mobile apps.
  */
 function registerWaiterHandlers() {
+  const normalizeWaiterPin = (value) => String(value ?? '').trim();
+
+  const normalizeWaiterName = (value) =>
+    String(value ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const waiterNameKey = (value) => normalizeWaiterName(value).toLowerCase();
+
+  const toMillis = (value) => {
+    if (!value) return 0;
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value._seconds === 'number') return value._seconds * 1000;
+    if (typeof value.seconds === 'number') return value.seconds * 1000;
+    const ts = new Date(value).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  };
+
+  const dedupeWaiters = (list) => {
+    const byIdentity = new Map();
+
+    for (const waiter of list || []) {
+      const pin = normalizeWaiterPin(waiter.pin);
+      const name = normalizeWaiterName(waiter.name);
+      const identity = `${waiterNameKey(name)}::${pin}`;
+      const key = pin ? identity : waiter.id;
+
+      if (!byIdentity.has(key)) {
+        byIdentity.set(key, {
+          ...waiter,
+          name,
+          pin,
+        });
+        continue;
+      }
+
+      const current = byIdentity.get(key);
+      const currentTs = Math.max(
+        toMillis(current.updatedAt),
+        toMillis(current.createdAt)
+      );
+      const nextTs = Math.max(
+        toMillis(waiter.updatedAt),
+        toMillis(waiter.createdAt)
+      );
+      const preferNext =
+        (!!waiter.isActive && !current.isActive) ||
+        (!!waiter.isActive === !!current.isActive && nextTs > currentTs);
+
+      if (preferNext) {
+        byIdentity.set(key, {
+          ...waiter,
+          name,
+          pin,
+        });
+      }
+    }
+
+    return Array.from(byIdentity.values()).sort((a, b) =>
+      normalizeWaiterName(a.name).localeCompare(
+        normalizeWaiterName(b.name),
+        undefined,
+        {
+          sensitivity: 'base',
+        }
+      )
+    );
+  };
+
   // Authenticate waiter with PIN
   ipcMain.handle('firebase:authenticate-waiter', async (event, pin) => {
     try {
+      const normalizedPin = normalizeWaiterPin(pin);
+
       // Validate PIN format
-      if (!pin || !/^\d{4,6}$/.test(pin)) {
+      if (!normalizedPin || !/^\d{4,6}$/.test(normalizedPin)) {
         return { success: false, error: 'Invalid PIN format' };
       }
 
-      // Query Firestore for waiter with matching PIN
-      const waiters = await queryCollection('waiters', [
-        { field: 'pin', operator: '==', value: pin },
-        { field: 'isActive', operator: '==', value: true },
-      ]);
+      // Read and normalize to avoid legacy type mismatches (string vs number PINs).
+      const allWaiters = await queryCollection('waiters', []);
+      const waiters = (allWaiters || []).filter(
+        (w) => !!w.isActive && normalizeWaiterPin(w.pin) === normalizedPin
+      );
 
       if (waiters.length === 0) {
         return { success: false, error: 'Invalid PIN or inactive account' };
@@ -103,7 +175,7 @@ function registerWaiterHandlers() {
         waiter: {
           id: waiter.id,
           name: waiter.name,
-          pin: waiter.pin,
+          pin: normalizeWaiterPin(waiter.pin),
         },
       };
     } catch (error) {
@@ -116,26 +188,52 @@ function registerWaiterHandlers() {
   ipcMain.handle('firebase:create-waiter', async (event, waiterData) => {
     try {
       const { name, pin } = waiterData;
+      const normalizedName = normalizeWaiterName(name);
+      const normalizedPin = normalizeWaiterPin(pin);
 
       // Validate input
-      if (!name || !pin || !/^\d{4,6}$/.test(pin)) {
+      if (
+        !normalizedName ||
+        !normalizedPin ||
+        !/^\d{4,6}$/.test(normalizedPin)
+      ) {
         return { success: false, error: 'Invalid waiter data' };
       }
 
-      // Check PIN uniqueness
-      const existingWaiters = await queryCollection('waiters', [
-        { field: 'pin', operator: '==', value: pin },
-      ]);
+      // Enforce uniqueness using normalized values across all waiter docs.
+      const existingWaiters = await queryCollection('waiters', []);
+      const nameInUse = (existingWaiters || []).some(
+        (w) => waiterNameKey(w.name) === waiterNameKey(normalizedName)
+      );
+      if (nameInUse) {
+        return { success: false, error: 'Waiter name already exists' };
+      }
 
-      if (existingWaiters.length > 0) {
+      const hasSameIdentity = (existingWaiters || []).some(
+        (w) =>
+          waiterNameKey(w.name) === waiterNameKey(normalizedName) &&
+          normalizeWaiterPin(w.pin) === normalizedPin
+      );
+      if (hasSameIdentity) {
+        return {
+          success: false,
+          error: 'Waiter with same name and PIN already exists',
+        };
+      }
+
+      const pinInUse = (existingWaiters || []).some(
+        (w) => normalizeWaiterPin(w.pin) === normalizedPin
+      );
+
+      if (pinInUse) {
         return { success: false, error: 'PIN already in use' };
       }
 
       // Create waiter document
       const waiterId = `waiter_${Date.now()}`;
       await setDocument('waiters', waiterId, {
-        name,
-        pin,
+        name: normalizedName,
+        pin: normalizedPin,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -143,7 +241,7 @@ function registerWaiterHandlers() {
 
       return {
         success: true,
-        waiter: { id: waiterId, name, pin },
+        waiter: { id: waiterId, name: normalizedName, pin: normalizedPin },
       };
     } catch (error) {
       console.error('Error creating waiter:', error);
@@ -156,23 +254,27 @@ function registerWaiterHandlers() {
     'firebase:update-waiter-pin',
     async (event, waiterId, newPin) => {
       try {
+        const normalizedPin = normalizeWaiterPin(newPin);
+
         // Validate PIN format
-        if (!newPin || !/^\d{4,6}$/.test(newPin)) {
+        if (!normalizedPin || !/^\d{4,6}$/.test(normalizedPin)) {
           return { success: false, error: 'Invalid PIN format' };
         }
 
-        // Check PIN uniqueness
-        const existingWaiters = await queryCollection('waiters', [
-          { field: 'pin', operator: '==', value: newPin },
-        ]);
+        // Check PIN uniqueness with normalized comparison across all docs.
+        const existingWaiters = await queryCollection('waiters', []);
+        const duplicate = (existingWaiters || []).find(
+          (w) =>
+            normalizeWaiterPin(w.pin) === normalizedPin && w.id !== waiterId
+        );
 
-        if (existingWaiters.length > 0 && existingWaiters[0].id !== waiterId) {
+        if (duplicate) {
           return { success: false, error: 'PIN already in use' };
         }
 
         // Update waiter PIN
         await updateDocument('waiters', waiterId, {
-          pin: newPin,
+          pin: normalizedPin,
           updatedAt: new Date(),
         });
 
@@ -190,7 +292,7 @@ function registerWaiterHandlers() {
       const waiters = await queryCollection('waiters', [], {
         orderBy: { field: 'name', direction: 'asc' },
       });
-      return { success: true, waiters };
+      return { success: true, waiters: dedupeWaiters(waiters) };
     } catch (error) {
       console.error('Error getting waiters:', error);
       return { success: false, error: 'Failed to get waiters' };
@@ -213,6 +315,21 @@ function registerWaiterHandlers() {
       }
     }
   );
+
+  // Delete waiter
+  ipcMain.handle('firebase:delete-waiter', async (event, waiterId) => {
+    try {
+      if (!waiterId) {
+        return { success: false, error: 'Waiter ID is required' };
+      }
+
+      await deleteDocument('waiters', waiterId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting waiter:', error);
+      return { success: false, error: 'Failed to delete waiter' };
+    }
+  });
 }
 
 /**
@@ -224,13 +341,70 @@ function registerWaiterHandlers() {
 function registerManagerHandlers() {
   const SALT_ROUNDS = 10;
 
+  const normalizeManagerName = (value) =>
+    String(value ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const managerNameKey = (value) => normalizeManagerName(value).toLowerCase();
+
+  const toMillis = (value) => {
+    if (!value) return 0;
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value._seconds === 'number') return value._seconds * 1000;
+    if (typeof value.seconds === 'number') return value.seconds * 1000;
+    const ts = new Date(value).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  };
+
+  const dedupeManagers = (list) => {
+    const byName = new Map();
+
+    for (const manager of list || []) {
+      const name = normalizeManagerName(manager.name);
+      const key = managerNameKey(name) || manager.id;
+
+      if (!byName.has(key)) {
+        byName.set(key, { ...manager, name });
+        continue;
+      }
+
+      const current = byName.get(key);
+      const currentTs = Math.max(
+        toMillis(current.updatedAt),
+        toMillis(current.createdAt)
+      );
+      const nextTs = Math.max(
+        toMillis(manager.updatedAt),
+        toMillis(manager.createdAt)
+      );
+      const preferNext =
+        (!!manager.isActive && !current.isActive) ||
+        (!!manager.isActive === !!current.isActive && nextTs > currentTs);
+
+      if (preferNext) {
+        byName.set(key, { ...manager, name });
+      }
+    }
+
+    return Array.from(byName.values()).sort((a, b) =>
+      normalizeManagerName(a.name).localeCompare(
+        normalizeManagerName(b.name),
+        undefined,
+        { sensitivity: 'base' }
+      )
+    );
+  };
+
   // Create new manager
   ipcMain.handle('firebase:create-manager', async (event, managerData) => {
     try {
       const { name, pin, role } = managerData;
+      const normalizedName = normalizeManagerName(name);
 
       // Validate input
-      if (!name || !pin || !role) {
+      if (!normalizedName || !pin || !role) {
         return { success: false, error: 'All fields are required' };
       }
 
@@ -245,13 +419,22 @@ function registerManagerHandlers() {
         return { success: false, error: 'Invalid role' };
       }
 
+      // Enforce unique manager names (case-insensitive, trimmed)
+      const existingManagers = await queryCollection('managers', []);
+      const nameInUse = (existingManagers || []).some(
+        (m) => managerNameKey(m.name) === managerNameKey(normalizedName)
+      );
+      if (nameInUse) {
+        return { success: false, error: 'Manager name already exists' };
+      }
+
       // Hash PIN with bcrypt
       const pinHash = await bcrypt.hash(pin, SALT_ROUNDS);
 
       // Create manager document
       const managerId = `manager_${Date.now()}`;
       await setDocument('managers', managerId, {
-        name,
+        name: normalizedName,
         pinHash,
         role,
         isActive: true,
@@ -261,7 +444,7 @@ function registerManagerHandlers() {
 
       return {
         success: true,
-        manager: { id: managerId, name, role },
+        manager: { id: managerId, name: normalizedName, role },
       };
     } catch (error) {
       console.error('Error creating manager:', error);
@@ -275,6 +458,8 @@ function registerManagerHandlers() {
     async (event, managerId, updates) => {
       try {
         const { name, role } = updates;
+        const normalizedName =
+          name !== undefined ? normalizeManagerName(name) : undefined;
 
         // Validate role if provided
         if (role) {
@@ -284,12 +469,28 @@ function registerManagerHandlers() {
           }
         }
 
+        if (normalizedName !== undefined && !normalizedName) {
+          return { success: false, error: 'Manager name is required' };
+        }
+
+        if (normalizedName !== undefined) {
+          const existingManagers = await queryCollection('managers', []);
+          const duplicate = (existingManagers || []).some(
+            (m) =>
+              m.id !== managerId &&
+              managerNameKey(m.name) === managerNameKey(normalizedName)
+          );
+          if (duplicate) {
+            return { success: false, error: 'Manager name already exists' };
+          }
+        }
+
         // Update manager document
         const updateData = {
           updatedAt: new Date(),
         };
 
-        if (name) updateData.name = name;
+        if (normalizedName !== undefined) updateData.name = normalizedName;
         if (role) updateData.role = role;
 
         await updateDocument('managers', managerId, updateData);
@@ -348,8 +549,10 @@ function registerManagerHandlers() {
         orderBy: { field: 'name', direction: 'asc' },
       });
 
+      const dedupedManagers = dedupeManagers(managers);
+
       // Remove pinHash from response for security
-      const sanitizedManagers = managers.map(
+      const sanitizedManagers = dedupedManagers.map(
         ({ pinHash, ...manager }) => manager
       );
 
@@ -376,6 +579,21 @@ function registerManagerHandlers() {
       }
     }
   );
+
+  // Delete manager
+  ipcMain.handle('firebase:delete-manager', async (event, managerId) => {
+    try {
+      if (!managerId) {
+        return { success: false, error: 'Manager ID is required' };
+      }
+
+      await deleteDocument('managers', managerId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting manager:', error);
+      return { success: false, error: 'Failed to delete manager' };
+    }
+  });
 
   // Authenticate manager with PIN (for protected operations)
   ipcMain.handle('firebase:authenticate-manager', async (event, pin) => {
