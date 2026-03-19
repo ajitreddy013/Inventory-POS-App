@@ -305,12 +305,16 @@ export class FirestoreSyncEngine {
    * Subscribe to all Firestore collections
    */
   private async subscribeToCollections(): Promise<void> {
-    // Do initial fetch only on app start (static data: menu, sections, waiters)
+    // Do initial fetch only on app start
     await this.initialFetchAll();
 
-    // Only keep real-time listener for tables — status changes frequently.
-    // Static collections (menu, sections, waiters) are fetched once on startup.
+    // Keep SQLite in sync in real-time after initial hydration.
+    this.subscribeToCollection('sections', 'sections');
     this.subscribeToCollection('tables', 'tables');
+    this.subscribeToCollection('waiters', 'waiters');
+    this.subscribeToCollection('menuCategories', 'menu_categories');
+    this.subscribeToCollection('menuItems', 'menu_items');
+    this.subscribeToCollection('modifiers', 'modifiers');
   }
 
   /**

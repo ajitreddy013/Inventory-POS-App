@@ -18,11 +18,15 @@ import {
 import {
   collection,
   addDoc,
+  setDoc,
   updateDoc,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
   query as fsQuery,
   orderBy,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import {
@@ -35,6 +39,7 @@ import MenuBrowser from '../components/MenuBrowser';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import KOTHistoryScreen from './KOTHistoryScreen';
+import { playErrorSound } from '../utils/errorSound';
 
 const BRAND_RED = '#C0392B';
 const DARK_GRAY = '#2C3E50';
@@ -47,6 +52,8 @@ interface MenuItem {
   category_id: string;
   item_category: 'food' | 'drink';
   is_out_of_stock: number;
+  is_bar_item?: number;
+  isBarItem?: boolean;
   available_modifier_ids?: string;
 }
 
@@ -67,6 +74,8 @@ interface OrderItem {
   sent_to_kitchen: boolean;
   modifiers: Modifier[];
   category: 'food' | 'drink';
+  is_bar_item?: number;
+  isBarItem?: boolean;
 }
 
 interface OrderEntryScreenProps {
@@ -98,8 +107,174 @@ export default function OrderEntryScreen({
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showKOTHistory, setShowKOTHistory] = useState(false);
+  const [counterStockMap, setCounterStockMap] = useState<
+    Record<string, number>
+  >({});
   const { status, pendingSyncCount } = useSyncStatus();
   const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  const showErrorAlert = (title: string, message: string) => {
+    void playErrorSound();
+    Alert.alert(title, message);
+  };
+
+  const loadCounterStock = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, 'inventory'));
+      const stockMap: Record<string, number> = {};
+      const hasExplicitCounter = new Set<string>();
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        const menuItemId = data.menuItemId || data.menu_item_id || docSnap.id;
+        const hasCounterValue =
+          (data.counterStock !== undefined && data.counterStock !== null) ||
+          (data.counter_stock !== undefined && data.counter_stock !== null);
+        const counterCamel = Number(data.counterStock);
+        const counterSnake = Number(data.counter_stock);
+        const counter = Math.max(
+          Number.isFinite(counterCamel) ? counterCamel : 0,
+          Number.isFinite(counterSnake) ? counterSnake : 0
+        );
+        if (menuItemId) {
+          stockMap[String(menuItemId)] = Number.isFinite(counter) ? counter : 0;
+          if (hasCounterValue) {
+            hasExplicitCounter.add(String(menuItemId));
+          }
+        }
+      });
+
+      // Keep parity with menu visibility: if counter value is missing in inventory,
+      // derive from godown->counter transfer movements.
+      const movementSnap = await getDocs(collection(db, 'inventoryMovements'));
+      movementSnap.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        if (data.movementType !== 'godown_to_counter') return;
+
+        const menuItemId = data.menuItemId || data.menu_item_id;
+        if (!menuItemId) return;
+
+        const key = String(menuItemId);
+        if (hasExplicitCounter.has(key)) return;
+
+        const qty = Number(data.quantity ?? 0);
+        if (!Number.isFinite(qty)) return;
+
+        stockMap[key] = (stockMap[key] || 0) + qty;
+      });
+
+      setCounterStockMap(stockMap);
+      return stockMap;
+    } catch (error) {
+      console.error('Error loading counter stock:', error);
+      return null;
+    }
+  };
+
+  const getCurrentQtyForMenuItem = (menuItemId: string): number => {
+    return orderItems
+      .filter(
+        (item) => item.menu_item_id === menuItemId && !item.sent_to_kitchen
+      )
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  };
+
+  const deductCounterStockForKOT = async (items: OrderItem[]) => {
+    const barQtyMap = new Map<string, number>();
+
+    items.forEach((item) => {
+      const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
+      if (!isBarItem) return;
+      const qty = Number(item.quantity || 0);
+      if (qty <= 0) return;
+      barQtyMap.set(
+        item.menu_item_id,
+        (barQtyMap.get(item.menu_item_id) || 0) + qty
+      );
+    });
+
+    if (barQtyMap.size === 0) return;
+
+    await runTransaction(db, async (tx) => {
+      const now = Date.now();
+      const nowDate = new Date(now);
+      const stockChecks: Array<{
+        menuItemId: string;
+        qty: number;
+        currentStock: number;
+      }> = [];
+
+      for (const [menuItemId, qty] of barQtyMap.entries()) {
+        const invRef = doc(db, 'inventory', menuItemId);
+        const invSnap = await tx.get(invRef);
+        const currentStock = Number(
+          invSnap.exists()
+            ? ((invSnap.data() as any).counterStock ??
+                (invSnap.data() as any).counter_stock ??
+                0)
+            : 0
+        );
+
+        stockChecks.push({ menuItemId, qty, currentStock });
+      }
+
+      for (const { menuItemId, qty, currentStock } of stockChecks) {
+        if (currentStock < qty) {
+          throw new Error(`Stock not available for item ${menuItemId}`);
+        }
+
+        const newCounterStock = currentStock - qty;
+        const invRef = doc(db, 'inventory', menuItemId);
+        const menuItemRef = doc(db, 'menuItems', menuItemId);
+
+        tx.set(
+          invRef,
+          {
+            menuItemId,
+            counterStock: newCounterStock,
+            updatedAt: nowDate,
+            updated_at: now,
+          },
+          { merge: true }
+        );
+
+        tx.set(
+          menuItemRef,
+          {
+            isOutOfStock: newCounterStock === 0,
+            updatedAt: nowDate,
+            updated_at: now,
+          },
+          { merge: true }
+        );
+      }
+    });
+  };
+
+  const reserveGlobalKotNumber = async (): Promise<number> => {
+    return runTransaction(db, async (tx) => {
+      const counterRef = doc(db, 'counters', 'kot');
+      const counterSnap = await tx.get(counterRef);
+      const lastKotNumber = Number(
+        counterSnap.exists()
+          ? ((counterSnap.data() as any).lastKotNumber ?? 0)
+          : 0
+      );
+      const nextKotNumber = lastKotNumber + 1;
+
+      tx.set(
+        counterRef,
+        {
+          lastKotNumber: nextKotNumber,
+          updatedAt: Date.now(),
+          updated_at: Date.now(),
+        },
+        { merge: true }
+      );
+
+      return nextKotNumber;
+    });
+  };
 
   // Subscribe to real-time order items from Firestore
   const subscribeToOrderItems = (oid: string) => {
@@ -129,6 +304,13 @@ export default function OrderEntryScreen({
               ? JSON.parse(data.modifiers || '[]')
               : data.modifiers || [],
           category: data.category || 'food',
+          is_bar_item:
+            data.is_bar_item !== undefined
+              ? Number(data.is_bar_item)
+              : data.isBarItem
+                ? 1
+                : 0,
+          isBarItem: !!data.isBarItem,
         };
       });
       setOrderItems(items);
@@ -141,6 +323,15 @@ export default function OrderEntryScreen({
       if (unsubscribeRef.current) unsubscribeRef.current();
     };
   }, [orderId]);
+
+  useEffect(() => {
+    loadCounterStock();
+    const interval = setInterval(() => {
+      loadCounterStock();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleMenuItemSelect = async (menuItem: MenuItem) => {
     setSelectedMenuItem(menuItem);
@@ -178,8 +369,39 @@ export default function OrderEntryScreen({
     }
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!selectedMenuItem) return;
+
+    const isBarItem =
+      selectedMenuItem.is_bar_item === 1 || selectedMenuItem.isBarItem === true;
+    if (isBarItem) {
+      const hasKnownStock = Object.prototype.hasOwnProperty.call(
+        counterStockMap,
+        selectedMenuItem.id
+      );
+      const availableQty = hasKnownStock
+        ? Number(counterStockMap[selectedMenuItem.id] || 0)
+        : Number.POSITIVE_INFINITY;
+      const currentQty = getCurrentQtyForMenuItem(selectedMenuItem.id);
+      if (currentQty + 1 > availableQty) {
+        // Revalidate once with fresh stock fetch to avoid stale-map false negatives.
+        const freshMap = await loadCounterStock();
+        const freshHasKnownStock = !!freshMap
+          ? Object.prototype.hasOwnProperty.call(freshMap, selectedMenuItem.id)
+          : hasKnownStock;
+        const freshAvailableQty = freshHasKnownStock
+          ? Number((freshMap || counterStockMap)[selectedMenuItem.id] || 0)
+          : Number.POSITIVE_INFINITY;
+
+        if (currentQty + 1 > freshAvailableQty) {
+          showErrorAlert(
+            'Out of Stock',
+            `Counter stock exhausted for ${selectedMenuItem.name}. Available: ${freshAvailableQty}`
+          );
+          return;
+        }
+      }
+    }
 
     // Calculate total price (base + paid add-ons only, spice levels are free)
     const paidAddons = selectedModifiers.filter((m) => m.type === 'paid_addon');
@@ -196,6 +418,8 @@ export default function OrderEntryScreen({
       sent_to_kitchen: false,
       modifiers: selectedModifiers,
       category: selectedMenuItem.item_category,
+      is_bar_item: selectedMenuItem.is_bar_item,
+      isBarItem: selectedMenuItem.isBarItem,
     };
 
     setOrderItems([...orderItems, newItem]);
@@ -204,10 +428,72 @@ export default function OrderEntryScreen({
     setSelectedModifiers([]);
   };
 
-  const handleQuantityChange = (itemId: string, delta: number) => {
+  const handleQuantityChange = async (itemId: string, delta: number) => {
+    const targetItem = orderItems.find((item) => item.id === itemId);
+    if (targetItem && !targetItem.sent_to_kitchen) {
+      const isBarItem =
+        targetItem.is_bar_item === 1 || targetItem.isBarItem === true;
+      if (isBarItem && delta > 0) {
+        const currentQtyForItem = getCurrentQtyForMenuItem(
+          targetItem.menu_item_id
+        );
+        const nextQtyForItem = currentQtyForItem + delta;
+        const hasKnownStock = Object.prototype.hasOwnProperty.call(
+          counterStockMap,
+          targetItem.menu_item_id
+        );
+        const availableQty = hasKnownStock
+          ? Number(counterStockMap[targetItem.menu_item_id] || 0)
+          : Number.POSITIVE_INFINITY;
+
+        if (nextQtyForItem > availableQty) {
+          // Revalidate once with fresh stock fetch to avoid stale-map false negatives.
+          const freshMap = await loadCounterStock();
+          const freshHasKnownStock = !!freshMap
+            ? Object.prototype.hasOwnProperty.call(
+                freshMap,
+                targetItem.menu_item_id
+              )
+            : hasKnownStock;
+          const freshAvailableQty = freshHasKnownStock
+            ? Number(
+                (freshMap || counterStockMap)[targetItem.menu_item_id] || 0
+              )
+            : Number.POSITIVE_INFINITY;
+
+          if (nextQtyForItem > freshAvailableQty) {
+            showErrorAlert(
+              'Out of Stock',
+              `Counter stock exhausted for ${targetItem.menu_item_name}. Available: ${freshAvailableQty}`
+            );
+            return;
+          }
+        }
+      }
+    }
+
     setOrderItems(
       orderItems.map((item) => {
         if (item.id === itemId && !item.sent_to_kitchen) {
+          const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
+          const currentQtyForItem = getCurrentQtyForMenuItem(item.menu_item_id);
+          const nextQtyForItem = currentQtyForItem + delta;
+          const hasKnownStock = Object.prototype.hasOwnProperty.call(
+            counterStockMap,
+            item.menu_item_id
+          );
+          const availableQty = hasKnownStock
+            ? Number(counterStockMap[item.menu_item_id] || 0)
+            : Number.POSITIVE_INFINITY;
+
+          if (isBarItem && delta > 0 && nextQtyForItem > availableQty) {
+            showErrorAlert(
+              'Out of Stock',
+              `Counter stock exhausted for ${item.menu_item_name}. Available: ${availableQty}`
+            );
+            return item;
+          }
+
           const newQuantity = Math.max(1, item.quantity + delta);
           return {
             ...item,
@@ -229,7 +515,7 @@ export default function OrderEntryScreen({
     const item = orderItems.find((i) => i.id === itemId);
 
     if (item?.sent_to_kitchen) {
-      Alert.alert(
+      showErrorAlert(
         'Cannot Remove',
         'Items already sent to kitchen cannot be removed'
       );
@@ -251,14 +537,14 @@ export default function OrderEntryScreen({
 
   const handleSubmitOrder = async () => {
     if (currentOrderItems.length === 0) {
-      Alert.alert('Empty Order', 'Please add items before submitting');
+      showErrorAlert('Empty Order', 'Please add items before submitting');
       return;
     }
 
     const unsentItems = currentOrderItems;
 
     if (unsentItems.length === 0) {
-      Alert.alert(
+      showErrorAlert(
         'No New Items',
         'All items have already been sent to kitchen'
       );
@@ -296,6 +582,11 @@ export default function OrderEntryScreen({
         }
       }
 
+      // Deduct counter stock for bar items at KOT submit time.
+      await deductCounterStockForKOT(unsentItems);
+      const kotNumber = await reserveGlobalKotNumber();
+      const sentAt = Date.now();
+
       // Mark all unsent items as sent
       setOrderItems(
         orderItems.map((item) => ({ ...item, sent_to_kitchen: true }))
@@ -303,25 +594,54 @@ export default function OrderEntryScreen({
 
       // Save order items to Firestore and SQLite
       for (const item of unsentItems) {
+        const itemRef = doc(
+          db,
+          'orders',
+          orderIdToUse!,
+          'items',
+          item.menu_item_id
+        );
+        const existingSnap = await getDoc(itemRef);
+        const existingData = existingSnap.exists()
+          ? (existingSnap.data() as any)
+          : null;
+        const existingCurrentQty = Number(
+          existingData?.currentQty ?? existingData?.quantity ?? 0
+        );
+        const existingSentQty = Number(
+          existingData?.sentQty ??
+            (existingData?.sent_to_kitchen ? existingCurrentQty : 0)
+        );
+
+        const mergedCurrentQty =
+          existingCurrentQty + Number(item.quantity || 0);
+        const mergedSentQty = existingSentQty + Number(item.quantity || 0);
+
         const itemData = {
+          menuItemId: item.menu_item_id,
+          menuItemName: item.menu_item_name,
+          unitPrice: item.base_price,
+          currentQty: mergedCurrentQty,
+          sentQty: mergedSentQty,
           order_id: orderIdToUse,
           menu_item_id: item.menu_item_id,
           menu_item_name: item.menu_item_name,
-          quantity: item.quantity,
+          quantity: mergedCurrentQty,
           base_price: item.base_price,
-          total_price: item.total_price,
+          total_price: mergedCurrentQty * Number(item.base_price || 0),
           sent_to_kitchen: 1,
           modifiers: JSON.stringify(item.modifiers),
           category: item.category,
-          created_at: Date.now(),
+          is_bar_item: item.is_bar_item ?? (item.isBarItem ? 1 : 0),
+          isBarItem: item.is_bar_item === 1 || item.isBarItem === true,
+          kot_number: kotNumber,
+          sent_at: sentAt,
+          created_at: existingData?.created_at || Date.now(),
           updated_at: Date.now(),
         };
 
-        // Save to Firestore (primary)
-        await addDoc(
-          collection(db, 'orders', orderIdToUse!, 'items'),
-          itemData
-        );
+        // Save to Firestore (primary) as one doc per menu item.
+        await setDoc(itemRef, itemData, { merge: true });
 
         // Save to local SQLite (non-fatal)
         try {
@@ -330,6 +650,38 @@ export default function OrderEntryScreen({
           console.warn('SQLite order_item insert failed (non-fatal):', e);
         }
       }
+
+      await setDoc(
+        doc(db, 'orders', orderIdToUse!, 'kotHistory', String(kotNumber)),
+        {
+          kotNumber,
+          orderId: orderIdToUse,
+          tableId,
+          tableName,
+          sentAt,
+          sent_at: sentAt,
+          subtotal: unsentItems.reduce(
+            (sum, item) => sum + Number(item.total_price || 0),
+            0
+          ),
+          totalItems: unsentItems.reduce(
+            (sum, item) => sum + Number(item.quantity || 0),
+            0
+          ),
+          items: unsentItems.map((item) => ({
+            menuItemId: item.menu_item_id,
+            menuItemName: item.menu_item_name,
+            qty: Number(item.quantity || 0),
+            unitPrice: Number(item.base_price || 0),
+            category: item.category,
+            lineTotal: Number(item.total_price || 0),
+            modifiers: item.modifiers || [],
+          })),
+          createdAt: sentAt,
+          updatedAt: sentAt,
+        },
+        { merge: true }
+      );
 
       // Update table status in Firestore
       try {
@@ -349,10 +701,17 @@ export default function OrderEntryScreen({
         console.warn('Table status update failed (non-fatal):', e);
       }
 
+      // Refresh stock immediately so the next add reflects latest counter quantity.
+      await loadCounterStock();
+
       Alert.alert('Success', 'Order sent to kitchen!');
     } catch (error) {
       console.error('Error submitting order:', error);
-      Alert.alert('Error', 'Failed to submit order. Please try again.');
+      const message =
+        error instanceof Error && /Stock not available/i.test(error.message)
+          ? 'Stock not available in counter. Please transfer from godown.'
+          : 'Failed to submit order. Please try again.';
+      showErrorAlert('Error', message);
     } finally {
       setSubmitting(false);
     }
@@ -452,12 +811,43 @@ export default function OrderEntryScreen({
     return (
       <View key={item.id} style={styles.orderItem}>
         <View style={styles.orderItemHeader}>
-          <Text style={styles.orderItemName}>{item.menu_item_name}</Text>
-          {!item.sent_to_kitchen && (
-            <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
-              <Text style={styles.orderItemRemove}>✕</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.orderItemHeaderLeft}>
+            {!item.sent_to_kitchen && (
+              <TouchableOpacity onPress={() => handleRemoveItem(item.id)}>
+                <Text style={styles.orderItemRemove}>✕</Text>
+              </TouchableOpacity>
+            )}
+
+            <Text
+              style={styles.orderItemName}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {item.menu_item_name}
+            </Text>
+          </View>
+
+          <View style={styles.orderItemHeaderRight}>
+            {!item.sent_to_kitchen && (
+              <View style={styles.orderItemQuantity}>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() => handleQuantityChange(item.id, -1)}
+                >
+                  <Text style={styles.quantityButtonText}>−</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.quantityText}>{item.quantity}</Text>
+
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() => handleQuantityChange(item.id, 1)}
+                >
+                  <Text style={styles.quantityButtonText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
 
         {item.modifiers.length > 0 && (
@@ -467,28 +857,6 @@ export default function OrderEntryScreen({
         )}
 
         <View style={styles.orderItemFooter}>
-          <View style={styles.orderItemQuantity}>
-            {!item.sent_to_kitchen && (
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() => handleQuantityChange(item.id, -1)}
-              >
-                <Text style={styles.quantityButtonText}>−</Text>
-              </TouchableOpacity>
-            )}
-
-            <Text style={styles.quantityText}>{item.quantity}</Text>
-
-            {!item.sent_to_kitchen && (
-              <TouchableOpacity
-                style={styles.quantityButton}
-                onPress={() => handleQuantityChange(item.id, 1)}
-              >
-                <Text style={styles.quantityButtonText}>+</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
           <Text style={styles.orderItemPrice}>
             ₹{item.total_price.toFixed(2)}
           </Text>
@@ -549,25 +917,26 @@ export default function OrderEntryScreen({
             {currentOrderItems.map((item) => renderOrderItem(item))}
           </ScrollView>
 
-          <View style={styles.orderTotal}>
-            <Text style={styles.orderTotalLabel}>Total:</Text>
-            <Text style={styles.orderTotalAmount}>
-              ₹{calculateOrderTotal().toFixed(2)}
-            </Text>
-          </View>
+          <View style={styles.orderFooter}>
+            <TouchableOpacity
+              style={[
+                styles.submitButtonCompact,
+                submitting && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmitOrder}
+              disabled={submitting}
+            >
+              <Text style={styles.submitButtonText}>
+                {submitting ? 'Submitting...' : 'Send to Kitchen'}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              submitting && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmitOrder}
-            disabled={submitting}
-          >
-            <Text style={styles.submitButtonText}>
-              {submitting ? 'Submitting...' : 'Send to Kitchen'}
-            </Text>
-          </TouchableOpacity>
+            <View style={styles.orderTotalCompact}>
+              <Text style={styles.orderTotalAmountCompact}>
+                ₹{calculateOrderTotal().toFixed(2)}
+              </Text>
+            </View>
+          </View>
         </View>
       )}
 
@@ -615,82 +984,100 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   orderSection: {
-    maxHeight: '40%',
+    maxHeight: '52%',
     backgroundColor: LIGHT_GRAY,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   orderSectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: DARK_GRAY,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   orderItemsList: {
-    maxHeight: 200,
+    maxHeight: 280,
   },
   orderItem: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
     position: 'relative',
   },
   orderItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
+    gap: 8,
+  },
+  orderItemHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  orderItemHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 10,
   },
   orderItemName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: DARK_GRAY,
     flex: 1,
+    minWidth: 0,
   },
   orderItemRemove: {
-    fontSize: 20,
+    fontSize: 18,
     color: BRAND_RED,
-    padding: 4,
+    paddingHorizontal: 4,
   },
   orderItemModifiers: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666666',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   orderItemFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
   },
   orderItemQuantity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   quantityButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: BRAND_RED,
     justifyContent: 'center',
     alignItems: 'center',
   },
   quantityButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   quantityText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: DARK_GRAY,
-    minWidth: 24,
+    minWidth: 20,
     textAlign: 'center',
   },
   orderItemPrice: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: DARK_GRAY,
   },
@@ -708,28 +1095,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  orderTotal: {
+  orderFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    gap: 10,
+    paddingTop: 8,
     borderTopWidth: 2,
     borderTopColor: '#E0E0E0',
-    marginTop: 8,
+    marginTop: 4,
   },
-  orderTotalLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: DARK_GRAY,
+  orderTotalCompact: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    minWidth: 0,
   },
-  orderTotalAmount: {
-    fontSize: 24,
+  orderTotalAmountCompact: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: BRAND_RED,
   },
-  submitButton: {
+  submitButtonCompact: {
+    minWidth: 170,
     backgroundColor: BRAND_RED,
-    paddingVertical: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
@@ -738,7 +1130,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   modalOverlay: {
