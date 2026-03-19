@@ -1,11 +1,18 @@
+/* eslint-disable no-console */
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, RefreshCw, CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
+import {
+  AlertCircle,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  ArrowLeft,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './FailedKOTManagement.css';
 
 /**
  * Failed KOT Management Component
- * 
+ *
  * Displays list of failed KOTs and allows manual retry
  * Requirements: 22.4, 23.4
  */
@@ -41,16 +48,21 @@ const FailedKOTManagement = () => {
   };
 
   const handleRetry = async (failedKOTId) => {
-    setRetrying(prev => ({ ...prev, [failedKOTId]: true }));
+    setRetrying((prev) => ({ ...prev, [failedKOTId]: true }));
     try {
-      const result = await window.electronAPI.invoke('kot:retry-failed-kot', failedKOTId);
-      
+      const result = await window.electronAPI.invoke(
+        'kot:retry-failed-kot',
+        failedKOTId
+      );
+
       if (result.success) {
         // Remove from list on success
-        setFailedKOTs(prev => prev.filter(kot => kot.id !== failedKOTId));
+        setFailedKOTs((prev) => prev.filter((kot) => kot.id !== failedKOTId));
         alert(`KOT printed successfully!`);
       } else {
-        alert(`Retry failed: ${result.error}\nRetries remaining: ${result.retriesRemaining || 0}`);
+        alert(
+          `Retry failed: ${result.error}\nRetries remaining: ${result.retriesRemaining || 0}`
+        );
         // Reload to get updated retry count
         await loadFailedKOTs();
       }
@@ -58,7 +70,7 @@ const FailedKOTManagement = () => {
       console.error('Error retrying KOT:', error);
       alert('Failed to retry KOT');
     } finally {
-      setRetrying(prev => ({ ...prev, [failedKOTId]: false }));
+      setRetrying((prev) => ({ ...prev, [failedKOTId]: false }));
     }
   };
 
@@ -79,7 +91,18 @@ const FailedKOTManagement = () => {
     <div className="failed-kot-management">
       <div className="header">
         <div className="title-section">
-          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: 8,
+              display: 'flex',
+              alignItems: 'center',
+              color: '#4f46e5',
+            }}
+          >
             <ArrowLeft size={22} />
           </button>
           <AlertCircle className="icon" size={24} />
@@ -91,8 +114,8 @@ const FailedKOTManagement = () => {
               Last updated: {lastRefresh.toLocaleTimeString()}
             </span>
           )}
-          <button 
-            className="btn-refresh" 
+          <button
+            className="btn-refresh"
             onClick={loadFailedKOTs}
             disabled={loading}
           >
@@ -126,7 +149,7 @@ const FailedKOTManagement = () => {
             <span className="col-actions">Actions</span>
           </div>
 
-          {failedKOTs.map(kot => (
+          {failedKOTs.map((kot) => (
             <div key={kot.id} className="failed-kot-item">
               <span className="col-kot">
                 <strong>{kot.kotNumber}</strong>
@@ -147,19 +170,23 @@ const FailedKOTManagement = () => {
                 {kot.errorMessage?.length > 50 ? '...' : ''}
               </span>
               <span className="col-retry">
-                <span className={`retry-badge ${getRetryStatusColor(kot.retryCount)}`}>
+                <span
+                  className={`retry-badge ${getRetryStatusColor(kot.retryCount)}`}
+                >
                   {kot.retryCount}/3
                 </span>
               </span>
-              <span className="col-time">
-                {formatTimestamp(kot.createdAt)}
-              </span>
+              <span className="col-time">{formatTimestamp(kot.createdAt)}</span>
               <span className="col-actions">
                 <button
                   className="btn-retry"
                   onClick={() => handleRetry(kot.id)}
                   disabled={retrying[kot.id] || kot.retryCount >= 3}
-                  title={kot.retryCount >= 3 ? 'Maximum retries reached' : 'Retry printing'}
+                  title={
+                    kot.retryCount >= 3
+                      ? 'Maximum retries reached'
+                      : 'Retry printing'
+                  }
                 >
                   {retrying[kot.id] ? (
                     <>
@@ -188,7 +215,8 @@ const FailedKOTManagement = () => {
         <div className="footer-info">
           <AlertCircle size={16} />
           <span>
-            {failedKOTs.length} failed KOT{failedKOTs.length !== 1 ? 's' : ''} pending retry
+            {failedKOTs.length} failed KOT{failedKOTs.length !== 1 ? 's' : ''}{' '}
+            pending retry
           </span>
         </div>
       )}
