@@ -292,7 +292,68 @@ export default function TableSelectionScreen({
   // ─── Header ─────────────────────────────────────────────────────────────────
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => {}} style={styles.menuButton}>
+      <TouchableOpacity onPress={() => {
+        Alert.alert(
+          'Sync Options',
+          'Choose what to sync from server',
+          [
+            { 
+              text: 'Sync Tables', 
+              onPress: async () => {
+                try {
+                  Alert.alert('Syncing...', 'Fetching tables from server');
+                  const { db } = require('../services/firebase');
+                  const snapshot = await db.collection('tables').get();
+                  const tables = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                  const { upsert } = require('../services/databaseHelpers');
+                  for (const table of tables || []) {
+                    await upsert('tables', {
+                      id: table.id,
+                      name: table.name,
+                      section_id: table.sectionId || table.section_id,
+                      capacity: table.capacity || 4,
+                      status: table.status || 'available',
+                      current_bill_amount: table.currentBillAmount || table.current_bill_amount || 0
+                    });
+                  }
+                  Alert.alert('Success', `Synced ${tables?.length || 0} tables`);
+                  // Refresh tables
+                  loadTables();
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to sync tables: ' + error.message);
+                }
+              }
+            },
+            { 
+              text: 'Sync Menu', 
+              onPress: async () => {
+                try {
+                  Alert.alert('Syncing...', 'Fetching menu from server');
+                  const { db } = require('../services/firebase');
+                  const snapshot = await db.collection('menuItems').get();
+                  const menuItems = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                  const { upsert } = require('../services/databaseHelpers');
+                  for (const item of menuItems || []) {
+                    await upsert('menu_items', {
+                      id: item.id,
+                      name: item.name,
+                      price: item.price || 0,
+                      category_id: item.categoryId || item.category_id,
+                      item_category: item.itemCategory || item.item_category || 'food',
+                      is_out_of_stock: item.isOutOfStock ? 1 : 0,
+                      is_bar_item: item.isBarItem ? 1 : 0
+                    });
+                  }
+                  Alert.alert('Success', `Synced ${menuItems?.length || 0} menu items`);
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to sync menu: ' + error.message);
+                }
+              }
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      }} style={styles.menuButton}>
         <Text style={styles.menuIcon}>☰</Text>
       </TouchableOpacity>
       <Text style={styles.headerTitle}>Tables</Text>
