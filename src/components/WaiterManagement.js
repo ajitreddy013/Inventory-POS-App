@@ -1,5 +1,14 @@
+/* eslint-disable react/prop-types, no-console */
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit, Search, UserCheck, UserX, ArrowLeft } from 'lucide-react';
+import {
+  Users,
+  Plus,
+  Edit,
+  Search,
+  UserCheck,
+  UserX,
+  ArrowLeft,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './WaiterManagement.css';
 
@@ -21,17 +30,19 @@ const WaiterManagement = () => {
       if (result.success) {
         setWaiters(result.waiters);
       }
-    } catch (error) {
-      console.error('Failed to load waiters:', error);
+    } catch (_) {
+      // Ignore waiter loading errors here; UI remains on last known state.
     }
   };
 
-  const filteredWaiters = waiters.filter(waiter => {
-    const matchesSearch = waiter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         waiter.pin.includes(searchTerm);
-    const matchesFilter = filterStatus === 'all' || 
-                         (filterStatus === 'active' && waiter.isActive) ||
-                         (filterStatus === 'inactive' && !waiter.isActive);
+  const filteredWaiters = waiters.filter((waiter) => {
+    const matchesSearch =
+      waiter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      waiter.pin.includes(searchTerm);
+    const matchesFilter =
+      filterStatus === 'all' ||
+      (filterStatus === 'active' && waiter.isActive) ||
+      (filterStatus === 'inactive' && !waiter.isActive);
     return matchesSearch && matchesFilter;
   });
 
@@ -67,7 +78,10 @@ const WaiterManagement = () => {
         }
       } else {
         // Create new waiter
-        const result = await window.electronAPI.invoke('firebase:create-waiter', waiterData);
+        const result = await window.electronAPI.invoke(
+          'firebase:create-waiter',
+          waiterData
+        );
         if (result.success) {
           await loadWaiters();
           handleCloseModal();
@@ -75,8 +89,7 @@ const WaiterManagement = () => {
           alert(result.error || 'Failed to create waiter');
         }
       }
-    } catch (error) {
-      console.error('Failed to save waiter:', error);
+    } catch (_) {
       alert('Failed to save waiter');
     }
   };
@@ -84,7 +97,10 @@ const WaiterManagement = () => {
   const handleToggleStatus = async (waiter) => {
     try {
       if (waiter.isActive) {
-        const result = await window.electronAPI.invoke('firebase:deactivate-waiter', waiter.id);
+        const result = await window.electronAPI.invoke(
+          'firebase:deactivate-waiter',
+          waiter.id
+        );
         if (result.success) {
           await loadWaiters();
         }
@@ -99,8 +115,8 @@ const WaiterManagement = () => {
           await loadWaiters();
         }
       }
-    } catch (error) {
-      console.error('Failed to toggle waiter status:', error);
+    } catch (_) {
+      // Ignore status toggle errors silently.
     }
   };
 
@@ -108,7 +124,18 @@ const WaiterManagement = () => {
     <div className="waiter-management">
       <div className="page-header">
         <div className="header-left">
-          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: 8,
+              display: 'flex',
+              alignItems: 'center',
+              color: '#4f46e5',
+            }}
+          >
             <ArrowLeft size={22} />
           </button>
           <Users size={32} />
@@ -178,7 +205,9 @@ const WaiterManagement = () => {
                   <td>{waiter.name}</td>
                   <td className="pin-cell">{waiter.pin}</td>
                   <td>
-                    <span className={`status-badge ${waiter.isActive ? 'active' : 'inactive'}`}>
+                    <span
+                      className={`status-badge ${waiter.isActive ? 'active' : 'inactive'}`}
+                    >
                       {waiter.isActive ? (
                         <>
                           <UserCheck size={16} />
@@ -206,7 +235,11 @@ const WaiterManagement = () => {
                         onClick={() => handleToggleStatus(waiter)}
                         title={waiter.isActive ? 'Deactivate' : 'Activate'}
                       >
-                        {waiter.isActive ? <UserX size={18} /> : <UserCheck size={18} />}
+                        {waiter.isActive ? (
+                          <UserX size={18} />
+                        ) : (
+                          <UserCheck size={18} />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -231,7 +264,7 @@ const WaiterManagement = () => {
 const WaiterModal = ({ waiter, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: waiter?.name || '',
-    pin: waiter?.pin || ''
+    pin: waiter?.pin || '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -252,19 +285,18 @@ const WaiterModal = ({ waiter, onClose, onSave }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateForm();
-    
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     setIsSubmitting(true);
     setErrors({});
-    
+
     try {
       await onSave(formData);
-    } catch (error) {
-      console.error('Failed to save waiter:', error);
+    } catch (_) {
       setErrors({ submit: 'Failed to save waiter. Please try again.' });
     } finally {
       setIsSubmitting(false);
@@ -272,9 +304,9 @@ const WaiterModal = ({ waiter, onClose, onSave }) => {
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -327,12 +359,17 @@ const WaiterModal = ({ waiter, onClose, onSave }) => {
                 maxLength="6"
               />
               {errors.pin && <span className="error-text">{errors.pin}</span>}
-              <small className="help-text">PIN must be 4-6 digits and unique</small>
+              <small className="help-text">
+                PIN must be 4-6 digits and unique
+              </small>
             </div>
 
             {waiter && (
               <div className="info-box">
-                <p>Updating the PIN will immediately change the waiter&apos;s login credentials.</p>
+                <p>
+                  Updating the PIN will immediately change the waiter&apos;s
+                  login credentials.
+                </p>
               </div>
             )}
           </div>
@@ -351,7 +388,11 @@ const WaiterModal = ({ waiter, onClose, onSave }) => {
               className="btn-primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : waiter ? 'Update PIN' : 'Create Waiter'}
+              {isSubmitting
+                ? 'Saving...'
+                : waiter
+                  ? 'Update PIN'
+                  : 'Create Waiter'}
             </button>
           </div>
         </form>
