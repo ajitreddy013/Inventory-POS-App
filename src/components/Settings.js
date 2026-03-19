@@ -1,21 +1,48 @@
+/* eslint-disable no-console */
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Printer, Store, Save, Edit, Mail, Send, TestTube, RotateCcw, AlertTriangle, Archive, Info, HelpCircle, Plus, Trash2, Layers, Users, UserCheck, UtensilsCrossed, Package, ShoppingCart, AlertOctagon } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Printer,
+  Store,
+  Save,
+  Edit,
+  Mail,
+  Send,
+  TestTube,
+  RotateCcw,
+  AlertTriangle,
+  Archive,
+  Info,
+  HelpCircle,
+  Plus,
+  Trash2,
+  Layers,
+  Users,
+  UserCheck,
+  UtensilsCrossed,
+  Package,
+  ShoppingCart,
+  AlertOctagon,
+} from 'lucide-react';
 
 const Settings = () => {
-  const [printerStatus, setPrinterStatus] = useState({ connected: false, device: 'Not connected' });
+  const [printerStatus, setPrinterStatus] = useState({
+    connected: false,
+    device: 'Not connected',
+  });
   const [printerConfig, setPrinterConfig] = useState({
     type: 'usb',
     networkHost: '192.168.1.100',
     networkPort: 9100,
     serialPath: '/dev/ttyUSB0',
-    serialBaudRate: 9600
+    serialBaudRate: 9600,
   });
   const [barSettings, setBarSettings] = useState({
     bar_name: '',
     contact_number: '',
     gst_number: '',
     address: '',
-    thank_you_message: ''
+    thank_you_message: '',
   });
   const [emailSettings, setEmailSettings] = useState({
     host: '',
@@ -24,9 +51,9 @@ const Settings = () => {
     auth: { user: '', pass: '' },
     from: '',
     to: '',
-    enabled: false
+    enabled: false,
   });
-  
+
   // Section Management State
   const [sections, setSections] = useState([]);
   const [tables, setTables] = useState([]);
@@ -34,7 +61,7 @@ const Settings = () => {
   const [newTableName, setNewTableName] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState(null);
   const [sectionLoading, setSectionLoading] = useState(false);
-  
+
   const [isEditingBarInfo, setIsEditingBarInfo] = useState(false);
   const [isEditingEmailInfo, setIsEditingEmailInfo] = useState(false);
   const [isEditingPrinterConfig, setIsEditingPrinterConfig] = useState(false);
@@ -97,7 +124,11 @@ const Settings = () => {
   };
 
   const handleDeleteSection = async (sectionId) => {
-    if (!confirm('Are you sure you want to delete this section? Tables in this section will become unassigned.')) {
+    if (
+      !confirm(
+        'Are you sure you want to delete this section? Tables in this section will become unassigned.'
+      )
+    ) {
       return;
     }
     try {
@@ -125,26 +156,31 @@ const Settings = () => {
     }
     try {
       setSectionLoading(true);
-      console.log('Adding table:', newTableName.trim(), 'to section:', selectedSectionId);
-      
+      console.log(
+        'Adding table:',
+        newTableName.trim(),
+        'to section:',
+        selectedSectionId
+      );
+
       await window.electronAPI.addTable({
         name: newTableName.trim(),
         capacity: 4,
         section_id: selectedSectionId,
         area: '',
-        status: 'available'
+        status: 'available',
       });
-      
+
       setNewTableName('');
       await loadTables();
-      
+
       // Try to sync but don't fail if it doesn't work
       try {
         await syncToFirebase();
       } catch (syncErr) {
         console.warn('Sync failed but table was added:', syncErr);
       }
-      
+
       alert('Table added successfully!');
     } catch (error) {
       console.error('Error adding table:', error);
@@ -173,7 +209,7 @@ const Settings = () => {
   };
 
   const getTablesForSection = (sectionId) => {
-    return tables.filter(t => t.section_id === sectionId);
+    return tables.filter((t) => t.section_id === sectionId);
   };
 
   // Sync sections and tables to Firebase
@@ -182,13 +218,13 @@ const Settings = () => {
       // Get all sections and tables from local database
       const allSections = await window.electronAPI.getSections();
       const allTables = await window.electronAPI.getTables();
-      
+
       // Call Firebase sync handler
       const result = await window.electronAPI.syncSectionsTables({
         sections: allSections,
-        tables: allTables
+        tables: allTables,
       });
-      
+
       if (result.success) {
         console.log('Synced to Firebase:', result.message);
       } else {
@@ -360,34 +396,34 @@ const Settings = () => {
   };
 
   const handleBarSettingsChange = (field, value) => {
-    setBarSettings(prev => ({
+    setBarSettings((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handleEmailSettingsChange = (field, value) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
-      setEmailSettings(prev => ({
+      setEmailSettings((prev) => ({
         ...prev,
         [parent]: {
           ...prev[parent],
-          [child]: value
-        }
+          [child]: value,
+        },
       }));
     } else {
-      setEmailSettings(prev => ({
+      setEmailSettings((prev) => ({
         ...prev,
-        [field]: value
+        [field]: value,
       }));
     }
   };
 
   const handlePrinterConfigChange = (field, value) => {
-    setPrinterConfig(prev => ({
+    setPrinterConfig((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -406,7 +442,7 @@ const Settings = () => {
     try {
       setResetLoading(true);
       const result = await window.electronAPI.resetApplication();
-      
+
       if (result.success) {
         // Reset email settings in UI to default values
         setEmailSettings({
@@ -416,30 +452,35 @@ const Settings = () => {
           auth: { user: '', pass: '' },
           from: '',
           to: '',
-          enabled: false
+          enabled: false,
         });
-        
+
         // Force reload email settings from file (which should now be deleted)
         try {
-          const freshEmailSettings = await window.electronAPI.getEmailSettings();
+          const freshEmailSettings =
+            await window.electronAPI.getEmailSettings();
           setEmailSettings(freshEmailSettings);
         } catch (error) {
-          console.log('Email settings file successfully deleted - using defaults');
+          console.log(
+            'Email settings file successfully deleted - using defaults'
+          );
         }
-        
+
         // Reset bar settings to default values
         setBarSettings({
           bar_name: '',
           contact_number: '',
           gst_number: '',
           address: '',
-          thank_you_message: ''
+          thank_you_message: '',
         });
-        
-        alert('Application reset completed successfully!\n\nAll data has been cleared and sample data has been restored.\n\nPlease restart the application for best results.');
+
+        alert(
+          'Application reset completed successfully!\n\nAll data has been cleared and sample data has been restored.\n\nPlease restart the application for best results.'
+        );
         setShowResetConfirm(false);
         setResetConfirmText('');
-        
+
         // Reload the page to reflect changes
         window.location.reload();
       } else {
@@ -464,7 +505,7 @@ const Settings = () => {
     try {
       setCloseSellLoading(true);
       const result = await window.electronAPI.closeSellAndGenerateReports();
-      
+
       if (result.success) {
         const message = `Close Sell completed successfully!\n\n📁 Reports ZIP: ${result.zipPath}\n\n💾 Database Backup: ${result.databaseBackupPath || 'Failed to create'}\n\n📊 Reports Backup: ${result.reportsBackupPath || 'Failed to create'}\n\n📧 Email sent to owner: ${result.emailSent ? 'Yes' : 'No'}\n\n✅ All data has been safely backed up to your local machine!`;
         alert(message);
@@ -481,14 +522,62 @@ const Settings = () => {
 
   // Menu items for the grid
   const menuItems = [
-    { name: 'Waiters', path: '/waiters', icon: Users, color: '#3498db', desc: 'Manage waiter accounts' },
-    { name: 'Managers', path: '/managers', icon: UserCheck, color: '#9b59b6', desc: 'Manage manager accounts' },
-    { name: 'Menu', path: '/menu', icon: UtensilsCrossed, color: '#e67e22', desc: 'Menu items & pricing' },
-    { name: 'Godown Stock', path: '/inventory', icon: Package, color: '#16a085', desc: 'Godown inventory levels' },
-    { name: 'Counter Stock', path: '/counter-stock', icon: ShoppingCart, color: '#8e44ad', desc: 'Counter stock levels' },
-    { name: 'Failed KOT', path: '/failed-kots', icon: AlertOctagon, color: '#e74c3c', desc: 'View failed KOT entries' },
-    { name: 'Printer', path: '/settings', icon: Printer, color: '#2c3e50', desc: 'Printer configuration' },
-    { name: 'Email', path: '/settings', icon: Mail, color: '#27ae60', desc: 'Email report settings' },
+    {
+      name: 'Waiters',
+      path: '/waiters',
+      icon: Users,
+      color: '#3498db',
+      desc: 'Manage waiter accounts',
+    },
+    {
+      name: 'Managers',
+      path: '/managers',
+      icon: UserCheck,
+      color: '#9b59b6',
+      desc: 'Manage manager accounts',
+    },
+    {
+      name: 'Menu',
+      path: '/menu',
+      icon: UtensilsCrossed,
+      color: '#e67e22',
+      desc: 'Menu items & pricing',
+    },
+    {
+      name: 'Godown Stock',
+      path: '/inventory',
+      icon: Package,
+      color: '#16a085',
+      desc: 'Godown inventory levels',
+    },
+    {
+      name: 'Counter Stock',
+      path: '/counter-stock',
+      icon: ShoppingCart,
+      color: '#8e44ad',
+      desc: 'Counter stock levels',
+    },
+    {
+      name: 'Failed KOT',
+      path: '/failed-kots',
+      icon: AlertOctagon,
+      color: '#e74c3c',
+      desc: 'View failed KOT entries',
+    },
+    {
+      name: 'Printer',
+      path: '/settings',
+      icon: Printer,
+      color: '#2c3e50',
+      desc: 'Printer configuration',
+    },
+    {
+      name: 'Email',
+      path: '/settings',
+      icon: Mail,
+      color: '#27ae60',
+      desc: 'Email report settings',
+    },
   ];
 
   const handleMenuClick = (path) => {
@@ -498,11 +587,12 @@ const Settings = () => {
   return (
     <div className="settings">
       <div className="page-header">
-        <h1><SettingsIcon size={24} /> Settings</h1>
+        <h1>
+          <SettingsIcon size={24} /> Settings
+        </h1>
       </div>
 
       <div style={{ padding: '20px 30px' }}>
-        
         {/* Quick Access Grid */}
         <div style={{ marginBottom: '30px' }}>
           <div className="summary-cards">
@@ -513,9 +603,15 @@ const Settings = () => {
                   key={item.name}
                   className="summary-card"
                   onClick={() => handleMenuClick(item.path)}
-                  style={{ cursor: 'pointer', borderTop: `4px solid ${item.color}` }}
+                  style={{
+                    cursor: 'pointer',
+                    borderTop: `4px solid ${item.color}`,
+                  }}
                 >
-                  <div className="card-icon" style={{ background: item.color + '18', color: item.color }}>
+                  <div
+                    className="card-icon"
+                    style={{ background: item.color + '18', color: item.color }}
+                  >
                     <IconComponent size={24} />
                   </div>
                   <div className="card-content">
@@ -530,18 +626,20 @@ const Settings = () => {
 
         {/* Bar Information Section */}
         <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px',
+              borderBottom: '1px solid #e9ecef',
+            }}
+          >
             <h2 style={{ margin: 0 }}>
               <Store size={20} style={{ marginRight: '10px' }} />
               Bar Information
             </h2>
-            <button 
+            <button
               onClick={() => setIsEditingBarInfo(!isEditingBarInfo)}
               className="btn btn-secondary"
             >
@@ -549,7 +647,7 @@ const Settings = () => {
               {isEditingBarInfo ? 'Cancel' : 'Edit'}
             </button>
           </div>
-          
+
           <div style={{ padding: '20px' }}>
             {isEditingBarInfo ? (
               <div className="bar-settings-form">
@@ -559,7 +657,9 @@ const Settings = () => {
                     <input
                       type="text"
                       value={barSettings.bar_name}
-                      onChange={(e) => handleBarSettingsChange('bar_name', e.target.value)}
+                      onChange={(e) =>
+                        handleBarSettingsChange('bar_name', e.target.value)
+                      }
                       className="form-input"
                       placeholder="Enter bar name"
                     />
@@ -569,7 +669,12 @@ const Settings = () => {
                     <input
                       type="text"
                       value={barSettings.contact_number}
-                      onChange={(e) => handleBarSettingsChange('contact_number', e.target.value)}
+                      onChange={(e) =>
+                        handleBarSettingsChange(
+                          'contact_number',
+                          e.target.value
+                        )
+                      }
                       className="form-input"
                       placeholder="Enter contact number"
                     />
@@ -581,7 +686,9 @@ const Settings = () => {
                     <input
                       type="text"
                       value={barSettings.gst_number}
-                      onChange={(e) => handleBarSettingsChange('gst_number', e.target.value)}
+                      onChange={(e) =>
+                        handleBarSettingsChange('gst_number', e.target.value)
+                      }
                       className="form-input"
                       placeholder="Enter GST number"
                     />
@@ -592,7 +699,9 @@ const Settings = () => {
                     Address:
                     <textarea
                       value={barSettings.address}
-                      onChange={(e) => handleBarSettingsChange('address', e.target.value)}
+                      onChange={(e) =>
+                        handleBarSettingsChange('address', e.target.value)
+                      }
                       className="form-input"
                       placeholder="Enter complete address"
                       rows="3"
@@ -605,14 +714,19 @@ const Settings = () => {
                     <input
                       type="text"
                       value={barSettings.thank_you_message}
-                      onChange={(e) => handleBarSettingsChange('thank_you_message', e.target.value)}
+                      onChange={(e) =>
+                        handleBarSettingsChange(
+                          'thank_you_message',
+                          e.target.value
+                        )
+                      }
                       className="form-input"
                       placeholder="Enter thank you message for bills"
                     />
                   </label>
                 </div>
                 <div className="form-actions">
-                  <button 
+                  <button
                     onClick={saveBarSettings}
                     disabled={loading}
                     className="btn btn-primary"
@@ -624,7 +738,13 @@ const Settings = () => {
               </div>
             ) : (
               <div className="bar-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '20px',
+                  }}
+                >
                   <div>
                     <h4>Bar Name</h4>
                     <p>{barSettings.bar_name || 'Not set'}</p>
@@ -635,9 +755,14 @@ const Settings = () => {
                   </div>
                   <div>
                     <h4>Address</h4>
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{barSettings.address || 'Not set'}</p>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>
+                      {barSettings.address || 'Not set'}
+                    </p>
                     <h4>Thank You Message</h4>
-                    <p>{barSettings.thank_you_message || 'Thank you for visiting!'}</p>
+                    <p>
+                      {barSettings.thank_you_message ||
+                        'Thank you for visiting!'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -646,29 +771,39 @@ const Settings = () => {
         </div>
 
         {/* Section & Table Management */}
-        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #3498db' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef',
-            background: '#ebf5fb'
-          }}>
+        <div
+          className="table-container"
+          style={{ marginBottom: '30px', border: '2px solid #3498db' }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px',
+              borderBottom: '1px solid #e9ecef',
+              background: '#ebf5fb',
+            }}
+          >
             <h2 style={{ margin: 0, color: '#2c3e50' }}>
               <Layers size={20} style={{ marginRight: '10px' }} />
               Section & Table Management
             </h2>
             <span style={{ color: '#7f8c8d', fontSize: '0.9rem' }}>
-              Create sections (AC, Garden) and add tables to sync with mobile app
+              Create sections (AC, Garden) and add tables to sync with mobile
+              app
             </span>
           </div>
 
           <div style={{ padding: '20px' }}>
             {/* Add New Section */}
             <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ marginBottom: '10px', color: '#2c3e50' }}>Create New Section</h3>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <h3 style={{ marginBottom: '10px', color: '#2c3e50' }}>
+                Create New Section
+              </h3>
+              <div
+                style={{ display: 'flex', gap: '10px', alignItems: 'center' }}
+              >
                 <input
                   type="text"
                   placeholder="Section name (e.g., AC, Garden, Terrace)"
@@ -680,7 +815,7 @@ const Settings = () => {
                     padding: '10px',
                     borderRadius: '6px',
                     border: '1px solid #ddd',
-                    fontSize: '1rem'
+                    fontSize: '1rem',
                   }}
                 />
                 <button
@@ -697,56 +832,96 @@ const Settings = () => {
 
             {/* Existing Sections */}
             <div>
-              <h3 style={{ marginBottom: '15px', color: '#2c3e50' }}>Your Sections</h3>
+              <h3 style={{ marginBottom: '15px', color: '#2c3e50' }}>
+                Your Sections
+              </h3>
               {sections.length === 0 ? (
-                <div style={{ 
-                  padding: '30px', 
-                  textAlign: 'center', 
-                  background: '#f8f9fa',
-                  borderRadius: '8px',
-                  color: '#7f8c8d'
-                }}>
-                  <Layers size={40} style={{ marginBottom: '10px', opacity: 0.5 }} />
+                <div
+                  style={{
+                    padding: '30px',
+                    textAlign: 'center',
+                    background: '#f8f9fa',
+                    borderRadius: '8px',
+                    color: '#7f8c8d',
+                  }}
+                >
+                  <Layers
+                    size={40}
+                    style={{ marginBottom: '10px', opacity: 0.5 }}
+                  />
                   <p>No sections yet. Create your first section above!</p>
-                  <p style={{ fontSize: '0.9rem' }}>Examples: AC Hall, Garden, Terrace, Bar Area</p>
+                  <p style={{ fontSize: '0.9rem' }}>
+                    Examples: AC Hall, Garden, Terrace, Bar Area
+                  </p>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: '8px' }}>
-                  {sections.map(section => (
-                    <div 
-                      key={section.id} 
-                      style={{ 
-                        border: selectedSectionId === section.id ? '2px solid #3498db' : '1px solid #e0e0e0',
+                  {sections.map((section) => (
+                    <div
+                      key={section.id}
+                      style={{
+                        border:
+                          selectedSectionId === section.id
+                            ? '2px solid #3498db'
+                            : '1px solid #e0e0e0',
                         borderRadius: '8px',
                         overflow: 'hidden',
-                        background: selectedSectionId === section.id ? '#f0f8ff' : '#fff'
+                        background:
+                          selectedSectionId === section.id ? '#f0f8ff' : '#fff',
                       }}
                     >
                       {/* Section Header - Compact */}
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        padding: '8px 12px',
-                        background: '#f8f9fa',
-                        borderBottom: selectedSectionId === section.id ? '1px solid #e0e0e0' : 'none'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '8px 12px',
+                          background: '#f8f9fa',
+                          borderBottom:
+                            selectedSectionId === section.id
+                              ? '1px solid #e0e0e0'
+                              : 'none',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
                           <button
-                            onClick={() => setSelectedSectionId(selectedSectionId === section.id ? null : section.id)}
+                            onClick={() =>
+                              setSelectedSectionId(
+                                selectedSectionId === section.id
+                                  ? null
+                                  : section.id
+                              )
+                            }
                             className="btn btn-secondary"
                             style={{ padding: '3px 8px', fontSize: '0.75rem' }}
                           >
                             {selectedSectionId === section.id ? '▼' : '▶'}
                           </button>
-                          <h4 style={{ margin: 0, color: '#2c3e50', fontSize: '0.95rem' }}>{section.name}</h4>
-                          <span style={{ 
-                            background: '#e0e0e0', 
-                            padding: '1px 6px', 
-                            borderRadius: '8px',
-                            fontSize: '0.7rem',
-                            color: '#666'
-                          }}>
+                          <h4
+                            style={{
+                              margin: 0,
+                              color: '#2c3e50',
+                              fontSize: '0.95rem',
+                            }}
+                          >
+                            {section.name}
+                          </h4>
+                          <span
+                            style={{
+                              background: '#e0e0e0',
+                              padding: '1px 6px',
+                              borderRadius: '8px',
+                              fontSize: '0.7rem',
+                              color: '#666',
+                            }}
+                          >
                             {getTablesForSection(section.id).length}
                           </span>
                         </div>
@@ -763,41 +938,54 @@ const Settings = () => {
                       {selectedSectionId === section.id && (
                         <div style={{ padding: '15px' }}>
                           {/* Add Table Form */}
-                          <div style={{ 
-                            display: 'flex', 
-                            gap: '8px', 
-                            marginBottom: '8px',
-                            padding: '8px',
-                            background: '#f8f9fa',
-                            borderRadius: '6px'
-                          }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              marginBottom: '8px',
+                              padding: '8px',
+                              background: '#f8f9fa',
+                              borderRadius: '6px',
+                            }}
+                          >
                             <input
                               type="text"
                               placeholder="Table name"
                               value={newTableName}
                               onChange={(e) => setNewTableName(e.target.value)}
-                              onKeyPress={(e) => e.key === 'Enter' && handleAddTable()}
+                              onKeyPress={(e) =>
+                                e.key === 'Enter' && handleAddTable()
+                              }
                               style={{
                                 flex: 1,
                                 padding: '6px',
                                 borderRadius: '4px',
                                 border: '1px solid #ddd',
-                                fontSize: '0.85rem'
+                                fontSize: '0.85rem',
                               }}
                             />
                             <button
                               onClick={handleAddTable}
                               disabled={sectionLoading}
                               className="btn btn-primary"
-                              style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.85rem',
+                              }}
                             >
                               <Plus size={12} /> Add
                             </button>
                           </div>
 
                           {/* Table List */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            {getTablesForSection(section.id).map(table => (
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: '6px',
+                            }}
+                          >
+                            {getTablesForSection(section.id).map((table) => (
                               <div
                                 key={table.id}
                                 style={{
@@ -807,10 +995,16 @@ const Settings = () => {
                                   padding: '4px 8px',
                                   background: '#fff',
                                   border: '1px solid #ddd',
-                                  borderRadius: '4px'
+                                  borderRadius: '4px',
                                 }}
                               >
-                                <span style={{ fontWeight: '600', color: '#2c3e50', fontSize: '0.85rem' }}>
+                                <span
+                                  style={{
+                                    fontWeight: '600',
+                                    color: '#2c3e50',
+                                    fontSize: '0.85rem',
+                                  }}
+                                >
                                   {table.name}
                                 </span>
                                 <button
@@ -820,7 +1014,7 @@ const Settings = () => {
                                     border: 'none',
                                     color: '#e74c3c',
                                     cursor: 'pointer',
-                                    padding: '0'
+                                    padding: '0',
                                   }}
                                 >
                                   <Trash2 size={12} />
@@ -828,7 +1022,12 @@ const Settings = () => {
                               </div>
                             ))}
                             {getTablesForSection(section.id).length === 0 && (
-                              <p style={{ color: '#7f8c8d', fontStyle: 'italic' }}>
+                              <p
+                                style={{
+                                  color: '#7f8c8d',
+                                  fontStyle: 'italic',
+                                }}
+                              >
                                 No tables in this section. Add one above!
                               </p>
                             )}
@@ -845,18 +1044,20 @@ const Settings = () => {
 
         {/* Email Settings Section */}
         <div className="table-container" style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e9ecef'
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px',
+              borderBottom: '1px solid #e9ecef',
+            }}
+          >
             <h2 style={{ margin: 0 }}>
               <Mail size={20} style={{ marginRight: '10px' }} />
               Email Settings
             </h2>
-            <button 
+            <button
               onClick={() => setIsEditingEmailInfo(!isEditingEmailInfo)}
               className="btn btn-secondary"
             >
@@ -864,7 +1065,7 @@ const Settings = () => {
               {isEditingEmailInfo ? 'Cancel' : 'Edit'}
             </button>
           </div>
-          
+
           <div style={{ padding: '20px' }}>
             {isEditingEmailInfo ? (
               <div className="email-settings-form">
@@ -874,12 +1075,14 @@ const Settings = () => {
                     <input
                       type="checkbox"
                       checked={emailSettings.enabled}
-                      onChange={(e) => handleEmailSettingsChange('enabled', e.target.checked)}
+                      onChange={(e) =>
+                        handleEmailSettingsChange('enabled', e.target.checked)
+                      }
                       style={{ marginLeft: '10px' }}
                     />
                   </label>
                 </div>
-                
+
                 {emailSettings.enabled && (
                   <>
                     <div className="form-row">
@@ -888,7 +1091,9 @@ const Settings = () => {
                         <input
                           type="text"
                           value={emailSettings.host}
-                          onChange={(e) => handleEmailSettingsChange('host', e.target.value)}
+                          onChange={(e) =>
+                            handleEmailSettingsChange('host', e.target.value)
+                          }
                           className="form-input"
                           placeholder="smtp.gmail.com"
                         />
@@ -898,7 +1103,12 @@ const Settings = () => {
                         <input
                           type="number"
                           value={emailSettings.port}
-                          onChange={(e) => handleEmailSettingsChange('port', parseInt(e.target.value))}
+                          onChange={(e) =>
+                            handleEmailSettingsChange(
+                              'port',
+                              parseInt(e.target.value)
+                            )
+                          }
                           className="form-input"
                           placeholder="587"
                         />
@@ -910,7 +1120,12 @@ const Settings = () => {
                         <input
                           type="email"
                           value={emailSettings.auth.user}
-                          onChange={(e) => handleEmailSettingsChange('auth.user', e.target.value)}
+                          onChange={(e) =>
+                            handleEmailSettingsChange(
+                              'auth.user',
+                              e.target.value
+                            )
+                          }
                           className="form-input"
                           placeholder="your.email@gmail.com"
                         />
@@ -920,7 +1135,12 @@ const Settings = () => {
                         <input
                           type="password"
                           value={emailSettings.auth.pass}
-                          onChange={(e) => handleEmailSettingsChange('auth.pass', e.target.value)}
+                          onChange={(e) =>
+                            handleEmailSettingsChange(
+                              'auth.pass',
+                              e.target.value
+                            )
+                          }
                           className="form-input"
                           placeholder="App-specific password"
                         />
@@ -932,7 +1152,9 @@ const Settings = () => {
                         <input
                           type="email"
                           value={emailSettings.from}
-                          onChange={(e) => handleEmailSettingsChange('from', e.target.value)}
+                          onChange={(e) =>
+                            handleEmailSettingsChange('from', e.target.value)
+                          }
                           className="form-input"
                           placeholder="sender@example.com"
                         />
@@ -942,7 +1164,9 @@ const Settings = () => {
                         <input
                           type="email"
                           value={emailSettings.to}
-                          onChange={(e) => handleEmailSettingsChange('to', e.target.value)}
+                          onChange={(e) =>
+                            handleEmailSettingsChange('to', e.target.value)
+                          }
                           className="form-input"
                           placeholder="owner@example.com"
                         />
@@ -954,16 +1178,21 @@ const Settings = () => {
                         <input
                           type="checkbox"
                           checked={emailSettings.secure}
-                          onChange={(e) => handleEmailSettingsChange('secure', e.target.checked)}
+                          onChange={(e) =>
+                            handleEmailSettingsChange(
+                              'secure',
+                              e.target.checked
+                            )
+                          }
                           style={{ marginLeft: '10px' }}
                         />
                       </label>
                     </div>
                   </>
                 )}
-                
+
                 <div className="form-actions">
-                  <button 
+                  <button
                     onClick={saveEmailSettings}
                     disabled={emailLoading}
                     className="btn btn-primary"
@@ -971,10 +1200,10 @@ const Settings = () => {
                     <Save size={16} />
                     {emailLoading ? 'Saving...' : 'Save Settings'}
                   </button>
-                  
+
                   {emailSettings.enabled && (
                     <>
-                      <button 
+                      <button
                         onClick={testEmailConnection}
                         disabled={emailLoading}
                         className="btn btn-secondary"
@@ -983,8 +1212,8 @@ const Settings = () => {
                         <TestTube size={16} />
                         Test Connection
                       </button>
-                      
-                      <button 
+
+                      <button
                         onClick={sendTestEmail}
                         disabled={emailLoading}
                         className="btn btn-secondary"
@@ -999,7 +1228,13 @@ const Settings = () => {
               </div>
             ) : (
               <div className="email-settings-display">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '20px',
+                  }}
+                >
                   <div>
                     <h4>Email Reports</h4>
                     <p>{emailSettings.enabled ? '✓ Enabled' : '✗ Disabled'}</p>
@@ -1021,9 +1256,9 @@ const Settings = () => {
                         <p>{emailSettings.port || 587}</p>
                         <h4>Security</h4>
                         <p>{emailSettings.secure ? 'SSL/TLS' : 'STARTTLS'}</p>
-                        
+
                         <div style={{ marginTop: '20px' }}>
-                          <button 
+                          <button
                             onClick={sendDailyEmailNow}
                             disabled={emailLoading}
                             className="btn btn-primary"
@@ -1036,16 +1271,19 @@ const Settings = () => {
                     )}
                   </div>
                 </div>
-                
+
                 {emailSettings.enabled && (
-                  <div style={{ 
-                    background: '#e8f5e8', 
-                    border: '1px solid #4caf50', 
-                    borderRadius: '6px', 
-                    padding: '15px', 
-                    marginTop: '20px' 
-                  }}>
-                    <strong>Daily Reports Schedule:</strong> Reports are automatically sent every day at 11:59 PM.
+                  <div
+                    style={{
+                      background: '#e8f5e8',
+                      border: '1px solid #4caf50',
+                      borderRadius: '6px',
+                      padding: '15px',
+                      marginTop: '20px',
+                    }}
+                  >
+                    <strong>Daily Reports Schedule:</strong> Reports are
+                    automatically sent every day at 11:59 PM.
                   </div>
                 )}
               </div>
@@ -1054,37 +1292,63 @@ const Settings = () => {
         </div>
 
         {/* Close Sell Section */}
-        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #27ae60' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #27ae60',
-            backgroundColor: '#f0f8f0'
-          }}>
+        <div
+          className="table-container"
+          style={{ marginBottom: '30px', border: '2px solid #27ae60' }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px',
+              borderBottom: '1px solid #27ae60',
+              backgroundColor: '#f0f8f0',
+            }}
+          >
             <h2 style={{ margin: 0, color: '#27ae60' }}>
               <Archive size={20} style={{ marginRight: '10px' }} />
               Close Sell
             </h2>
           </div>
-          
+
           <div style={{ padding: '20px' }}>
-            <div style={{ 
-              background: '#e8f5e8', 
-              border: '1px solid #27ae60', 
-              borderRadius: '6px', 
-              padding: '15px', 
-              marginBottom: '20px' 
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <Archive size={16} style={{ marginRight: '8px', color: '#27ae60' }} />
-                <strong style={{ color: '#27ae60' }}>Close Sell Operation</strong>
+            <div
+              style={{
+                background: '#e8f5e8',
+                border: '1px solid #27ae60',
+                borderRadius: '6px',
+                padding: '15px',
+                marginBottom: '20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                }}
+              >
+                <Archive
+                  size={16}
+                  style={{ marginRight: '8px', color: '#27ae60' }}
+                />
+                <strong style={{ color: '#27ae60' }}>
+                  Close Sell Operation
+                </strong>
               </div>
               <p style={{ margin: '0', color: '#27ae60', fontSize: '0.9rem' }}>
-                This operation will generate all PDF reports, create database backups, and compress them into a ZIP file for easy access.
+                This operation will generate all PDF reports, create database
+                backups, and compress them into a ZIP file for easy access.
               </p>
-              <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#27ae60', fontSize: '0.9rem' }}>
+              <ul
+                style={{
+                  margin: '10px 0 0 0',
+                  paddingLeft: '20px',
+                  color: '#27ae60',
+                  fontSize: '0.9rem',
+                }}
+              >
                 <li>🗄️ Create complete database backup</li>
                 <li>📊 Generate daily comprehensive report</li>
                 <li>💰 Generate sales report</li>
@@ -1097,8 +1361,8 @@ const Settings = () => {
                 <li>🗃️ Preserve all historical data permanently</li>
               </ul>
             </div>
-            
-            <button 
+
+            <button
               onClick={handleCloseSell}
               disabled={closeSellLoading}
               className="btn"
@@ -1114,7 +1378,7 @@ const Settings = () => {
                 alignItems: 'center',
                 gap: '8px',
                 fontSize: '16px',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
               }}
             >
               <Archive size={16} />
@@ -1124,50 +1388,82 @@ const Settings = () => {
         </div>
 
         {/* Reset Application Section */}
-        <div className="table-container" style={{ marginBottom: '30px', border: '2px solid #e74c3c' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '20px',
-            borderBottom: '1px solid #e74c3c',
-            backgroundColor: '#fdf2f2'
-          }}>
+        <div
+          className="table-container"
+          style={{ marginBottom: '30px', border: '2px solid #e74c3c' }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px',
+              borderBottom: '1px solid #e74c3c',
+              backgroundColor: '#fdf2f2',
+            }}
+          >
             <h2 style={{ margin: 0, color: '#e74c3c' }}>
               <AlertTriangle size={20} style={{ marginRight: '10px' }} />
               Reset Application
             </h2>
           </div>
-          
+
           <div style={{ padding: '20px' }}>
-            <div style={{ 
-              background: '#fff3cd', 
-              border: '1px solid #ffeaa7', 
-              borderRadius: '6px', 
-              padding: '15px', 
-              marginBottom: '20px' 
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <AlertTriangle size={16} style={{ marginRight: '8px', color: '#856404' }} />
-                <strong style={{ color: '#856404' }}>Warning: This action cannot be undone!</strong>
+            <div
+              style={{
+                background: '#fff3cd',
+                border: '1px solid #ffeaa7',
+                borderRadius: '6px',
+                padding: '15px',
+                marginBottom: '20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                }}
+              >
+                <AlertTriangle
+                  size={16}
+                  style={{ marginRight: '8px', color: '#856404' }}
+                />
+                <strong style={{ color: '#856404' }}>
+                  Warning: This action cannot be undone!
+                </strong>
               </div>
               <p style={{ margin: '0', color: '#856404', fontSize: '0.9rem' }}>
-                Resetting the application will permanently delete all data including:
+                Resetting the application will permanently delete all data
+                including:
               </p>
-              <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px', color: '#856404', fontSize: '0.9rem' }}>
+              <ul
+                style={{
+                  margin: '10px 0 0 0',
+                  paddingLeft: '20px',
+                  color: '#856404',
+                  fontSize: '0.9rem',
+                }}
+              >
                 <li>All products and inventory</li>
                 <li>All sales records and transactions</li>
                 <li>All pending bills and table orders</li>
                 <li>All spendings and counter balance records</li>
                 <li>All settings and configurations</li>
               </ul>
-              <p style={{ margin: '10px 0 0 0', color: '#856404', fontSize: '0.9rem' }}>
+              <p
+                style={{
+                  margin: '10px 0 0 0',
+                  color: '#856404',
+                  fontSize: '0.9rem',
+                }}
+              >
                 Sample data will be restored after reset.
               </p>
             </div>
-            
+
             {!showResetConfirm ? (
-              <button 
+              <button
                 onClick={handleResetApplication}
                 disabled={resetLoading}
                 className="btn"
@@ -1181,27 +1477,49 @@ const Settings = () => {
                   opacity: resetLoading ? 0.6 : 1,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
                 }}
               >
                 <RotateCcw size={16} />
                 {resetLoading ? 'Resetting...' : 'Reset Application'}
               </button>
             ) : (
-              <div style={{ 
-                background: '#f8d7da', 
-                border: '1px solid #f5c6cb', 
-                borderRadius: '6px', 
-                padding: '15px'
-              }}>
-                <p style={{ margin: '0 0 15px 0', color: '#721c24', fontWeight: 'bold' }}>
+              <div
+                style={{
+                  background: '#f8d7da',
+                  border: '1px solid #f5c6cb',
+                  borderRadius: '6px',
+                  padding: '15px',
+                }}
+              >
+                <p
+                  style={{
+                    margin: '0 0 15px 0',
+                    color: '#721c24',
+                    fontWeight: 'bold',
+                  }}
+                >
                   Are you absolutely sure you want to reset the application?
                 </p>
-                <p style={{ margin: '0 0 15px 0', color: '#721c24', fontSize: '0.9rem' }}>
-                  This will permanently delete all your data and cannot be undone.
+                <p
+                  style={{
+                    margin: '0 0 15px 0',
+                    color: '#721c24',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  This will permanently delete all your data and cannot be
+                  undone.
                 </p>
                 <div style={{ marginBottom: '15px' }}>
-                  <p style={{ margin: '0 0 10px 0', color: '#721c24', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                  <p
+                    style={{
+                      margin: '0 0 10px 0',
+                      color: '#721c24',
+                      fontSize: '0.9rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
                     To confirm, please type &quot;reset app&quot; below:
                   </p>
                   <input
@@ -1217,15 +1535,18 @@ const Settings = () => {
                       borderRadius: '4px',
                       fontSize: '0.9rem',
                       backgroundColor: resetLoading ? '#f8f9fa' : 'white',
-                      color: '#721c24'
+                      color: '#721c24',
                     }}
                     autoComplete="off"
                   />
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button 
+                  <button
                     onClick={handleResetApplication}
-                    disabled={resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app'}
+                    disabled={
+                      resetLoading ||
+                      resetConfirmText.trim().toLowerCase() !== 'reset app'
+                    }
                     className="btn"
                     style={{
                       backgroundColor: '#dc3545',
@@ -1233,17 +1554,25 @@ const Settings = () => {
                       border: 'none',
                       padding: '10px 16px',
                       borderRadius: '4px',
-                      cursor: (resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app') ? 'not-allowed' : 'pointer',
-                      opacity: (resetLoading || resetConfirmText.trim().toLowerCase() !== 'reset app') ? 0.6 : 1,
+                      cursor:
+                        resetLoading ||
+                        resetConfirmText.trim().toLowerCase() !== 'reset app'
+                          ? 'not-allowed'
+                          : 'pointer',
+                      opacity:
+                        resetLoading ||
+                        resetConfirmText.trim().toLowerCase() !== 'reset app'
+                          ? 0.6
+                          : 1,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px'
+                      gap: '6px',
                     }}
                   >
                     <RotateCcw size={14} />
                     {resetLoading ? 'Resetting...' : 'Yes, Reset Everything'}
                   </button>
-                  <button 
+                  <button
                     onClick={cancelReset}
                     disabled={resetLoading}
                     className="btn"
@@ -1254,7 +1583,7 @@ const Settings = () => {
                       padding: '10px 16px',
                       borderRadius: '4px',
                       cursor: resetLoading ? 'not-allowed' : 'pointer',
-                      opacity: resetLoading ? 0.6 : 1
+                      opacity: resetLoading ? 0.6 : 1,
                     }}
                   >
                     Cancel
@@ -1267,19 +1596,32 @@ const Settings = () => {
 
         <div className="summary-cards">
           <div className="summary-card">
-            <h3><Printer size={20} style={{ marginRight: '10px' }} />Printer Status</h3>
-            <div className="value" style={{ 
-              fontSize: '1rem', 
-              color: printerStatus.connected ? '#27ae60' : '#e74c3c',
-              textAlign: 'center',
-              margin: '10px 0'
-            }}>
+            <h3>
+              <Printer size={20} style={{ marginRight: '10px' }} />
+              Printer Status
+            </h3>
+            <div
+              className="value"
+              style={{
+                fontSize: '1rem',
+                color: printerStatus.connected ? '#27ae60' : '#e74c3c',
+                textAlign: 'center',
+                margin: '10px 0',
+              }}
+            >
               {printerStatus.connected ? 'Connected' : 'Disconnected'}
             </div>
-            <p style={{ margin: '10px 0 0 0', fontSize: '0.9rem', color: '#7f8c8d', textAlign: 'center' }}>
+            <p
+              style={{
+                margin: '10px 0 0 0',
+                fontSize: '0.9rem',
+                color: '#7f8c8d',
+                textAlign: 'center',
+              }}
+            >
               Device: {printerStatus.device}
             </p>
-            <button 
+            <button
               onClick={checkPrinterStatus}
               className="btn btn-primary"
               style={{ marginTop: '15px', alignSelf: 'center' }}
@@ -1289,88 +1631,137 @@ const Settings = () => {
           </div>
 
           <div className="summary-card printer-config-card">
-            <h3 className="printer-config-title"><Printer size={20} />Printer Configuration</h3>
+            <h3 className="printer-config-title">
+              <Printer size={20} />
+              Printer Configuration
+            </h3>
             <div className="printer-config-content">
               <div className="config-status">
                 <span className="status-label">Status:</span>
-                <span className={`status-value ${printerStatus.connected ? 'connected' : 'disconnected'}`}>
+                <span
+                  className={`status-value ${printerStatus.connected ? 'connected' : 'disconnected'}`}
+                >
                   {printerStatus.connected ? 'Connected' : 'Disconnected'}
                 </span>
                 <span className="device-name">({printerStatus.device})</span>
               </div>
               <div className="config-type">
                 <span className="type-label">Type:</span>
-                <span className="type-value">{printerConfig.type.toUpperCase()}</span>
+                <span className="type-value">
+                  {printerConfig.type.toUpperCase()}
+                </span>
               </div>
               {isEditingPrinterConfig ? (
                 <>
                   <label>
                     Printer Type:
-                    <select value={printerConfig.type} onChange={(e) => handlePrinterConfigChange('type', e.target.value)}>
+                    <select
+                      value={printerConfig.type}
+                      onChange={(e) =>
+                        handlePrinterConfigChange('type', e.target.value)
+                      }
+                    >
                       <option value="usb">USB</option>
                       <option value="network">Network</option>
                       <option value="serial">Serial</option>
                     </select>
                   </label>
                   {printerConfig.type === 'network' && (
-                  <>
-                    <label>
-                      Network Host:
-                      <input
-                        type="text"
-                        value={printerConfig.networkHost}
-                        onChange={(e) => handlePrinterConfigChange('networkHost', e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Network Port:
-                      <input
-                        type="number"
-                        value={printerConfig.networkPort}
-                        onChange={(e) => handlePrinterConfigChange('networkPort', e.target.value)}
-                      />
-                    </label>
-                  </>
+                    <>
+                      <label>
+                        Network Host:
+                        <input
+                          type="text"
+                          value={printerConfig.networkHost}
+                          onChange={(e) =>
+                            handlePrinterConfigChange(
+                              'networkHost',
+                              e.target.value
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Network Port:
+                        <input
+                          type="number"
+                          value={printerConfig.networkPort}
+                          onChange={(e) =>
+                            handlePrinterConfigChange(
+                              'networkPort',
+                              e.target.value
+                            )
+                          }
+                        />
+                      </label>
+                    </>
                   )}
                   {printerConfig.type === 'serial' && (
-                  <>
-                    <label>
-                      Serial Path:
-                      <input
-                        type="text"
-                        value={printerConfig.serialPath}
-                        onChange={(e) => handlePrinterConfigChange('serialPath', e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Serial Baud Rate:
-                      <input
-                        type="number"
-                        value={printerConfig.serialBaudRate}
-                        onChange={(e) => handlePrinterConfigChange('serialBaudRate', e.target.value)}
-                      />
-                    </label>
-                  </>
+                    <>
+                      <label>
+                        Serial Path:
+                        <input
+                          type="text"
+                          value={printerConfig.serialPath}
+                          onChange={(e) =>
+                            handlePrinterConfigChange(
+                              'serialPath',
+                              e.target.value
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Serial Baud Rate:
+                        <input
+                          type="number"
+                          value={printerConfig.serialBaudRate}
+                          onChange={(e) =>
+                            handlePrinterConfigChange(
+                              'serialBaudRate',
+                              e.target.value
+                            )
+                          }
+                        />
+                      </label>
+                    </>
                   )}
                   <div className="printer-actions">
-                    <button className="btn btn-success config-save-btn" onClick={configurePrinter}>
+                    <button
+                      className="btn btn-success config-save-btn"
+                      onClick={configurePrinter}
+                    >
                       Save Configuration
                     </button>
-                    <button className="btn btn-secondary config-cancel-btn" onClick={() => setIsEditingPrinterConfig(false)}>
+                    <button
+                      className="btn btn-secondary config-cancel-btn"
+                      onClick={() => setIsEditingPrinterConfig(false)}
+                    >
                       Cancel
                     </button>
                   </div>
                 </>
               ) : (
-                <button className="btn btn-primary config-edit-btn" onClick={() => setIsEditingPrinterConfig(true)}>
+                <button
+                  className="btn btn-primary config-edit-btn"
+                  onClick={() => setIsEditingPrinterConfig(true)}
+                >
                   Edit Configuration
                 </button>
               )}
               <div className="printer-actions">
-                <button className="btn btn-info test-connection-btn" onClick={testPrinterConnection} disabled={printerLoading}>
+                <button
+                  className="btn btn-info test-connection-btn"
+                  onClick={testPrinterConnection}
+                  disabled={printerLoading}
+                >
                   {printerLoading ? 'Testing...' : 'Test Connection'}
                 </button>
-                <button className="btn btn-warning reconnect-btn" onClick={reconnectPrinter} disabled={printerLoading}>
+                <button
+                  className="btn btn-warning reconnect-btn"
+                  onClick={reconnectPrinter}
+                  disabled={printerLoading}
+                >
                   {printerLoading ? 'Reconnecting...' : 'Reconnect'}
                 </button>
               </div>
@@ -1378,33 +1769,77 @@ const Settings = () => {
           </div>
 
           <div className="summary-card">
-            <h3><Info size={20} style={{ marginRight: '10px' }} />Application Info</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Version:</strong> 
+            <h3>
+              <Info size={20} style={{ marginRight: '10px' }} />
+              Application Info
+            </h3>
+            <div
+              style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}
+            >
+              <p
+                style={{
+                  margin: '8px 0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <strong>Version:</strong>
                 <span>1.0.0</span>
               </p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Database:</strong> 
+              <p
+                style={{
+                  margin: '8px 0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <strong>Database:</strong>
                 <span>SQLite</span>
               </p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Platform:</strong> 
+              <p
+                style={{
+                  margin: '8px 0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <strong>Platform:</strong>
                 <span>Electron</span>
               </p>
             </div>
           </div>
 
           <div className="summary-card">
-            <h3><HelpCircle size={20} style={{ marginRight: '10px' }} />Support</h3>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}>
-              <p style={{ margin: '8px 0', fontWeight: '600', color: '#2c3e50' }}>For technical support:</p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Email:</strong> 
+            <h3>
+              <HelpCircle size={20} style={{ marginRight: '10px' }} />
+              Support
+            </h3>
+            <div
+              style={{ textAlign: 'left', fontSize: '0.9rem', width: '100%' }}
+            >
+              <p
+                style={{ margin: '8px 0', fontWeight: '600', color: '#2c3e50' }}
+              >
+                For technical support:
+              </p>
+              <p
+                style={{
+                  margin: '8px 0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <strong>Email:</strong>
                 <span>ajitreddy013@gmail.com</span>
               </p>
-              <p style={{ margin: '8px 0', display: 'flex', justifyContent: 'space-between' }}>
-                <strong>Phone:</strong> 
+              <p
+                style={{
+                  margin: '8px 0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <strong>Phone:</strong>
                 <span>+91 7517323121</span>
               </p>
             </div>
@@ -1412,7 +1847,13 @@ const Settings = () => {
         </div>
 
         <div className="table-container" style={{ marginTop: '30px' }}>
-          <h2 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #e9ecef' }}>
+          <h2
+            style={{
+              padding: '20px',
+              margin: 0,
+              borderBottom: '1px solid #e9ecef',
+            }}
+          >
             System Requirements
           </h2>
           <table>
@@ -1427,56 +1868,83 @@ const Settings = () => {
               <tr>
                 <td>Operating System</td>
                 <td>Windows 10 or later</td>
-                <td><span style={{ color: '#27ae60' }}>✓ Compatible</span></td>
+                <td>
+                  <span style={{ color: '#27ae60' }}>✓ Compatible</span>
+                </td>
               </tr>
               <tr>
                 <td>Thermal Printer</td>
                 <td>Epson TM-T82II or compatible</td>
                 <td>
-                  <span style={{ color: printerStatus.connected ? '#27ae60' : '#e74c3c' }}>
-                    {printerStatus.connected ? '✓ Connected' : '✗ Not Connected'}
+                  <span
+                    style={{
+                      color: printerStatus.connected ? '#27ae60' : '#e74c3c',
+                    }}
+                  >
+                    {printerStatus.connected
+                      ? '✓ Connected'
+                      : '✗ Not Connected'}
                   </span>
                 </td>
               </tr>
               <tr>
                 <td>Database</td>
                 <td>SQLite (included)</td>
-                <td><span style={{ color: '#27ae60' }}>✓ Active</span></td>
+                <td>
+                  <span style={{ color: '#27ae60' }}>✓ Active</span>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div className="table-container" style={{ marginTop: '30px' }}>
-          <h2 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #e9ecef' }}>
+          <h2
+            style={{
+              padding: '20px',
+              margin: 0,
+              borderBottom: '1px solid #e9ecef',
+            }}
+          >
             Printer Setup Guide
           </h2>
           <div style={{ padding: '20px' }}>
             <h3>For USB Connection:</h3>
             <ol style={{ marginLeft: '20px', lineHeight: '1.6' }}>
-              <li>Connect the Epson TM-T82II printer to your computer via USB cable</li>
-              <li>Install the printer drivers from Epson&apos;s official website</li>
+              <li>
+                Connect the Epson TM-T82II printer to your computer via USB
+                cable
+              </li>
+              <li>
+                Install the printer drivers from Epson&apos;s official website
+              </li>
               <li>Set the printer to ESC/POS mode</li>
               <li>Restart the application to detect the printer</li>
             </ol>
-            
+
             <h3 style={{ marginTop: '20px' }}>For Network Connection:</h3>
             <ol style={{ marginLeft: '20px', lineHeight: '1.6' }}>
               <li>Connect the printer to your network</li>
               <li>Note down the printer&apos;s IP address</li>
               <li>Configure the network settings in the printer service</li>
-              <li>Test the connection using the &quot;Check Status&quot; button above</li>
+              <li>
+                Test the connection using the &quot;Check Status&quot; button
+                above
+              </li>
             </ol>
 
-            <div style={{ 
-              background: '#fff3cd', 
-              border: '1px solid #ffeaa7', 
-              borderRadius: '6px', 
-              padding: '15px', 
-              marginTop: '20px' 
-            }}>
-              <strong>Note:</strong> The application will automatically search for compatible printers on common ports. 
-              If your printer is not detected, ensure it&apos;s properly connected and powered on.
+            <div
+              style={{
+                background: '#fff3cd',
+                border: '1px solid #ffeaa7',
+                borderRadius: '6px',
+                padding: '15px',
+                marginTop: '20px',
+              }}
+            >
+              <strong>Note:</strong> The application will automatically search
+              for compatible printers on common ports. If your printer is not
+              detected, ensure it&apos;s properly connected and powered on.
             </div>
           </div>
         </div>

@@ -1,5 +1,20 @@
+/* eslint-disable no-console */
+/* eslint-disable react/prop-types */
 import React, { useState, useEffect } from 'react';
-import { Shield, Plus, Edit, Search, UserCheck, UserX, Key, ArrowLeft } from 'lucide-react';
+import {
+  Shield,
+  Plus,
+  Edit,
+  Search,
+  UserCheck,
+  UserX,
+  Key,
+  ArrowLeft,
+  Trash2,
+  Lock,
+  X,
+  User
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './ManagerManagement.css';
 
@@ -16,8 +31,6 @@ const ManagerManagement = () => {
 
   useEffect(() => {
     loadManagers();
-    // In a real app, you'd get the current manager from auth context
-    // For now, we'll set it to null and let user select
   }, []);
 
   const loadManagers = async () => {
@@ -31,12 +44,15 @@ const ManagerManagement = () => {
     }
   };
 
-  const filteredManagers = managers.filter(manager => {
-    const matchesSearch = manager.name.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredManagers = managers.filter((manager) => {
+    const matchesSearch = manager.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === 'all' || manager.role === filterRole;
-    const matchesStatus = filterStatus === 'all' || 
-                         (filterStatus === 'active' && manager.isActive) ||
-                         (filterStatus === 'inactive' && !manager.isActive);
+    const matchesStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'active' && manager.isActive) ||
+      (filterStatus === 'inactive' && !manager.isActive);
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -58,7 +74,6 @@ const ManagerManagement = () => {
   const handleSaveManager = async (managerData) => {
     try {
       if (editingManager) {
-        // Update existing manager
         const result = await window.electronAPI.invoke(
           'firebase:update-manager',
           editingManager.id,
@@ -71,8 +86,10 @@ const ManagerManagement = () => {
           alert(result.error || 'Failed to update manager');
         }
       } else {
-        // Create new manager
-        const result = await window.electronAPI.invoke('firebase:create-manager', managerData);
+        const result = await window.electronAPI.invoke(
+          'firebase:create-manager',
+          managerData
+        );
         if (result.success) {
           await loadManagers();
           handleCloseModal();
@@ -106,168 +123,162 @@ const ManagerManagement = () => {
     setShowChangePinModal(true);
   };
 
+  const handleDeleteManager = async (manager) => {
+    const confirmed = window.confirm(
+      `Delete manager "${manager.name}" permanently?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = await window.electronAPI.invoke(
+        'firebase:delete-manager',
+        manager.id
+      );
+      if (result.success) {
+        await loadManagers();
+      } else {
+        alert(result.error || 'Failed to delete manager');
+      }
+    } catch (error) {
+      console.error('Failed to delete manager:', error);
+      alert('Failed to delete manager');
+    }
+  };
+
   const handleCloseChangePinModal = () => {
     setShowChangePinModal(false);
     setCurrentManager(null);
   };
 
-  const getRoleBadgeClass = (role) => {
-    switch (role) {
-      case 'owner':
-        return 'role-owner';
-      case 'manager':
-        return 'role-manager';
-      case 'supervisor':
-        return 'role-supervisor';
-      default:
-        return '';
-    }
+  const getInitials = (name) => {
+    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'M';
   };
 
   return (
     <div className="manager-management">
       <div className="page-header">
         <div className="header-left">
-          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
-            <ArrowLeft size={22} />
+          <button className="back-button" onClick={() => navigate('/settings')}>
+            <ArrowLeft size={20} />
           </button>
-          <Shield size={32} />
+          <div className="header-icon">
+            <Shield size={28} />
+          </div>
           <div>
             <h1>Manager Accounts</h1>
-            <p>Manage manager accounts with secure PIN authentication</p>
+            <p>Secure administrative access with PIN authentication</p>
           </div>
         </div>
         <button className="btn-primary" onClick={handleAddManager}>
           <Plus size={20} />
-          Add Manager
+          Add New Manager
         </button>
       </div>
 
-      <div className="filters-section">
-        <div className="search-box">
-          <Search size={20} />
+      <div className="controls-section">
+        <div className="search-container">
+          <Search size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="Search by name..."
+            placeholder="Search by name or PIN..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="filter-buttons">
+
+        <div className="filters-wrapper">
           <div className="filter-group">
-            <label>Role:</label>
-            <button
-              className={filterRole === 'all' ? 'active' : ''}
-              onClick={() => setFilterRole('all')}
-            >
-              All
-            </button>
-            <button
-              className={filterRole === 'owner' ? 'active' : ''}
-              onClick={() => setFilterRole('owner')}
-            >
-              Owner
-            </button>
-            <button
-              className={filterRole === 'manager' ? 'active' : ''}
-              onClick={() => setFilterRole('manager')}
-            >
-              Manager
-            </button>
-            <button
-              className={filterRole === 'supervisor' ? 'active' : ''}
-              onClick={() => setFilterRole('supervisor')}
-            >
-              Supervisor
-            </button>
-          </div>
-          <div className="filter-group">
-            <label>Status:</label>
-            <button
-              className={filterStatus === 'all' ? 'active' : ''}
-              onClick={() => setFilterStatus('all')}
-            >
-              All
-            </button>
-            <button
-              className={filterStatus === 'active' ? 'active' : ''}
-              onClick={() => setFilterStatus('active')}
-            >
-              Active
-            </button>
-            <button
-              className={filterStatus === 'inactive' ? 'active' : ''}
-              onClick={() => setFilterStatus('inactive')}
-            >
-              Inactive
-            </button>
+            <label>Status</label>
+            <div className="filter-segmented-control">
+              <button
+                className={filterStatus === 'all' ? 'active' : ''}
+                onClick={() => setFilterStatus('all')}
+              >
+                All
+              </button>
+              <button
+                className={filterStatus === 'active' ? 'active' : ''}
+                onClick={() => setFilterStatus('active')}
+              >
+                Active
+              </button>
+              <button
+                className={filterStatus === 'inactive' ? 'active' : ''}
+                onClick={() => setFilterStatus('inactive')}
+              >
+                Inactive
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="managers-table">
-        <table>
+      <div className="managers-table-container">
+        <table className="managers-table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Role</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th className="actions-cell">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredManagers.length === 0 ? (
               <tr>
                 <td colSpan="4" className="no-data">
-                  No managers found
+                  No manager accounts found
                 </td>
               </tr>
             ) : (
               filteredManagers.map((manager) => (
                 <tr key={manager.id}>
-                  <td>{manager.name}</td>
                   <td>
-                    <span className={`role-badge ${getRoleBadgeClass(manager.role)}`}>
-                      {manager.role.charAt(0).toUpperCase() + manager.role.slice(1)}
+                    <div className="manager-name-cell">
+                      <div className="manager-avatar">{getInitials(manager.name)}</div>
+                      {manager.name}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`role-badge role-${manager.role}`}>
+                      {manager.role}
                     </span>
                   </td>
                   <td>
-                    <span className={`status-badge ${manager.isActive ? 'active' : 'inactive'}`}>
-                      {manager.isActive ? (
-                        <>
-                          <UserCheck size={16} />
-                          Active
-                        </>
-                      ) : (
-                        <>
-                          <UserX size={16} />
-                          Inactive
-                        </>
-                      )}
+                    <span className={`status-pill ${manager.isActive ? 'active' : 'inactive'}`}>
+                      {manager.isActive ? <UserCheck size={14} /> : <UserX size={14} />}
+                      {manager.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td>
-                    <div className="action-buttons">
+                  <td className="actions-cell">
+                    <div className="actions-group">
                       <button
-                        className="btn-icon"
+                        className="icon-button"
                         onClick={() => handleEditManager(manager)}
-                        title="Edit Manager"
+                        title="Edit Details"
                       >
-                        <Edit size={18} />
+                        <Edit size={16} />
                       </button>
                       <button
-                        className="btn-icon btn-warning"
+                        className="icon-button pin"
                         onClick={() => handleChangeMyPin(manager)}
                         title="Change PIN"
                       >
-                        <Key size={18} />
+                        <Key size={16} />
                       </button>
                       <button
-                        className={`btn-icon ${manager.isActive ? 'btn-danger' : 'btn-success'}`}
+                        className={`icon-button ${manager.isActive ? 'toggle-off' : 'toggle-on'}`}
                         onClick={() => handleToggleStatus(manager)}
                         title={manager.isActive ? 'Deactivate' : 'Activate'}
                       >
-                        {manager.isActive ? <UserX size={18} /> : <UserCheck size={18} />}
+                        {manager.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
+                      </button>
+                      <button
+                        className="icon-button delete"
+                        onClick={() => handleDeleteManager(manager)}
+                        title="Delete Permanently"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -301,7 +312,7 @@ const ManagerModal = ({ manager, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: manager?.name || '',
     pin: '',
-    role: manager?.role || 'manager'
+    role: manager?.role || 'manager',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -325,15 +336,15 @@ const ManagerModal = ({ manager, onClose, onSave }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateForm();
-    
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     setIsSubmitting(true);
     setErrors({});
-    
+
     try {
       await onSave(formData);
     } catch (error) {
@@ -345,22 +356,22 @@ const ManagerModal = ({ manager, onClose, onSave }) => {
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal-content">
         <div className="modal-header">
           <h3>
-            <Shield size={24} />
-            {manager ? 'Edit Manager' : 'Add New Manager'}
+            <Shield size={20} />
+            {manager ? 'Edit Manager' : 'New Manager'}
           </h3>
-          <button onClick={onClose} className="close-btn" type="button">
-            ×
+          <button onClick={onClose} className="btn-close" type="button">
+            <X size={20} />
           </button>
         </div>
 
@@ -371,62 +382,56 @@ const ManagerModal = ({ manager, onClose, onSave }) => {
             )}
 
             <div className="form-group">
-              <label htmlFor="name">
-                Manager Name <span className="required">*</span>
-              </label>
+              <label htmlFor="name">Full Name</label>
               <input
                 id="name"
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                className={errors.name ? 'error' : ''}
-                placeholder="Enter manager name"
+                placeholder="Manager's full name"
+                autoFocus
               />
               {errors.name && <span className="error-text">{errors.name}</span>}
             </div>
 
             {!manager && (
               <div className="form-group">
-                <label htmlFor="pin">
-                  PIN <span className="required">*</span>
-                </label>
+                <label htmlFor="pin">Initial PIN (4-6 digits)</label>
                 <input
                   id="pin"
                   type="password"
                   value={formData.pin}
                   onChange={(e) => handleInputChange('pin', e.target.value)}
-                  className={errors.pin ? 'error' : ''}
-                  placeholder="Enter 4-6 digit PIN"
+                  placeholder="Enter secure PIN"
                   maxLength="6"
                 />
                 {errors.pin && <span className="error-text">{errors.pin}</span>}
-                <small className="help-text">PIN will be securely hashed with bcrypt</small>
+                <small className="help-text">
+                  This PIN will be hashed and used for secure access.
+                </small>
               </div>
             )}
 
             <div className="form-group">
-              <label htmlFor="role">
-                Role <span className="required">*</span>
-              </label>
+              <label htmlFor="role">Account Role</label>
               <select
                 id="role"
                 value={formData.role}
                 onChange={(e) => handleInputChange('role', e.target.value)}
-                className={errors.role ? 'error' : ''}
               >
-                <option value="owner">Owner</option>
-                <option value="manager">Manager</option>
-                <option value="supervisor">Supervisor</option>
+                <option value="owner">Owner (Full Access)</option>
+                <option value="manager">Manager (Operations)</option>
+                <option value="supervisor">Supervisor (Limited)</option>
               </select>
               {errors.role && <span className="error-text">{errors.role}</span>}
-              <small className="help-text">
-                Owner: Full access | Manager: Inventory & reports | Supervisor: Limited operations
-              </small>
             </div>
 
             {manager && (
               <div className="info-box">
-                <p>To change the PIN, use the &quot;Change PIN&quot; button in the actions menu.</p>
+                <Lock size={18} style={{ flexShrink: 0 }} />
+                <p>
+                  To change the secure PIN, please use the <strong>Change PIN</strong> button in the manager list actions.
+                </p>
               </div>
             )}
           </div>
@@ -445,7 +450,7 @@ const ManagerModal = ({ manager, onClose, onSave }) => {
               className="btn-primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : manager ? 'Update Manager' : 'Create Manager'}
+              {isSubmitting ? 'Saving...' : (manager ? 'Update Account' : 'Create Account')}
             </button>
           </div>
         </form>
@@ -458,7 +463,7 @@ const ChangePinModal = ({ manager, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     oldPin: '',
     newPin: '',
-    confirmPin: ''
+    confirmPin: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -477,7 +482,7 @@ const ChangePinModal = ({ manager, onClose, onSuccess }) => {
       newErrors.confirmPin = 'PINs do not match';
     }
     if (formData.oldPin === formData.newPin) {
-      newErrors.newPin = 'New PIN must be different from current PIN';
+      newErrors.newPin = 'New PIN must be different';
     }
     return newErrors;
   };
@@ -485,15 +490,15 @@ const ChangePinModal = ({ manager, onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateForm();
-    
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     setIsSubmitting(true);
     setErrors({});
-    
+
     try {
       const result = await window.electronAPI.invoke(
         'firebase:change-manager-pin',
@@ -501,98 +506,92 @@ const ChangePinModal = ({ manager, onClose, onSuccess }) => {
         formData.oldPin,
         formData.newPin
       );
-      
+
       if (result.success) {
         alert('PIN changed successfully!');
         onSuccess();
         onClose();
       } else {
-        setErrors({ submit: result.error || 'Failed to change PIN' });
+        setErrors({ submit: result.error || 'Current PIN is incorrect' });
       }
     } catch (error) {
       console.error('Failed to change PIN:', error);
-      setErrors({ submit: 'Failed to change PIN. Please try again.' });
+      setErrors({ submit: 'Service unavailable. Try again later.' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal-content">
         <div className="modal-header">
           <h3>
-            <Key size={24} />
-            Change PIN - {manager.name}
+            <Key size={20} />
+            Update PIN
           </h3>
-          <button onClick={onClose} className="close-btn" type="button">
-            ×
+          <button onClick={onClose} className="btn-close" type="button">
+            <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            <div className="manager-info" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="manager-avatar">{manager.name[0]}</div>
+              <span style={{ fontWeight: 700 }}>{manager.name}</span>
+            </div>
+
             {errors.submit && (
-              <div className="error-message">{errors.submit}</div>
+              <div className="error-message" style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+                {errors.submit}
+              </div>
             )}
 
             <div className="form-group">
-              <label htmlFor="oldPin">
-                Current PIN <span className="required">*</span>
-              </label>
+              <label htmlFor="oldPin">Current PIN</label>
               <input
                 id="oldPin"
                 type="password"
                 value={formData.oldPin}
                 onChange={(e) => handleInputChange('oldPin', e.target.value)}
-                className={errors.oldPin ? 'error' : ''}
-                placeholder="Enter current PIN"
+                placeholder="••••"
                 maxLength="6"
               />
               {errors.oldPin && <span className="error-text">{errors.oldPin}</span>}
             </div>
 
             <div className="form-group">
-              <label htmlFor="newPin">
-                New PIN <span className="required">*</span>
-              </label>
+              <label htmlFor="newPin">New Secure PIN</label>
               <input
                 id="newPin"
                 type="password"
                 value={formData.newPin}
                 onChange={(e) => handleInputChange('newPin', e.target.value)}
-                className={errors.newPin ? 'error' : ''}
-                placeholder="Enter new 4-6 digit PIN"
+                placeholder="••••"
                 maxLength="6"
               />
               {errors.newPin && <span className="error-text">{errors.newPin}</span>}
             </div>
 
             <div className="form-group">
-              <label htmlFor="confirmPin">
-                Confirm New PIN <span className="required">*</span>
-              </label>
+              <label htmlFor="confirmPin">Confirm New PIN</label>
               <input
                 id="confirmPin"
                 type="password"
                 value={formData.confirmPin}
                 onChange={(e) => handleInputChange('confirmPin', e.target.value)}
-                className={errors.confirmPin ? 'error' : ''}
-                placeholder="Re-enter new PIN"
+                placeholder="••••"
                 maxLength="6"
               />
               {errors.confirmPin && <span className="error-text">{errors.confirmPin}</span>}
-            </div>
-
-            <div className="info-box">
-              <p>Your PIN will be securely hashed and stored. Make sure to remember your new PIN.</p>
             </div>
           </div>
 
@@ -610,7 +609,7 @@ const ChangePinModal = ({ manager, onClose, onSuccess }) => {
               className="btn-primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Changing PIN...' : 'Change PIN'}
+              {isSubmitting ? 'Updating...' : 'Update PIN'}
             </button>
           </div>
         </form>

@@ -179,7 +179,10 @@ export default function OrderEntryScreen({
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   };
 
-  const deductCounterStockForKOT = async (items: OrderItem[]) => {
+  const deductCounterStockForKOT = async (
+    items: OrderItem[],
+    fallbackStockMap: Record<string, number>
+  ) => {
     const barQtyMap = new Map<string, number>();
 
     items.forEach((item) => {
@@ -207,13 +210,33 @@ export default function OrderEntryScreen({
       for (const [menuItemId, qty] of barQtyMap.entries()) {
         const invRef = doc(db, 'inventory', menuItemId);
         const invSnap = await tx.get(invRef);
-        const currentStock = Number(
-          invSnap.exists()
-            ? ((invSnap.data() as any).counterStock ??
-                (invSnap.data() as any).counter_stock ??
-                0)
-            : 0
+        const invData = invSnap.exists() ? (invSnap.data() as any) : null;
+        const hasExplicitCounter =
+          invData &&
+          ((invData.counterStock !== undefined &&
+            invData.counterStock !== null) ||
+            (invData.counter_stock !== undefined &&
+              invData.counter_stock !== null));
+
+        const explicitCounter = Number(
+          hasExplicitCounter
+            ? Math.max(
+                Number.isFinite(Number(invData.counterStock))
+                  ? Number(invData.counterStock)
+                  : 0,
+                Number.isFinite(Number(invData.counter_stock))
+                  ? Number(invData.counter_stock)
+                  : 0
+              )
+            : NaN
         );
+
+        const fallbackCounter = Number(fallbackStockMap[menuItemId] ?? 0);
+        const currentStock = Number.isFinite(explicitCounter)
+          ? explicitCounter
+          : Number.isFinite(fallbackCounter)
+            ? fallbackCounter
+            : 0;
 
         stockChecks.push({ menuItemId, qty, currentStock });
       }
@@ -369,6 +392,13 @@ export default function OrderEntryScreen({
     }
   };
 
+  const getModifierSignature = (modifiers: Modifier[]): string => {
+    return [...(modifiers || [])]
+      .map((m) => String(m.id || ''))
+      .sort()
+      .join('|');
+  };
+
   const handleAddItem = async () => {
     if (!selectedMenuItem) return;
 
@@ -416,13 +446,44 @@ export default function OrderEntryScreen({
       base_price: selectedMenuItem.price,
       total_price: totalPrice,
       sent_to_kitchen: false,
-      modifiers: selectedModifiers,
+      modifiers: [...selectedModifiers],
       category: selectedMenuItem.item_category,
       is_bar_item: selectedMenuItem.is_bar_item,
       isBarItem: selectedMenuItem.isBarItem,
     };
 
-    setOrderItems([...orderItems, newItem]);
+    const incomingModifierSignature = getModifierSignature(selectedModifiers);
+
+    setOrderItems((prevItems) => {
+      const existingIndex = prevItems.findIndex(
+        (item) =>
+          !item.sent_to_kitchen &&
+          item.menu_item_id === selectedMenuItem.id &&
+          getModifierSignature(item.modifiers || []) ===
+            incomingModifierSignature
+      );
+
+      if (existingIndex === -1) {
+        return [...prevItems, newItem];
+      }
+
+      return prevItems.map((item, idx) => {
+        if (idx !== existingIndex) return item;
+
+        const paidAddonPerUnit = (item.modifiers || [])
+          .filter((m) => m.type === 'paid_addon')
+          .reduce((sum, m) => sum + Number(m.price || 0), 0);
+        const unitTotal = Number(item.base_price || 0) + paidAddonPerUnit;
+        const nextQty = Number(item.quantity || 0) + 1;
+
+        return {
+          ...item,
+          quantity: nextQty,
+          total_price: unitTotal * nextQty,
+        };
+      });
+    });
+
     setShowModifierModal(false);
     setSelectedMenuItem(null);
     setSelectedModifiers([]);
@@ -582,8 +643,13 @@ export default function OrderEntryScreen({
         }
       }
 
-      // Deduct counter stock for bar items at KOT submit time.
-      await deductCounterStockForKOT(unsentItems);
+      // Refresh stock and pass resolved values as fallback for inventory docs
+      // that don't have explicit counterStock fields.
+      const freshStockMap = await loadCounterStock();
+      await deductCounterStockForKOT(
+        unsentItems,
+        freshStockMap || counterStockMap
+      );
       const kotNumber = await reserveGlobalKotNumber();
       const sentAt = Date.now();
 

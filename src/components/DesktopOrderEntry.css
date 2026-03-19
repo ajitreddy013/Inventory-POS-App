@@ -394,7 +394,7 @@
 .item-price {
   font-weight: 700;
   font-size: 1.125rem;
-  color: var(--primary);
+  color: #ef4444; /* Vibrant Red */
 }
 
 .item-tag {
@@ -405,6 +405,34 @@
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.food-type-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1.5px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.food-type-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.food-type-indicator.veg {
+  color: #22c55e;
+  border-color: #16a34a;
+}
+
+.food-type-indicator.non-veg {
+  color: #ef4444;
+  border-color: #dc2626;
 }
 
 /* Column 3: Billing Area (Glassmorphism) */
@@ -499,7 +527,7 @@
   border-radius: 50%;
   border: none;
   background: white;
-  color: var(--primary-color);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -536,7 +564,7 @@
 .price-total-main {
   font-size: 1.4rem;
   font-weight: 800;
-  color: var(--primary-color);
+  color: #ef4444; /* Vibrant Red */
   line-height: 1;
 }
 

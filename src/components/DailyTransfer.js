@@ -1,5 +1,14 @@
+/* eslint-disable no-console */
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowRight, Package, Search, Plus, Minus, CheckCircle, History } from 'lucide-react';
+import {
+  ArrowRight,
+  Package,
+  Search,
+  Plus,
+  Minus,
+  CheckCircle,
+  History,
+} from 'lucide-react';
 
 // Firestore timestamp parser (handles _seconds, seconds, .toDate(), ISO string)
 function parseTimestamp(val) {
@@ -14,13 +23,22 @@ function parseTimestamp(val) {
 function formatTime(val) {
   const d = parseTimestamp(val);
   if (!d) return '-';
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 function formatDateLabel(val) {
   const d = parseTimestamp(val);
   if (!d) return 'Unknown Date';
-  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function toDateKey(val) {
@@ -33,7 +51,8 @@ function groupByDate(records) {
   const map = {};
   for (const rec of records) {
     const key = toDateKey(rec.timestamp);
-    if (!map[key]) map[key] = { key, label: formatDateLabel(rec.timestamp), items: [] };
+    if (!map[key])
+      map[key] = { key, label: formatDateLabel(rec.timestamp), items: [] };
     map[key].items.push(rec);
   }
   for (const g of Object.values(map)) {
@@ -62,7 +81,7 @@ const DailyTransfer = () => {
       const res = await window.electronAPI.getMenuItemsWithStock();
       if (res.success) {
         // only show items that have godown stock > 0
-        setProducts(res.items.filter(i => i.godownStock > 0));
+        setProducts(res.items.filter((i) => i.godownStock > 0));
       }
     } catch (e) {
       console.error('Failed to load products:', e);
@@ -81,25 +100,29 @@ const DailyTransfer = () => {
     }
   }, []);
 
-  useEffect(() => { loadProducts(); }, [loadProducts]);
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
   useEffect(() => {
     if (activeTab === 'history') loadHistory();
   }, [activeTab, loadHistory]);
 
   const filteredProducts = products
-    .filter(p => godownSection === 'bar' ? p.isBarItem : !p.isBarItem)
-    .filter(p =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+    .filter((p) => (godownSection === 'bar' ? p.isBarItem : !p.isBarItem))
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
   const addToTransfers = (product) => {
-    setTransfers(prev => {
-      const existing = prev.find(t => t.id === product.id);
+    setTransfers((prev) => {
+      const existing = prev.find((t) => t.id === product.id);
       if (existing) {
-        return prev.map(t => t.id === product.id
-          ? { ...t, quantity: Math.min(t.quantity + 1, product.godownStock) }
-          : t
+        return prev.map((t) =>
+          t.id === product.id
+            ? { ...t, quantity: Math.min(t.quantity + 1, product.godownStock) }
+            : t
         );
       }
       return [...prev, { ...product, quantity: 1 }];
@@ -107,27 +130,36 @@ const DailyTransfer = () => {
   };
 
   const updateQty = (id, qty) => {
-    const product = products.find(p => p.id === id);
+    const product = products.find((p) => p.id === id);
     const max = product?.godownStock || 0;
-    setTransfers(prev => prev.map(t =>
-      t.id === id ? { ...t, quantity: Math.max(0, Math.min(qty, max)) } : t
-    ));
+    setTransfers((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, quantity: Math.max(0, Math.min(qty, max)) } : t
+      )
+    );
   };
 
-  const removeFromTransfers = (id) => setTransfers(prev => prev.filter(t => t.id !== id));
+  const removeFromTransfers = (id) =>
+    setTransfers((prev) => prev.filter((t) => t.id !== id));
 
   const totalQty = transfers.reduce((s, t) => s + t.quantity, 0);
 
   const executeTransfer = async () => {
-    if (transfers.length === 0) { alert('No items selected'); return; }
-    if (transfers.some(t => t.quantity <= 0)) { alert('Some items have 0 quantity'); return; }
+    if (transfers.length === 0) {
+      alert('No items selected');
+      return;
+    }
+    if (transfers.some((t) => t.quantity <= 0)) {
+      alert('Some items have 0 quantity');
+      return;
+    }
 
     setLoading(true);
     try {
-      const items = transfers.map(t => ({
+      const items = transfers.map((t) => ({
         menuItemId: t.id,
         menuItemName: t.name,
-        quantity: t.quantity
+        quantity: t.quantity,
       }));
       const res = await window.electronAPI.transferToCounter(items);
       if (!res.success) throw new Error(res.error);
@@ -142,7 +174,7 @@ const DailyTransfer = () => {
   };
 
   const filteredHistory = filterDate
-    ? transferHistory.filter(r => toDateKey(r.timestamp) === filterDate)
+    ? transferHistory.filter((r) => toDateKey(r.timestamp) === filterDate)
     : transferHistory;
 
   const groupedHistory = groupByDate(filteredHistory);
@@ -157,11 +189,24 @@ const DailyTransfer = () => {
   return (
     <div className="daily-transfer">
       <div className="page-header">
-        <h1><ArrowRight size={24} /> Daily Transfer (Godown → Counter)</h1>
+        <h1>
+          <ArrowRight size={24} /> Daily Transfer (Godown → Counter)
+        </h1>
         <div className="tab-navigation">
-          {[{ key: 'transfer', label: 'Transfer' }, { key: 'history', label: 'History' }].map(({ key, label }) => (
-            <button key={key} className="btn tab-btn" style={tabStyle(key)} onClick={() => setActiveTab(key)}>
-              {key === 'history' && <History size={15} style={{ marginRight: 4 }} />}{label}
+          {[
+            { key: 'transfer', label: 'Transfer' },
+            { key: 'history', label: 'History' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              className="btn tab-btn"
+              style={tabStyle(key)}
+              onClick={() => setActiveTab(key)}
+            >
+              {key === 'history' && (
+                <History size={15} style={{ marginRight: 4 }} />
+              )}
+              {label}
             </button>
           ))}
         </div>
@@ -178,15 +223,25 @@ const DailyTransfer = () => {
                   type="text"
                   placeholder="Search products..."
                   value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="search-input"
                 />
               </div>
             </div>
             <div className="products-list">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
                 <h3 style={{ margin: 0 }}>Available in Godown</h3>
-                {[{ key: 'bar', label: 'Bar' }, { key: 'restaurant', label: 'Restaurant' }].map(({ key, label }) => (
+                {[
+                  { key: 'bar', label: 'Bar' },
+                  { key: 'restaurant', label: 'Restaurant' },
+                ].map(({ key, label }) => (
                   <button
                     key={key}
                     className="btn btn-sm"
@@ -198,7 +253,7 @@ const DailyTransfer = () => {
                       fontWeight: godownSection === key ? 700 : 400,
                       padding: '4px 12px',
                       borderRadius: 6,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
                     }}
                   >
                     {label}
@@ -208,13 +263,16 @@ const DailyTransfer = () => {
               {filteredProducts.length === 0 ? (
                 <p className="no-products">No items with godown stock</p>
               ) : (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-                  gap: '1rem',
-                  marginTop: 8
-                }}>
-                  {filteredProducts.map(product => (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(160px, 1fr))',
+                    gap: '1rem',
+                    marginTop: 8,
+                  }}
+                >
+                  {filteredProducts.map((product) => (
                     <div
                       key={product.id}
                       onClick={() => addToTransfers(product)}
@@ -232,33 +290,46 @@ const DailyTransfer = () => {
                         gap: 6,
                         transition: 'transform 0.15s, box-shadow 0.15s',
                       }}
-                      onMouseEnter={e => {
+                      onMouseEnter={(e) => {
                         e.currentTarget.style.transform = 'translateY(-3px)';
-                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+                        e.currentTarget.style.boxShadow =
+                          '0 6px 16px rgba(0,0,0,0.12)';
                         e.currentTarget.style.borderColor = '#4f46e5';
                       }}
-                      onMouseLeave={e => {
+                      onMouseLeave={(e) => {
                         e.currentTarget.style.transform = '';
-                        e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)';
+                        e.currentTarget.style.boxShadow =
+                          '0 1px 4px rgba(0,0,0,0.06)';
                         e.currentTarget.style.borderColor = '#e2e8f0';
                       }}
                     >
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b', lineHeight: 1.3 }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 15,
+                          color: '#1e293b',
+                          lineHeight: 1.3,
+                        }}
+                      >
                         {product.name}
                       </div>
                       {product.subCategory && (
-                        <div style={{ fontSize: 12, color: '#64748b' }}>{product.subCategory}</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                          {product.subCategory}
+                        </div>
                       )}
-                      <div style={{
-                        marginTop: 6,
-                        background: '#f0f4ff',
-                        color: '#4f46e5',
-                        fontWeight: 800,
-                        fontSize: 22,
-                        borderRadius: 8,
-                        padding: '4px 16px',
-                        minWidth: 48
-                      }}>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          background: '#f0f4ff',
+                          color: '#4f46e5',
+                          fontWeight: 800,
+                          fontSize: 22,
+                          borderRadius: 8,
+                          padding: '4px 16px',
+                          minWidth: 48,
+                        }}
+                      >
                         {product.godownStock}
                       </div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}></div>
@@ -282,14 +353,19 @@ const DailyTransfer = () => {
                   <small>Click products on the left to add</small>
                 </div>
               ) : (
-                transfers.map(transfer => (
+                transfers.map((transfer) => (
                   <div key={transfer.id} className="transfer-item">
                     <div className="item-info">
                       <h4>{transfer.name}</h4>
                       <p>Available: {transfer.godownStock}</p>
                     </div>
                     <div className="quantity-controls">
-                      <button className="qty-btn" onClick={() => updateQty(transfer.id, transfer.quantity - 1)}>
+                      <button
+                        className="qty-btn"
+                        onClick={() =>
+                          updateQty(transfer.id, transfer.quantity - 1)
+                        }
+                      >
                         <Minus size={16} />
                       </button>
                       <input
@@ -298,16 +374,26 @@ const DailyTransfer = () => {
                         value={transfer.quantity || ''}
                         min="0"
                         max={transfer.godownStock}
-                        onChange={e => {
+                        onChange={(e) => {
                           const v = parseInt(e.target.value, 10);
                           updateQty(transfer.id, isNaN(v) ? 0 : v);
                         }}
                       />
-                      <button className="qty-btn" onClick={() => updateQty(transfer.id, transfer.quantity + 1)}>
+                      <button
+                        className="qty-btn"
+                        onClick={() =>
+                          updateQty(transfer.id, transfer.quantity + 1)
+                        }
+                      >
                         <Plus size={16} />
                       </button>
                     </div>
-                    <button className="remove-btn" onClick={() => removeFromTransfers(transfer.id)}>Remove</button>
+                    <button
+                      className="remove-btn"
+                      onClick={() => removeFromTransfers(transfer.id)}
+                    >
+                      Remove
+                    </button>
                   </div>
                 ))
               )}
@@ -317,8 +403,18 @@ const DailyTransfer = () => {
                 <div className="transfer-summary">
                   <p>Transferring {totalQty} items to counter</p>
                 </div>
-                <button className="btn btn-primary execute-transfer-btn" onClick={executeTransfer} disabled={loading}>
-                  {loading ? 'Transferring...' : <><CheckCircle size={20} /> Execute Transfer</>}
+                <button
+                  className="btn btn-primary execute-transfer-btn"
+                  onClick={executeTransfer}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    'Transferring...'
+                  ) : (
+                    <>
+                      <CheckCircle size={20} /> Execute Transfer
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -328,16 +424,37 @@ const DailyTransfer = () => {
 
       {activeTab === 'history' && (
         <div style={{ padding: '0 24px 24px' }}>
-          <div style={{ padding: '12px 0', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #eee', marginBottom: 8 }}>
-            <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Filter by date:</label>
+          <div
+            style={{
+              padding: '12px 0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              borderBottom: '1px solid #eee',
+              marginBottom: 8,
+            }}
+          >
+            <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Filter by date:
+            </label>
             <input
               type="date"
               value={filterDate}
-              onChange={e => setFilterDate(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 14 }}
+              onChange={(e) => setFilterDate(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid #ddd',
+                fontSize: 14,
+              }}
             />
             {filterDate && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setFilterDate('')}>Clear</button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setFilterDate('')}
+              >
+                Clear
+              </button>
             )}
           </div>
 
@@ -348,13 +465,20 @@ const DailyTransfer = () => {
               No transfer history {filterDate ? `for ${filterDate}` : 'yet'}
             </div>
           ) : (
-            groupedHistory.map(group => (
+            groupedHistory.map((group) => (
               <div key={group.key} style={{ marginTop: 24 }}>
-                <div style={{
-                  background: '#f0f4ff', border: '1px solid #d0d9f0',
-                  borderRadius: 8, padding: '8px 16px',
-                  fontWeight: 700, fontSize: 15, color: '#3a4a8a', marginBottom: 8
-                }}>
+                <div
+                  style={{
+                    background: '#f0f4ff',
+                    border: '1px solid #d0d9f0',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontWeight: 700,
+                    fontSize: 15,
+                    color: '#3a4a8a',
+                    marginBottom: 8,
+                  }}
+                >
                   {group.label}
                 </div>
                 <table className="inventory-table" style={{ marginBottom: 0 }}>
@@ -370,8 +494,12 @@ const DailyTransfer = () => {
                   <tbody>
                     {group.items.map((rec, i) => (
                       <tr key={rec.id || i}>
-                        <td style={{ whiteSpace: 'nowrap' }}>{formatTime(rec.timestamp)}</td>
-                        <td><strong>{rec.menuItemName}</strong></td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {formatTime(rec.timestamp)}
+                        </td>
+                        <td>
+                          <strong>{rec.menuItemName}</strong>
+                        </td>
                         <td>{rec.quantity}</td>
                         <td>Godown</td>
                         <td>Counter</td>
