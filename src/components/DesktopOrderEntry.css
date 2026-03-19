@@ -407,6 +407,34 @@
   text-transform: uppercase;
 }
 
+.food-type-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1.5px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.food-type-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.food-type-indicator.veg {
+  color: #22c55e;
+  border-color: #16a34a;
+}
+
+.food-type-indicator.non-veg {
+  color: #ef4444;
+  border-color: #dc2626;
+}
+
 /* Column 3: Billing Area (Glassmorphism) */
 .billing-panel {
   background: var(--glass-bg);
