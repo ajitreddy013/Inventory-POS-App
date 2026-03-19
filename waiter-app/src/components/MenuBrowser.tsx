@@ -40,6 +40,8 @@ interface MenuItem {
   isOutOfStock?: boolean;
   is_bar_item: number;
   isBarItem?: boolean;
+  foodType?: string;
+  food_type?: string;
   available_modifier_ids?: string;
 }
 
@@ -68,6 +70,44 @@ export default function MenuBrowser({
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(
     null
   );
+
+  const normalizeFoodType = (
+    value: unknown
+  ): 'veg' | 'non-veg' | 'none' | null => {
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim().toLowerCase().replace(/_/g, '-');
+
+    if (!normalized) return null;
+    if (normalized === 'veg' || normalized === 'vegetarian') return 'veg';
+    if (
+      normalized === 'non-veg' ||
+      normalized === 'nonveg' ||
+      normalized === 'non vegetarian' ||
+      normalized === 'non-vegetarian'
+    ) {
+      return 'non-veg';
+    }
+    if (normalized === 'none' || normalized === 'na' || normalized === 'n/a') {
+      return 'none';
+    }
+
+    return null;
+  };
+
+  const resolveFoodType = (
+    item: MenuItem
+  ): 'veg' | 'non-veg' | 'none' | null => {
+    const direct =
+      normalizeFoodType(item.foodType) || normalizeFoodType(item.food_type);
+    if (direct) return direct;
+
+    // Fallback for legacy rows where food type may be embedded in text fields.
+    const fromCategory =
+      normalizeFoodType(item.sub_category) || normalizeFoodType(item.category);
+    if (fromCategory) return fromCategory;
+
+    return null;
+  };
 
   useEffect(() => {
     loadCategories();
@@ -126,6 +166,8 @@ export default function MenuBrowser({
             ? 1
             : 0,
       isBarItem: raw.isBarItem,
+      foodType: raw.foodType ?? raw.food_type,
+      food_type: raw.food_type ?? raw.foodType,
       available_modifier_ids:
         raw.available_modifier_ids ??
         (Array.isArray(raw.availableModifiers)
@@ -352,7 +394,10 @@ export default function MenuBrowser({
 
   const renderMenuItem = (item: MenuItem, index: number) => {
     const isBarItem = item.is_bar_item === 1 || item.isBarItem === true;
-    const isVeg = item.item_category === 'food'; // Simplified - should check actual veg/non-veg flag
+    const foodType = resolveFoodType(item);
+    const showFoodTypeIndicator =
+      !isBarItem && (foodType === 'veg' || foodType === 'non-veg');
+    const isVeg = foodType === 'veg';
     const isOutOfStock = isItemOutOfStock(item);
     const isEndOfRow = (index + 1) % 3 === 0;
 
@@ -373,7 +418,7 @@ export default function MenuBrowser({
 
         <View style={styles.itemCardTopRow}>
           <Text style={styles.itemPrice}>₹{item.price}</Text>
-          {!isBarItem && (
+          {showFoodTypeIndicator && (
             <View
               style={[
                 styles.vegIndicator,
