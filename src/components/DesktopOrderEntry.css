@@ -394,7 +394,7 @@
 .item-price {
   font-weight: 700;
   font-size: 1.125rem;
-  color: var(--primary);
+  color: #ef4444; /* Vibrant Red */
 }
 
 .item-tag {
@@ -527,7 +527,7 @@
   border-radius: 50%;
   border: none;
   background: white;
-  color: var(--primary-color);
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -564,7 +564,7 @@
 .price-total-main {
   font-size: 1.4rem;
   font-weight: 800;
-  color: var(--primary-color);
+  color: #ef4444; /* Vibrant Red */
   line-height: 1;
 }
 
