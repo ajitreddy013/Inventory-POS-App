@@ -17,12 +17,12 @@ import {
   Animated,
   FlatList,
   ActivityIndicator,
-  Alert
+  Alert,
 } from 'react-native';
 import { getAll, query as dbQuery } from '../services/databaseHelpers';
 import OfflineIndicator from '../components/OfflineIndicator';
 import { useSyncStatus } from '../hooks/useSyncStatus';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 // Stitch-inspired fresh color palette
@@ -64,7 +64,11 @@ interface TableSelectionScreenProps {
   waiterName: string;
   onTableSelect: (tableId: string, tableName: string, orderId?: string) => void;
   onViewKOT: (tableId: string, tableName: string, orderId?: string) => void;
-  onTableOperation: (tableId: string, tableName: string, operation: 'merge' | 'split' | 'transfer') => void;
+  onTableOperation: (
+    tableId: string,
+    tableName: string,
+    operation: 'merge' | 'split' | 'transfer'
+  ) => void;
   onLogout: () => void;
 }
 
@@ -94,15 +98,24 @@ export default function TableSelectionScreen({
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Load sections once from SQLite (synced on startup)
     const initLoad = async () => {
-      await Promise.all([loadSections(), loadTables()]);
+      await loadSections();
       setIsLoading(false);
     };
     initLoad();
 
-    // Real-time Firestore listener for instant table updates
-    const unsubscribe = onSnapshot(collection(db, 'tables'), () => {
-      loadTables();
+    // Real-time listener for tables — use snapshot data directly, no extra getDocs call
+    const unsubscribe = onSnapshot(collection(db, 'tables'), (snapshot) => {
+      const tablesData: Table[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Table));
+      const tablesWithBills = tablesData.map(table => ({
+        ...table,
+        billAmount: (table as any).currentBillAmount || (table as any).current_bill_amount || 0,
+      }));
+      setTables(tablesWithBills.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     });
 
     const timeInterval = setInterval(() => setCurrentTime(Date.now()), 60000);
@@ -121,54 +134,22 @@ export default function TableSelectionScreen({
 
   const loadSections = async () => {
     try {
-      const snapshot = await getDocs(collection(db, 'sections'));
-      const data: Section[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().name || '',
-        ...doc.data()
-      }));
-      setSections(data.sort((a, b) => a.name.localeCompare(b.name)));
+      const data = await getAll<Section>('sections', 'name ASC');
+      setSections(data);
     } catch (error) {
-      console.error('Error loading sections:', error);
-      // Fallback to SQLite
-      try {
-        const data = await getAll<Section>('sections', 'name ASC');
-        setSections(data);
-      } catch {}
+      console.error('Error loading sections from SQLite:', error);
     }
   };
 
-  const loadTables = async () => {
-    try {
-      // Read directly from Firestore for real-time accuracy
-      const snapshot = await getDocs(collection(db, 'tables'));
-      const tablesData: Table[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Table));
-
-      const tablesWithBills = tablesData.map(table => {
-        const amount = (table as any).currentBillAmount || (table as any).current_bill_amount || 0;
-        return { ...table, billAmount: amount };
-      });
-
-      setTables(tablesWithBills.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
-    } catch (error) {
-      console.error('Error loading tables:', error);
-      // Fallback to SQLite
-      try {
-        const data = await getAll<Table>('tables', 'name ASC');
-        setTables(data);
-      } catch {}
-    }
-  };
 
   const getElapsedTime = (table: Table): string | null => {
-    const occupiedSince = (table as any).occupiedSince || (table as any).occupied_since;
+    const occupiedSince =
+      (table as any).occupiedSince || (table as any).occupied_since;
     if (!occupiedSince) return null;
-    const ts = typeof occupiedSince === 'object' && occupiedSince.seconds
-      ? occupiedSince.seconds * 1000
-      : Number(occupiedSince);
+    const ts =
+      typeof occupiedSince === 'object' && occupiedSince.seconds
+        ? occupiedSince.seconds * 1000
+        : Number(occupiedSince);
     const elapsed = Math.floor((currentTime - ts) / 60000);
     return `${elapsed} min`;
   };
@@ -182,29 +163,39 @@ export default function TableSelectionScreen({
 
   const getStatusColor = (tableStatus: string): string => {
     switch (tableStatus) {
-      case 'available': return COLORS.greenAvailable;
-      case 'occupied': return COLORS.amberOccupied;
-      case 'pending_bill': return COLORS.redPending;
-      default: return COLORS.greenAvailable;
+      case 'available':
+        return COLORS.greenAvailable;
+      case 'occupied':
+        return COLORS.amberOccupied;
+      case 'pending_bill':
+        return COLORS.redPending;
+      default:
+        return COLORS.greenAvailable;
     }
   };
 
   const getCardBg = (tableStatus: string) => {
     switch (tableStatus) {
-      case 'available': return COLORS.greenLight;
-      case 'occupied': return COLORS.amberLight;
-      case 'pending_bill': return COLORS.redLight;
-      default: return COLORS.white;
+      case 'available':
+        return COLORS.greenLight;
+      case 'occupied':
+        return COLORS.amberLight;
+      case 'pending_bill':
+        return COLORS.redLight;
+      default:
+        return COLORS.white;
     }
   };
 
   const handleTablePress = (table: Table) => {
-    if (table.status === 'available') {
-      onTableSelect(table.id, table.name);
-    } else {
-      setSelectedTable(table);
-      openBottomSheet();
-    }
+    // Single tap should always open the order/menu screen.
+    onTableSelect(table.id, table.name, table.current_order_id);
+  };
+
+  const handleTableLongPress = (table: Table) => {
+    // Long press opens quick table operations.
+    setSelectedTable(table);
+    openBottomSheet();
   };
 
   const openBottomSheet = () => {
@@ -230,9 +221,10 @@ export default function TableSelectionScreen({
 
   const [showBottomSheet, setShowBottomSheet] = useState(false);
 
-  const filteredTables = selectedSectionId === 'all'
-    ? tables
-    : tables.filter(t => t.section_id === selectedSectionId);
+  const filteredTables =
+    selectedSectionId === 'all'
+      ? tables
+      : tables.filter((t) => t.section_id === selectedSectionId);
 
   // ─── Header ─────────────────────────────────────────────────────────────────
   const renderHeader = () => (
@@ -242,7 +234,7 @@ export default function TableSelectionScreen({
       </TouchableOpacity>
       <Text style={styles.headerTitle}>Tables</Text>
       <View style={styles.headerIcons}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.iconButton}
           onPress={() => {
             Alert.alert(
@@ -255,7 +247,8 @@ export default function TableSelectionScreen({
                   style: 'destructive',
                   onPress: async () => {
                     try {
-                      const { resetDatabase } = await import('../services/databaseReset');
+                      const { resetDatabase } =
+                        await import('../services/databaseReset');
                       await resetDatabase();
                       Alert.alert(
                         'Database Reset',
@@ -265,8 +258,8 @@ export default function TableSelectionScreen({
                     } catch (error) {
                       Alert.alert('Error', 'Failed to reset database');
                     }
-                  }
-                }
+                  },
+                },
               ]
             );
           }}
@@ -288,7 +281,9 @@ export default function TableSelectionScreen({
       {showProfilePopup && (
         <View style={styles.profilePopup}>
           <View style={styles.profilePopupHeader}>
-            <Text style={styles.profilePopupName}>{waiterName || 'Waiter'}</Text>
+            <Text style={styles.profilePopupName}>
+              {waiterName || 'Waiter'}
+            </Text>
             <Text style={styles.profilePopupRole}>Waiter</Text>
           </View>
           <TouchableOpacity
@@ -315,13 +310,18 @@ export default function TableSelectionScreen({
         style={styles.tabBar}
         contentContainerStyle={styles.tabBarContent}
       >
-        {sections.map(s => (
+        {sections.map((s) => (
           <TouchableOpacity
             key={s.id}
             style={[styles.tab, selectedSectionId === s.id && styles.tabActive]}
             onPress={() => setSelectedSectionId(s.id)}
           >
-            <Text style={[styles.tabText, selectedSectionId === s.id && styles.tabTextActive]}>
+            <Text
+              style={[
+                styles.tabText,
+                selectedSectionId === s.id && styles.tabTextActive,
+              ]}
+            >
               {s.name}
             </Text>
           </TouchableOpacity>
@@ -341,12 +341,14 @@ export default function TableSelectionScreen({
         key={table.id}
         style={[styles.tableCard, { backgroundColor }]}
         onPress={() => handleTablePress(table)}
+        onLongPress={() => handleTableLongPress(table)}
+        delayLongPress={280}
         activeOpacity={0.7}
       >
         {/* Three rows layout */}
         <View style={styles.cardContent}>
           {/* Row 1: Elapsed Time (only if occupied) */}
-        {isOccupied && elapsedTime && (
+          {isOccupied && elapsedTime && (
             <Text style={styles.elapsedTime}>{elapsedTime}</Text>
           )}
 
@@ -354,9 +356,11 @@ export default function TableSelectionScreen({
           <Text style={styles.tableId}>{table.name}</Text>
 
           {/* Row 3: Bill Amount (only if occupied and has bill amount) */}
-          {isOccupied && table.billAmount !== undefined && table.billAmount > 0 && (
-            <Text style={styles.billAmount}>₹{table.billAmount}</Text>
-          )}
+          {isOccupied &&
+            table.billAmount !== undefined &&
+            table.billAmount > 0 && (
+              <Text style={styles.billAmount}>₹{table.billAmount}</Text>
+            )}
         </View>
       </TouchableOpacity>
     );
@@ -380,54 +384,86 @@ export default function TableSelectionScreen({
   // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
   const renderBottomSheet = () => {
     if (!showBottomSheet || !selectedTable) return null;
-    const translateY = bottomSheetAnim.interpolate({ inputRange: [0, 1], outputRange: [600, 0] });
+    const translateY = bottomSheetAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [600, 0],
+    });
     const statusColor = getStatusColor(selectedTable.status);
 
     return (
-      <Modal visible transparent animationType="none" onRequestClose={closeBottomSheet}>
+      <Modal
+        visible
+        transparent
+        animationType="none"
+        onRequestClose={closeBottomSheet}
+      >
         <Pressable style={styles.bottomSheetOverlay} onPress={closeBottomSheet}>
           <Animated.View
             style={[styles.bottomSheet, { transform: [{ translateY }] }]}
             onStartShouldSetResponder={() => true}
           >
             <View style={styles.handleBar} />
-            <Text style={styles.bottomSheetTitle}>Table {selectedTable.name}</Text>
+            <Text style={styles.bottomSheetTitle}>
+              Table {selectedTable.name}
+            </Text>
 
-            <View style={[styles.statusInfoBadge, { backgroundColor: statusColor + '15' }]}>
+            <View
+              style={[
+                styles.statusInfoBadge,
+                { backgroundColor: statusColor + '15' },
+              ]}
+            >
               <Text style={[styles.statusInfoText, { color: statusColor }]}>
-                {selectedTable.status === 'available' ? 'Available' : selectedTable.status === 'occupied' ? 'Occupied' : 'Bill Pending'}
+                {selectedTable.status === 'available'
+                  ? 'Available'
+                  : selectedTable.status === 'occupied'
+                    ? 'Occupied'
+                    : 'Bill Pending'}
               </Text>
             </View>
 
             <View style={styles.actionGrid}>
-              <TouchableOpacity style={styles.actionCard} onPress={() => {
-                closeBottomSheet();
-                onViewKOT(selectedTable.id, selectedTable.name, selectedTable.current_order_id);
-              }}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => {
+                  closeBottomSheet();
+                  onViewKOT(
+                    selectedTable.id,
+                    selectedTable.name,
+                    selectedTable.current_order_id
+                  );
+                }}
+              >
                 <Text style={styles.actionIcon}>🧾</Text>
                 <Text style={styles.actionLabel}>View KOT</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionCard} onPress={() => {
-                closeBottomSheet();
-                onTableSelect(selectedTable.id, selectedTable.name, selectedTable.current_order_id);
-              }}>
-                <Text style={styles.actionIcon}>➕</Text>
-                <Text style={styles.actionLabel}>Add Items</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionCard} onPress={() => {
-                closeBottomSheet();
-                onTableOperation(selectedTable.id, selectedTable.name, 'transfer');
-              }}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => {
+                  closeBottomSheet();
+                  onTableOperation(
+                    selectedTable.id,
+                    selectedTable.name,
+                    'transfer'
+                  );
+                }}
+              >
                 <Text style={styles.actionIcon}>↔️</Text>
                 <Text style={styles.actionLabel}>Transfer</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionCard} onPress={() => {
-                closeBottomSheet();
-                onTableOperation(selectedTable.id, selectedTable.name, 'merge');
-              }}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => {
+                  closeBottomSheet();
+                  onTableOperation(
+                    selectedTable.id,
+                    selectedTable.name,
+                    'merge'
+                  );
+                }}
+              >
                 <Text style={styles.actionIcon}>🔗</Text>
                 <Text style={styles.actionLabel}>Merge</Text>
               </TouchableOpacity>
@@ -495,10 +531,13 @@ export default function TableSelectionScreen({
       {/* Table Grid */}
       <FlatList
         data={filteredTables}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => renderTableCard(item)}
         numColumns={3}
-        contentContainerStyle={[styles.gridContent, isLoading && { flex: 1, justifyContent: 'center' }]}
+        contentContainerStyle={[
+          styles.gridContent,
+          isLoading && { flex: 1, justifyContent: 'center' },
+        ]}
         columnWrapperStyle={styles.gridRow}
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
@@ -529,9 +568,22 @@ const styles = StyleSheet.create({
   },
   menuButton: { padding: 4 },
   menuIcon: { fontSize: 24, color: COLORS.primary, fontWeight: '600' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: COLORS.darkGray, flex: 1, marginLeft: 8 },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.darkGray,
+    flex: 1,
+    marginLeft: 8,
+  },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 18 },
+  iconButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: 18,
+  },
   icon: { fontSize: 18 },
   profileIcon: { fontSize: 20 },
 
@@ -551,7 +603,11 @@ const styles = StyleSheet.create({
     zIndex: 100,
     overflow: 'hidden',
   },
-  profilePopupHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.lightGray },
+  profilePopupHeader: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
   profilePopupName: { fontSize: 15, fontWeight: '700', color: COLORS.darkGray },
   profilePopupRole: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   profilePopupAction: {
@@ -560,7 +616,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 14,
   },
-  profilePopupActionText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  profilePopupActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
   profilePopupActionIcon: { fontSize: 16, color: COLORS.primary },
 
   // Section Tabs
@@ -572,33 +632,37 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  tabBar: { 
+  tabBar: {
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray
+    borderBottomColor: COLORS.lightGray,
   },
   tabBarContent: { paddingHorizontal: 16, gap: 24 },
-  tab: { 
-    paddingVertical: 16, 
-    paddingHorizontal: 4
+  tab: {
+    paddingVertical: 16,
+    paddingHorizontal: 4,
   },
   tabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: '#E74C3C'
+    borderBottomColor: '#E74C3C',
   },
-  tabText: { 
-    fontSize: 14, 
-    fontWeight: '500', 
-    color: COLORS.mutedGray 
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.mutedGray,
   },
-  tabTextActive: { 
-    color: COLORS.darkGray, 
-    fontWeight: '600' 
+  tabTextActive: {
+    color: COLORS.darkGray,
+    fontWeight: '600',
   },
 
   // Grid
   gridContent: { padding: GRID_PADDING, paddingBottom: 80 },
-  gridRow: { justifyContent: 'flex-start', gap: CARD_GAP, marginBottom: CARD_GAP },
+  gridRow: {
+    justifyContent: 'flex-start',
+    gap: CARD_GAP,
+    marginBottom: CARD_GAP,
+  },
 
   // Table Card
   tableCard: {
@@ -612,45 +676,54 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 6
+    shadowRadius: 6,
   },
-  cardContent: { 
-    alignItems: 'center', 
-    justifyContent: 'center', 
+  cardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
     flex: 1,
     width: '100%',
-    paddingVertical: 8
+    paddingVertical: 8,
   },
-  elapsedTime: { 
-    fontSize: 10, 
-    color: '#2C3E50', 
+  elapsedTime: {
+    fontSize: 10,
+    color: '#2C3E50',
     fontWeight: '600',
     marginBottom: 2,
   },
-  tableId: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: '#2C3E50', 
+  tableId: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#2C3E50',
     textAlign: 'center',
     marginVertical: 4,
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
   },
-  billAmount: { 
-    fontSize: 14, 
-    fontWeight: '700', 
+  billAmount: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#2C3E50',
     marginTop: 2,
-    letterSpacing: 0.3
+    letterSpacing: 0.3,
   },
 
   // Empty State
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+  },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, fontWeight: '600', color: COLORS.darkGray },
   emptySubtext: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
 
   // Bottom Sheet
-  bottomSheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
   bottomSheet: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 24,
@@ -659,10 +732,33 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     paddingTop: 12,
   },
-  handleBar: { width: 40, height: 4, backgroundColor: COLORS.mutedGray, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  bottomSheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.darkGray, textAlign: 'center', marginBottom: 12 },
-  statusInfoBadge: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, marginBottom: 20 },
-  statusInfoText: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.mutedGray,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  bottomSheetTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.darkGray,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  statusInfoBadge: {
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  statusInfoText: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   actionCard: {
     width: ACTION_CARD_WIDTH,
@@ -683,13 +779,55 @@ const styles = StyleSheet.create({
   actionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.darkGray },
 
   // Logout Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  logoutModal: { width: '100%', maxWidth: 320, backgroundColor: COLORS.white, borderRadius: 16, padding: 24 },
-  logoutTitle: { fontSize: 18, fontWeight: '700', color: COLORS.darkGray, marginBottom: 8, textAlign: 'center' },
-  logoutBody: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20, textAlign: 'center' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  logoutModal: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+  },
+  logoutTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.darkGray,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  logoutBody: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 24,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
   logoutActions: { flexDirection: 'row', gap: 12 },
-  logoutCancel: { flex: 1, borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: COLORS.white },
-  logoutCancelText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  logoutConfirm: { flex: 1, backgroundColor: COLORS.primary, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  logoutCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+  },
+  logoutCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  logoutConfirm: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
   logoutConfirmText: { fontSize: 14, fontWeight: '700', color: COLORS.white },
 });

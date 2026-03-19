@@ -1,6 +1,6 @@
 /**
  * Order Entry Screen
- * 
+ *
  * Allows waiters to add items to orders, apply modifiers, and submit to kitchen
  */
 
@@ -13,9 +13,17 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
-  Alert
+  Alert,
 } from 'react-native';
-import { collection, addDoc, updateDoc, doc, onSnapshot, query as fsQuery, orderBy } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
+  query as fsQuery,
+  orderBy,
+} from 'firebase/firestore';
 import { db } from '../services/firebase';
 import {
   getById,
@@ -76,12 +84,16 @@ export default function OrderEntryScreen({
   orderId,
   waiterId,
   waiterName,
-  onBack
+  onBack,
 }: OrderEntryScreenProps) {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [currentOrderId, setCurrentOrderId] = useState<string | undefined>(orderId);
+  const [currentOrderId, setCurrentOrderId] = useState<string | undefined>(
+    orderId
+  );
   const [showModifierModal, setShowModifierModal] = useState(false);
-  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(
+    null
+  );
   const [availableModifiers, setAvailableModifiers] = useState<Modifier[]>([]);
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -92,19 +104,30 @@ export default function OrderEntryScreen({
   // Subscribe to real-time order items from Firestore
   const subscribeToOrderItems = (oid: string) => {
     if (unsubscribeRef.current) unsubscribeRef.current();
-    const q = fsQuery(collection(db, 'orders', oid, 'items'), orderBy('created_at', 'asc'));
-    unsubscribeRef.current = onSnapshot(q, snapshot => {
-      const items: OrderItem[] = snapshot.docs.map(d => {
+    const q = fsQuery(
+      collection(db, 'orders', oid, 'items'),
+      orderBy('created_at', 'asc')
+    );
+    unsubscribeRef.current = onSnapshot(q, (snapshot) => {
+      const items: OrderItem[] = snapshot.docs.map((d) => {
         const data = d.data() as any;
+        const quantity = data.quantity ?? data.currentQty ?? 0;
+        const basePrice = data.base_price ?? data.unitPrice ?? 0;
+        const persistedTotal = Number(data.total_price ?? data.totalPrice);
         return {
           id: d.id,
           menu_item_id: data.menu_item_id || data.menuItemId || d.id,
           menu_item_name: data.menu_item_name || data.menuItemName || '',
-          quantity: data.quantity ?? data.currentQty ?? 0,
-          base_price: data.base_price ?? data.unitPrice ?? 0,
-          total_price: (data.quantity ?? data.currentQty ?? 0) * (data.base_price ?? data.unitPrice ?? 0),
+          quantity,
+          base_price: basePrice,
+          total_price: Number.isFinite(persistedTotal)
+            ? persistedTotal
+            : quantity * basePrice,
           sent_to_kitchen: !!(data.sent_to_kitchen || data.sentQty > 0),
-          modifiers: typeof data.modifiers === 'string' ? JSON.parse(data.modifiers || '[]') : (data.modifiers || []),
+          modifiers:
+            typeof data.modifiers === 'string'
+              ? JSON.parse(data.modifiers || '[]')
+              : data.modifiers || [],
           category: data.category || 'food',
         };
       });
@@ -114,39 +137,42 @@ export default function OrderEntryScreen({
 
   useEffect(() => {
     if (orderId) subscribeToOrderItems(orderId);
-    return () => { if (unsubscribeRef.current) unsubscribeRef.current(); };
+    return () => {
+      if (unsubscribeRef.current) unsubscribeRef.current();
+    };
   }, [orderId]);
-
 
   const handleMenuItemSelect = async (menuItem: MenuItem) => {
     setSelectedMenuItem(menuItem);
-    
+
     // Load available modifiers
     if (menuItem.available_modifier_ids) {
       const modifierIds = menuItem.available_modifier_ids.split(',');
       const modifiers: Modifier[] = [];
-      
+
       for (const id of modifierIds) {
         const modifier = await getById<Modifier>('modifiers', id.trim());
         if (modifier) {
           modifiers.push(modifier);
         }
       }
-      
+
       setAvailableModifiers(modifiers);
     } else {
       setAvailableModifiers([]);
     }
-    
+
     setSelectedModifiers([]);
     setShowModifierModal(true);
   };
 
   const handleModifierToggle = (modifier: Modifier) => {
-    const isSelected = selectedModifiers.some(m => m.id === modifier.id);
-    
+    const isSelected = selectedModifiers.some((m) => m.id === modifier.id);
+
     if (isSelected) {
-      setSelectedModifiers(selectedModifiers.filter(m => m.id !== modifier.id));
+      setSelectedModifiers(
+        selectedModifiers.filter((m) => m.id !== modifier.id)
+      );
     } else {
       setSelectedModifiers([...selectedModifiers, modifier]);
     }
@@ -156,7 +182,7 @@ export default function OrderEntryScreen({
     if (!selectedMenuItem) return;
 
     // Calculate total price (base + paid add-ons only, spice levels are free)
-    const paidAddons = selectedModifiers.filter(m => m.type === 'paid_addon');
+    const paidAddons = selectedModifiers.filter((m) => m.type === 'paid_addon');
     const addonTotal = paidAddons.reduce((sum, m) => sum + m.price, 0);
     const totalPrice = selectedMenuItem.price + addonTotal;
 
@@ -169,7 +195,7 @@ export default function OrderEntryScreen({
       total_price: totalPrice,
       sent_to_kitchen: false,
       modifiers: selectedModifiers,
-      category: selectedMenuItem.item_category
+      category: selectedMenuItem.item_category,
     };
 
     setOrderItems([...orderItems, newItem]);
@@ -179,46 +205,63 @@ export default function OrderEntryScreen({
   };
 
   const handleQuantityChange = (itemId: string, delta: number) => {
-    setOrderItems(orderItems.map(item => {
-      if (item.id === itemId && !item.sent_to_kitchen) {
-        const newQuantity = Math.max(1, item.quantity + delta);
-        return {
-          ...item,
-          quantity: newQuantity,
-          total_price: item.base_price * newQuantity + 
-            item.modifiers.filter(m => m.type === 'paid_addon')
-              .reduce((sum, m) => sum + m.price, 0) * newQuantity
-        };
-      }
-      return item;
-    }));
+    setOrderItems(
+      orderItems.map((item) => {
+        if (item.id === itemId && !item.sent_to_kitchen) {
+          const newQuantity = Math.max(1, item.quantity + delta);
+          return {
+            ...item,
+            quantity: newQuantity,
+            total_price:
+              item.base_price * newQuantity +
+              item.modifiers
+                .filter((m) => m.type === 'paid_addon')
+                .reduce((sum, m) => sum + m.price, 0) *
+                newQuantity,
+          };
+        }
+        return item;
+      })
+    );
   };
 
   const handleRemoveItem = (itemId: string) => {
-    const item = orderItems.find(i => i.id === itemId);
-    
+    const item = orderItems.find((i) => i.id === itemId);
+
     if (item?.sent_to_kitchen) {
-      Alert.alert('Cannot Remove', 'Items already sent to kitchen cannot be removed');
+      Alert.alert(
+        'Cannot Remove',
+        'Items already sent to kitchen cannot be removed'
+      );
       return;
     }
 
-    setOrderItems(orderItems.filter(i => i.id !== itemId));
+    setOrderItems(orderItems.filter((i) => i.id !== itemId));
   };
 
+  const currentOrderItems = orderItems.filter((item) => !item.sent_to_kitchen);
+
   const calculateOrderTotal = (): number => {
+    return currentOrderItems.reduce((sum, item) => sum + item.total_price, 0);
+  };
+
+  const calculateTableBillTotal = (): number => {
     return orderItems.reduce((sum, item) => sum + item.total_price, 0);
   };
 
   const handleSubmitOrder = async () => {
-    if (orderItems.length === 0) {
+    if (currentOrderItems.length === 0) {
       Alert.alert('Empty Order', 'Please add items before submitting');
       return;
     }
 
-    const unsentItems = orderItems.filter(item => !item.sent_to_kitchen);
-    
+    const unsentItems = currentOrderItems;
+
     if (unsentItems.length === 0) {
-      Alert.alert('No New Items', 'All items have already been sent to kitchen');
+      Alert.alert(
+        'No New Items',
+        'All items have already been sent to kitchen'
+      );
       return;
     }
 
@@ -236,7 +279,7 @@ export default function OrderEntryScreen({
           waiter_id: waiterId,
           status: 'submitted',
           created_at: Date.now(),
-          updated_at: Date.now()
+          updated_at: Date.now(),
         };
 
         // Save to Firestore (primary)
@@ -254,7 +297,9 @@ export default function OrderEntryScreen({
       }
 
       // Mark all unsent items as sent
-      setOrderItems(orderItems.map(item => ({ ...item, sent_to_kitchen: true })));
+      setOrderItems(
+        orderItems.map((item) => ({ ...item, sent_to_kitchen: true }))
+      );
 
       // Save order items to Firestore and SQLite
       for (const item of unsentItems) {
@@ -269,11 +314,14 @@ export default function OrderEntryScreen({
           modifiers: JSON.stringify(item.modifiers),
           category: item.category,
           created_at: Date.now(),
-          updated_at: Date.now()
+          updated_at: Date.now(),
         };
 
         // Save to Firestore (primary)
-        await addDoc(collection(db, 'orders', orderIdToUse!, 'items'), itemData);
+        await addDoc(
+          collection(db, 'orders', orderIdToUse!, 'items'),
+          itemData
+        );
 
         // Save to local SQLite (non-fatal)
         try {
@@ -285,7 +333,7 @@ export default function OrderEntryScreen({
 
       // Update table status in Firestore
       try {
-        const totalAmount = calculateOrderTotal();
+        const totalAmount = calculateTableBillTotal();
         await updateDoc(doc(db, 'tables', tableId), {
           status: 'occupied',
           currentOrderId: orderIdToUse,
@@ -295,15 +343,13 @@ export default function OrderEntryScreen({
           occupiedSince: Date.now(),
           occupied_since: Date.now(),
           updatedAt: Date.now(),
-          updated_at: Date.now()
+          updated_at: Date.now(),
         });
       } catch (e) {
         console.warn('Table status update failed (non-fatal):', e);
       }
 
-      Alert.alert('Success', 'Order sent to kitchen!', [
-        { text: 'OK', onPress: () => onBack() }
-      ]);
+      Alert.alert('Success', 'Order sent to kitchen!');
     } catch (error) {
       console.error('Error submitting order:', error);
       Alert.alert('Error', 'Failed to submit order. Please try again.');
@@ -315,8 +361,12 @@ export default function OrderEntryScreen({
   const renderModifierModal = () => {
     if (!selectedMenuItem) return null;
 
-    const spiceLevels = availableModifiers.filter(m => m.type === 'spice_level');
-    const paidAddons = availableModifiers.filter(m => m.type === 'paid_addon');
+    const spiceLevels = availableModifiers.filter(
+      (m) => m.type === 'spice_level'
+    );
+    const paidAddons = availableModifiers.filter(
+      (m) => m.type === 'paid_addon'
+    );
 
     return (
       <Modal
@@ -335,17 +385,22 @@ export default function OrderEntryScreen({
 
             {spiceLevels.length > 0 && (
               <View style={styles.modifierSection}>
-                <Text style={styles.modifierSectionTitle}>Spice Level (Free)</Text>
-                {spiceLevels.map(modifier => (
+                <Text style={styles.modifierSectionTitle}>
+                  Spice Level (Free)
+                </Text>
+                {spiceLevels.map((modifier) => (
                   <TouchableOpacity
                     key={modifier.id}
                     style={[
                       styles.modifierOption,
-                      selectedModifiers.some(m => m.id === modifier.id) && styles.modifierOptionSelected
+                      selectedModifiers.some((m) => m.id === modifier.id) &&
+                        styles.modifierOptionSelected,
                     ]}
                     onPress={() => handleModifierToggle(modifier)}
                   >
-                    <Text style={styles.modifierOptionText}>{modifier.name}</Text>
+                    <Text style={styles.modifierOptionText}>
+                      {modifier.name}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -354,12 +409,13 @@ export default function OrderEntryScreen({
             {paidAddons.length > 0 && (
               <View style={styles.modifierSection}>
                 <Text style={styles.modifierSectionTitle}>Add-ons</Text>
-                {paidAddons.map(modifier => (
+                {paidAddons.map((modifier) => (
                   <TouchableOpacity
                     key={modifier.id}
                     style={[
                       styles.modifierOption,
-                      selectedModifiers.some(m => m.id === modifier.id) && styles.modifierOptionSelected
+                      selectedModifiers.some((m) => m.id === modifier.id) &&
+                        styles.modifierOptionSelected,
                     ]}
                     onPress={() => handleModifierToggle(modifier)}
                   >
@@ -406,7 +462,7 @@ export default function OrderEntryScreen({
 
         {item.modifiers.length > 0 && (
           <Text style={styles.orderItemModifiers}>
-            {item.modifiers.map(m => m.name).join(', ')}
+            {item.modifiers.map((m) => m.name).join(', ')}
           </Text>
         )}
 
@@ -420,9 +476,9 @@ export default function OrderEntryScreen({
                 <Text style={styles.quantityButtonText}>−</Text>
               </TouchableOpacity>
             )}
-            
+
             <Text style={styles.quantityText}>{item.quantity}</Text>
-            
+
             {!item.sent_to_kitchen && (
               <TouchableOpacity
                 style={styles.quantityButton}
@@ -433,7 +489,9 @@ export default function OrderEntryScreen({
             )}
           </View>
 
-          <Text style={styles.orderItemPrice}>₹{item.total_price.toFixed(2)}</Text>
+          <Text style={styles.orderItemPrice}>
+            ₹{item.total_price.toFixed(2)}
+          </Text>
         </View>
 
         {item.sent_to_kitchen && (
@@ -445,18 +503,20 @@ export default function OrderEntryScreen({
     );
   };
 
+  // Show KOT history as a dedicated full-screen view.
+  if (showKOTHistory && currentOrderId) {
+    return (
+      <KOTHistoryScreen
+        tableId={tableId}
+        tableName={tableName}
+        orderId={currentOrderId}
+        onBack={() => setShowKOTHistory(false)}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* KOT History overlay */}
-      {showKOTHistory && currentOrderId && (
-        <KOTHistoryScreen
-          tableId={tableId}
-          tableName={tableName}
-          orderId={currentOrderId}
-          onBack={() => setShowKOTHistory(false)}
-        />
-      )}
-
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack}>
@@ -464,7 +524,10 @@ export default function OrderEntryScreen({
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order for table: {tableName}</Text>
         {currentOrderId && (
-          <TouchableOpacity onPress={() => setShowKOTHistory(true)} style={styles.kotHistoryBtn}>
+          <TouchableOpacity
+            onPress={() => setShowKOTHistory(true)}
+            style={styles.kotHistoryBtn}
+          >
             <Text style={styles.kotHistoryBtnText}>KOT History</Text>
           </TouchableOpacity>
         )}
@@ -479,20 +542,25 @@ export default function OrderEntryScreen({
       </View>
 
       {/* Order Items */}
-      {orderItems.length > 0 && (
+      {currentOrderItems.length > 0 && (
         <View style={styles.orderSection}>
           <Text style={styles.orderSectionTitle}>Order Items</Text>
           <ScrollView style={styles.orderItemsList}>
-            {orderItems.map(item => renderOrderItem(item))}
+            {currentOrderItems.map((item) => renderOrderItem(item))}
           </ScrollView>
 
           <View style={styles.orderTotal}>
             <Text style={styles.orderTotalLabel}>Total:</Text>
-            <Text style={styles.orderTotalAmount}>₹{calculateOrderTotal().toFixed(2)}</Text>
+            <Text style={styles.orderTotalAmount}>
+              ₹{calculateOrderTotal().toFixed(2)}
+            </Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              submitting && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmitOrder}
             disabled={submitting}
           >
@@ -512,19 +580,19 @@ export default function OrderEntryScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     backgroundColor: DARK_GRAY,
-    elevation: 4
+    elevation: 4,
   },
   backButton: {
     fontSize: 24,
     color: '#FFFFFF',
-    marginRight: 16
+    marginRight: 16,
   },
   headerTitle: {
     fontSize: 18,
@@ -544,62 +612,62 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   menuSection: {
-    flex: 1
+    flex: 1,
   },
   orderSection: {
     maxHeight: '40%',
     backgroundColor: LIGHT_GRAY,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    padding: 16
+    padding: 16,
   },
   orderSectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: DARK_GRAY,
-    marginBottom: 12
+    marginBottom: 12,
   },
   orderItemsList: {
-    maxHeight: 200
+    maxHeight: 200,
   },
   orderItem: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
-    position: 'relative'
+    position: 'relative',
   },
   orderItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4
+    marginBottom: 4,
   },
   orderItemName: {
     fontSize: 16,
     fontWeight: '600',
     color: DARK_GRAY,
-    flex: 1
+    flex: 1,
   },
   orderItemRemove: {
     fontSize: 20,
     color: BRAND_RED,
-    padding: 4
+    padding: 4,
   },
   orderItemModifiers: {
     fontSize: 12,
     color: '#666666',
-    marginBottom: 8
+    marginBottom: 8,
   },
   orderItemFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   orderItemQuantity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 8,
   },
   quantityButton: {
     width: 32,
@@ -607,24 +675,24 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: BRAND_RED,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   quantityButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   quantityText: {
     fontSize: 16,
     fontWeight: '600',
     color: DARK_GRAY,
     minWidth: 24,
-    textAlign: 'center'
+    textAlign: 'center',
   },
   orderItemPrice: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: DARK_GRAY
+    color: DARK_GRAY,
   },
   sentBadge: {
     position: 'absolute',
@@ -633,12 +701,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4
+    borderRadius: 4,
   },
   sentBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   orderTotal: {
     flexDirection: 'row',
@@ -647,85 +715,85 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 2,
     borderTopColor: '#E0E0E0',
-    marginTop: 8
+    marginTop: 8,
   },
   orderTotalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: DARK_GRAY
+    color: DARK_GRAY,
   },
   orderTotalAmount: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: BRAND_RED
+    color: BRAND_RED,
   },
   submitButton: {
     backgroundColor: BRAND_RED,
     paddingVertical: 16,
     borderRadius: 8,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   submitButtonDisabled: {
-    backgroundColor: '#CCCCCC'
+    backgroundColor: '#CCCCCC',
   },
   submitButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   modalContent: {
     width: '85%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 24,
-    maxHeight: '80%'
+    maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: DARK_GRAY,
-    marginBottom: 8
+    marginBottom: 8,
   },
   modalPrice: {
     fontSize: 18,
     color: BRAND_RED,
     fontWeight: '600',
-    marginBottom: 24
+    marginBottom: 24,
   },
   modifierSection: {
-    marginBottom: 24
+    marginBottom: 24,
   },
   modifierSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: DARK_GRAY,
-    marginBottom: 12
+    marginBottom: 12,
   },
   modifierOption: {
     padding: 12,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: '#E0E0E0',
-    marginBottom: 8
+    marginBottom: 8,
   },
   modifierOptionSelected: {
     borderColor: BRAND_RED,
-    backgroundColor: '#FFE5E5'
+    backgroundColor: '#FFE5E5',
   },
   modifierOptionText: {
     fontSize: 14,
-    color: DARK_GRAY
+    color: DARK_GRAY,
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 24
+    marginTop: 24,
   },
   modalButtonCancel: {
     flex: 1,
@@ -733,23 +801,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 2,
     borderColor: BRAND_RED,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   modalButtonCancelText: {
     color: BRAND_RED,
     fontSize: 16,
-    fontWeight: '600'
+    fontWeight: '600',
   },
   modalButtonAdd: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     backgroundColor: BRAND_RED,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   modalButtonAddText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600'
-  }
+    fontWeight: '600',
+  },
 });

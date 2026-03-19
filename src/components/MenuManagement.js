@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Edit, Search, Trash2, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import {
+  Package,
+  Plus,
+  Edit,
+  Search,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+  ArrowLeft,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './MenuManagement.css';
 
@@ -19,10 +28,10 @@ const MenuManagement = () => {
   useEffect(() => {
     loadMenuItems();
     loadCategories();
-    
+
     // Subscribe to real-time menu item changes
     subscribeToMenuItems();
-    
+
     // Cleanup on unmount
     return () => {
       unsubscribeFromAll();
@@ -32,15 +41,20 @@ const MenuManagement = () => {
   const subscribeToMenuItems = async () => {
     try {
       // Subscribe to menu items
-      const result = await window.electronAPI.invoke('firebase:subscribe-menu-items');
+      const result = await window.electronAPI.invoke(
+        'firebase:subscribe-menu-items'
+      );
       if (result.success) {
         console.log('Subscribed to menu items changes');
         setSyncStatus('connected');
       }
-      
+
       // Listen for menu item changes
-      window.electronAPI.on('firebase:menu-items-changed', handleMenuItemsChanged);
-      
+      window.electronAPI.on(
+        'firebase:menu-items-changed',
+        handleMenuItemsChanged
+      );
+
       // Listen for errors
       window.electronAPI.on('firebase:menu-items-error', (error) => {
         console.error('Menu items sync error:', error);
@@ -55,37 +69,37 @@ const MenuManagement = () => {
   const handleMenuItemsChanged = (changes) => {
     console.log('Menu items changed:', changes);
     setSyncStatus('syncing');
-    
+
     // Update local state based on changes
-    setMenuItems(prevItems => {
+    setMenuItems((prevItems) => {
       let updatedItems = [...prevItems];
-      
-      changes.forEach(change => {
+
+      changes.forEach((change) => {
         const { type, data } = change;
-        
+
         if (type === 'added') {
           // Add new item if not already present
-          if (!updatedItems.find(item => item.id === data.id)) {
+          if (!updatedItems.find((item) => item.id === data.id)) {
             updatedItems.push(data);
           }
         } else if (type === 'modified') {
           // Update existing item
-          const index = updatedItems.findIndex(item => item.id === data.id);
+          const index = updatedItems.findIndex((item) => item.id === data.id);
           if (index !== -1) {
             updatedItems[index] = data;
           }
         } else if (type === 'removed') {
           // Remove item
-          updatedItems = updatedItems.filter(item => item.id !== data.id);
+          updatedItems = updatedItems.filter((item) => item.id !== data.id);
         }
       });
-      
+
       return updatedItems;
     });
-    
+
     // Update categories
     loadCategories();
-    
+
     // Reset sync status after a short delay
     setTimeout(() => setSyncStatus('connected'), 500);
   };
@@ -93,9 +107,12 @@ const MenuManagement = () => {
   const unsubscribeFromAll = async () => {
     try {
       // Remove event listeners
-      window.electronAPI.removeListener('firebase:menu-items-changed', handleMenuItemsChanged);
+      window.electronAPI.removeListener(
+        'firebase:menu-items-changed',
+        handleMenuItemsChanged
+      );
       window.electronAPI.removeListener('firebase:menu-items-error', () => {});
-      
+
       // Unsubscribe from Firebase listeners
       await window.electronAPI.invoke('firebase:unsubscribe-all');
     } catch (error) {
@@ -106,10 +123,13 @@ const MenuManagement = () => {
   const loadMenuItems = async () => {
     try {
       setLoading(true);
-      const result = await window.electronAPI.invoke('firebase:get-menu-items', {
-        includeInactive: false,
-        includeOutOfStock: true
-      });
+      const result = await window.electronAPI.invoke(
+        'firebase:get-menu-items',
+        {
+          includeInactive: false,
+          includeOutOfStock: true,
+        }
+      );
       if (result.success) {
         setMenuItems(result.items);
       }
@@ -124,7 +144,8 @@ const MenuManagement = () => {
       const counterRes = await window.electronAPI.getCounterStock();
       if (counterRes.success) {
         const cmap = {};
-        for (const item of counterRes.items) cmap[item.id] = item.counterStock || 0;
+        for (const item of counterRes.items)
+          cmap[item.id] = item.counterStock || 0;
         setCounterMap(cmap);
       }
     } catch (error) {
@@ -136,7 +157,9 @@ const MenuManagement = () => {
 
   const loadCategories = async () => {
     try {
-      const result = await window.electronAPI.invoke('firebase:get-menu-categories');
+      const result = await window.electronAPI.invoke(
+        'firebase:get-menu-categories'
+      );
       if (result.success) {
         setCategories(result.categories);
       }
@@ -146,10 +169,13 @@ const MenuManagement = () => {
   };
 
   const filteredItems = menuItems
-    .filter(item => filterSection === 'bar' ? item.isBarItem : !item.isBarItem)
-    .filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.category.toLowerCase().includes(searchTerm.toLowerCase());
+    .filter((item) =>
+      filterSection === 'bar' ? item.isBarItem : !item.isBarItem
+    )
+    .filter((item) => {
+      const matchesSearch =
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesSearch;
     });
 
@@ -188,7 +214,10 @@ const MenuManagement = () => {
         }
       } else {
         // Create new item
-        const result = await window.electronAPI.invoke('firebase:create-menu-item', itemData);
+        const result = await window.electronAPI.invoke(
+          'firebase:create-menu-item',
+          itemData
+        );
         if (result.success) {
           await loadMenuItems();
           await loadCategories();
@@ -209,7 +238,10 @@ const MenuManagement = () => {
     }
 
     try {
-      const result = await window.electronAPI.invoke('firebase:delete-menu-item', item.id);
+      const result = await window.electronAPI.invoke(
+        'firebase:delete-menu-item',
+        item.id
+      );
       if (result.success) {
         await loadMenuItems();
         await loadCategories();
@@ -241,7 +273,18 @@ const MenuManagement = () => {
     <div className="menu-management">
       <div className="page-header">
         <div className="header-left">
-          <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', marginRight: 8, display: 'flex', alignItems: 'center', color: '#4f46e5' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: 8,
+              display: 'flex',
+              alignItems: 'center',
+              color: '#4f46e5',
+            }}
+          >
             <ArrowLeft size={22} />
           </button>
           <Package size={32} />
@@ -279,7 +322,10 @@ const MenuManagement = () => {
           />
         </div>
         <div className="filter-buttons">
-          {[{ key: 'bar', label: 'Bar' }, { key: 'restaurant', label: 'Restaurant' }].map(({ key, label }) => (
+          {[
+            { key: 'bar', label: 'Bar' },
+            { key: 'restaurant', label: 'Restaurant' },
+          ].map(({ key, label }) => (
             <button
               key={key}
               className={filterSection === key ? 'active' : ''}
@@ -320,7 +366,10 @@ const MenuManagement = () => {
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={filterSection === 'restaurant' ? 9 : 11} className="no-data">
+                  <td
+                    colSpan={filterSection === 'restaurant' ? 9 : 11}
+                    className="no-data"
+                  >
                     No menu items found
                   </td>
                 </tr>
@@ -328,60 +377,122 @@ const MenuManagement = () => {
                 filteredItems.map((item) => (
                   <tr key={item.id}>
                     <td className="item-name">{item.name}</td>
-                    <td><span className="category-badge">{item.shortCode || '-'}</span></td>
-                    <td><span className="category-badge">{item.category}</span></td>
+                    <td>
+                      <span className="category-badge">
+                        {item.shortCode || '-'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="category-badge">{item.category}</span>
+                    </td>
                     <td>{item.subCategory || '-'}</td>
                     <td className="price-cell">₹{item.price.toFixed(2)}</td>
                     {filterSection === 'restaurant' && (
                       <td>
-                        {item.foodType === 'veg'
-                          ? <span style={{ color: '#27ae60', fontWeight: 700 }}>● Veg</span>
-                          : item.foodType === 'non-veg'
-                          ? <span style={{ color: '#e74c3c', fontWeight: 700 }}>● Non-Veg</span>
-                          : '-'}
+                        {item.foodType === 'veg' ? (
+                          <span style={{ color: '#27ae60', fontWeight: 700 }}>
+                            ● Veg
+                          </span>
+                        ) : item.foodType === 'non-veg' ? (
+                          <span style={{ color: '#e74c3c', fontWeight: 700 }}>
+                            ● Non-Veg
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                     )}
-                    <td className="description-cell">{item.description || '-'}</td>
+                    <td className="description-cell">
+                      {item.description || '-'}
+                    </td>
                     {filterSection === 'bar' && (
                       <td>
-                        <span style={{ fontWeight: 700, color: (stockMap[item.id] || 0) > 0 ? '#27ae60' : '#e74c3c' }}>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color:
+                              (stockMap[item.id] || 0) > 0
+                                ? '#27ae60'
+                                : '#e74c3c',
+                          }}
+                        >
                           {stockMap[item.id] || 0}
                         </span>
                       </td>
                     )}
                     {filterSection === 'bar' && (
                       <td>
-                        <span style={{ fontWeight: 700, color: (counterMap[item.id] || 0) > 0 ? '#27ae60' : '#e74c3c' }}>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color:
+                              (counterMap[item.id] || 0) > 0
+                                ? '#27ae60'
+                                : '#e74c3c',
+                          }}
+                        >
                           {counterMap[item.id] || 0}
                         </span>
                       </td>
                     )}
                     <td>
                       {filterSection === 'bar' ? (
-                        (stockMap[item.id] || 0) > 0
-                          ? <span className="status-badge in-stock"><CheckCircle size={16} /> In Stock</span>
-                          : <span className="status-badge out-of-stock"><AlertCircle size={16} /> Out of Stock</span>
+                        (stockMap[item.id] || 0) > 0 ? (
+                          <span className="status-badge in-stock">
+                            <CheckCircle size={16} /> In Stock
+                          </span>
+                        ) : (
+                          <span className="status-badge out-of-stock">
+                            <AlertCircle size={16} /> Out of Stock
+                          </span>
+                        )
                       ) : (
-                        <span className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}>
-                          {item.isOutOfStock ? <><AlertCircle size={16} /> Out of Stock</> : <><CheckCircle size={16} /> In Stock</>}
+                        <span
+                          className={`status-badge ${item.isOutOfStock ? 'out-of-stock' : 'in-stock'}`}
+                        >
+                          {item.isOutOfStock ? (
+                            <>
+                              <AlertCircle size={16} /> Out of Stock
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle size={16} /> In Stock
+                            </>
+                          )}
                         </span>
                       )}
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <button className="btn-icon" onClick={() => handleEditItem(item)} title="Edit item">
+                        <button
+                          className="btn-icon"
+                          onClick={() => handleEditItem(item)}
+                          title="Edit item"
+                        >
                           <Edit size={18} />
                         </button>
                         {filterSection === 'restaurant' && (
                           <button
                             className={`btn-icon ${item.isOutOfStock ? 'btn-success' : 'btn-warning'}`}
                             onClick={() => handleToggleOutOfStock(item)}
-                            title={item.isOutOfStock ? 'Mark in stock' : 'Mark out of stock'}
+                            title={
+                              item.isOutOfStock
+                                ? 'Mark in stock'
+                                : 'Mark out of stock'
+                            }
                           >
-                            {item.isOutOfStock ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                            {item.isOutOfStock ? (
+                              <CheckCircle size={18} />
+                            ) : (
+                              <AlertCircle size={18} />
+                            )}
                           </button>
                         )}
-                        <button className="btn-icon btn-danger" onClick={() => handleDeleteItem(item)} title="Delete item">
+                        <button
+                          className="btn-icon btn-danger"
+                          onClick={() => handleDeleteItem(item)}
+                          title="Delete item"
+                        >
                           <Trash2 size={18} />
                         </button>
                       </div>
@@ -409,8 +520,10 @@ const MenuManagement = () => {
 const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
   console.log('MenuItemModal rendering', { item, existingCategories });
   const isEditing = item && item.id;
-  
-  const [productType, setProductType] = useState(item?.isBarItem ? 'bar' : 'restaurant');
+
+  const [productType, setProductType] = useState(
+    item?.isBarItem ? 'bar' : 'restaurant'
+  );
   const [formData, setFormData] = useState({
     name: item?.name || '',
     shortCode: item?.shortCode || '',
@@ -418,7 +531,7 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
     subCategory: item?.subCategory || '',
     price: item?.price || '',
     foodType: item?.foodType || 'veg',
-    description: item?.description || ''
+    description: item?.description || '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -427,42 +540,42 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Item name is required';
     }
-    
+
     if (!formData.shortCode.trim()) {
       newErrors.shortCode = 'Short code is required';
     }
-    
+
     if (!formData.category.trim()) {
       newErrors.category = 'Category is required';
     }
-    
+
     if (!formData.subCategory.trim()) {
       newErrors.subCategory = 'Sub-category is required';
     }
-    
+
     if (!formData.price || formData.price <= 0) {
       newErrors.price = 'Price must be greater than 0';
     }
-    
+
     return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateForm();
-    
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     setIsSubmitting(true);
     setErrors({});
-    
+
     try {
       await onSave({
         ...item,
@@ -474,7 +587,7 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
         foodType: isBarItem ? 'none' : formData.foodType,
         isBarItem: isBarItem,
         itemCategory: isBarItem ? 'drink' : 'food',
-        description: formData.description.trim()
+        description: formData.description.trim(),
       });
     } catch (error) {
       console.error('Failed to save menu item:', error);
@@ -485,9 +598,9 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
@@ -517,15 +630,19 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
 
             {!isEditing && (
               <div className="form-group">
-                <label>Product Type <span className="required">*</span></label>
+                <label>
+                  Product Type <span className="required">*</span>
+                </label>
                 <div className="type-selector-buttons">
                   <button
                     type="button"
                     className={`type-btn restaurant-btn ${productType === 'restaurant' ? 'active' : ''}`}
                     onClick={() => handleProductTypeChange('restaurant')}
                     style={{
-                      borderColor: productType === 'restaurant' ? '#10b981' : '#e5e7eb',
-                      background: productType === 'restaurant' ? '#ecfdf5' : '#f9fafb'
+                      borderColor:
+                        productType === 'restaurant' ? '#10b981' : '#e5e7eb',
+                      background:
+                        productType === 'restaurant' ? '#ecfdf5' : '#f9fafb',
                     }}
                   >
                     <h4>Restaurant</h4>
@@ -536,8 +653,9 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                     className={`type-btn bar-btn ${productType === 'bar' ? 'active' : ''}`}
                     onClick={() => handleProductTypeChange('bar')}
                     style={{
-                      borderColor: productType === 'bar' ? '#f59e0b' : '#e5e7eb',
-                      background: productType === 'bar' ? '#fffbeb' : '#f9fafb'
+                      borderColor:
+                        productType === 'bar' ? '#f59e0b' : '#e5e7eb',
+                      background: productType === 'bar' ? '#fffbeb' : '#f9fafb',
                     }}
                   >
                     <h4>Bar</h4>
@@ -560,7 +678,9 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                   className={errors.name ? 'error' : ''}
                   placeholder="Enter item name"
                 />
-                {errors.name && <span className="error-text">{errors.name}</span>}
+                {errors.name && (
+                  <span className="error-text">{errors.name}</span>
+                )}
               </div>
 
               <div className="form-group">
@@ -571,12 +691,16 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                   id="shortCode"
                   type="text"
                   value={formData.shortCode}
-                  onChange={(e) => handleInputChange('shortCode', e.target.value.toUpperCase())}
+                  onChange={(e) =>
+                    handleInputChange('shortCode', e.target.value.toUpperCase())
+                  }
                   className={errors.shortCode ? 'error' : ''}
                   placeholder="e.g., PT, CB"
                   maxLength="10"
                 />
-                {errors.shortCode && <span className="error-text">{errors.shortCode}</span>}
+                {errors.shortCode && (
+                  <span className="error-text">{errors.shortCode}</span>
+                )}
               </div>
             </div>
 
@@ -590,16 +714,20 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                   type="text"
                   list="categories"
                   value={formData.category}
-                  onChange={(e) => handleInputChange('category', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange('category', e.target.value)
+                  }
                   className={errors.category ? 'error' : ''}
                   placeholder="Enter or select category"
                 />
                 <datalist id="categories">
-                  {existingCategories.map(cat => (
+                  {existingCategories.map((cat) => (
                     <option key={cat} value={cat} />
                   ))}
                 </datalist>
-                {errors.category && <span className="error-text">{errors.category}</span>}
+                {errors.category && (
+                  <span className="error-text">{errors.category}</span>
+                )}
               </div>
 
               <div className="form-group">
@@ -610,11 +738,15 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                   id="subCategory"
                   type="text"
                   value={formData.subCategory}
-                  onChange={(e) => handleInputChange('subCategory', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange('subCategory', e.target.value)
+                  }
                   className={errors.subCategory ? 'error' : ''}
                   placeholder="e.g., North Indian, Beer"
                 />
-                {errors.subCategory && <span className="error-text">{errors.subCategory}</span>}
+                {errors.subCategory && (
+                  <span className="error-text">{errors.subCategory}</span>
+                )}
               </div>
             </div>
 
@@ -633,7 +765,9 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                   className={errors.price ? 'error' : ''}
                   placeholder="Enter price"
                 />
-                {errors.price && <span className="error-text">{errors.price}</span>}
+                {errors.price && (
+                  <span className="error-text">{errors.price}</span>
+                )}
               </div>
 
               {!isBarItem && (
@@ -644,25 +778,29 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
                   <select
                     id="foodType"
                     value={formData.foodType}
-                    onChange={(e) => handleInputChange('foodType', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange('foodType', e.target.value)
+                    }
                     className={errors.foodType ? 'error' : ''}
                   >
                     <option value="veg">Vegetarian</option>
                     <option value="non-veg">Non-Vegetarian</option>
                   </select>
-                  {errors.foodType && <span className="error-text">{errors.foodType}</span>}
+                  {errors.foodType && (
+                    <span className="error-text">{errors.foodType}</span>
+                  )}
                 </div>
               )}
             </div>
 
             <div className="form-group">
-              <label htmlFor="description">
-                Description
-              </label>
+              <label htmlFor="description">Description</label>
               <textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
+                onChange={(e) =>
+                  handleInputChange('description', e.target.value)
+                }
                 placeholder="Enter item description (optional)"
                 rows="3"
               />
@@ -683,7 +821,11 @@ const MenuItemModal = ({ item, existingCategories = [], onClose, onSave }) => {
               className="btn-primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : item ? 'Update Item' : 'Create Item'}
+              {isSubmitting
+                ? 'Saving...'
+                : item
+                  ? 'Update Item'
+                  : 'Create Item'}
             </button>
           </div>
         </form>
