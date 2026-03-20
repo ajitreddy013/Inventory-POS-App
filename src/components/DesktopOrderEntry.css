@@ -563,13 +563,13 @@
 .price-total-main {
   font-size: 1.4rem;
   font-weight: 800;
-  color: #ef4444; /* Vibrant Red */
+  color: #111827; /* Black — total qty price */
   line-height: 1;
 }
 
 .price-unit-small {
   font-size: 0.8rem;
-  color: #ef4444; /* Match red theme */
+  color: #ef4444; /* Red — unit price */
   margin-top: 0.1rem;
   opacity: 0.8;
 }
@@ -614,7 +614,7 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 0.5rem;
-  color: var(--text-muted);
+  color: var(--text-main); /* Subtotal in black */
   font-size: 0.95rem;
 }
 
@@ -626,7 +626,7 @@
   border-top: 2px solid var(--border-color);
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--text-main); /* Back to black as requested */
+  color: #ef4444; /* Total in red */
 }
 
 /* Action Buttons */
