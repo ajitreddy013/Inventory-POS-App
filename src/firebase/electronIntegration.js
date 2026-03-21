@@ -3172,9 +3172,23 @@ function registerBillingHandlers() {
 
       // Calculate subtotal from order items
       let subtotal = 0;
-      if (order.items && Array.isArray(order.items)) {
-        for (const item of order.items) {
-          subtotal += item.totalPrice || item.basePrice * item.quantity;
+      let orderItems = order.items || [];
+
+      // If items array on document is empty, fetch from subcollection
+      if (orderItems.length === 0) {
+        const firestore = getAdminFirestore();
+        const itemsSnap = await firestore
+          .collection('orders')
+          .doc(orderId)
+          .collection('items')
+          .get();
+        orderItems = itemsSnap.docs.map((d) => d.data());
+      }
+
+      if (Array.isArray(orderItems)) {
+        for (const item of orderItems) {
+          const price = item.totalPrice || (item.unitPrice || item.basePrice || 0) * (item.currentQty || item.quantity || 0);
+          subtotal += price;
         }
       }
 
@@ -4219,6 +4233,7 @@ function registerTableOrderHandlers() {
           unitPrice,
           currentQty,
           sentQty,
+          totalPrice: Number(d.totalPrice ?? (unitPrice * currentQty)),
           category: d.category || '',
           isBarItem: !!(d.isBarItem || d.is_bar_item),
           created_at: createdAt,
@@ -4227,6 +4242,7 @@ function registerTableOrderHandlers() {
       } else {
         existing.currentQty += currentQty;
         existing.sentQty += sentQty;
+        existing.totalPrice = (existing.totalPrice || 0) + Number(d.totalPrice ?? (unitPrice * currentQty));
         existing.unitPrice = existing.unitPrice || unitPrice;
         existing.created_at = Math.min(
           existing.created_at || createdAt,
@@ -4358,6 +4374,36 @@ function registerTableOrderHandlers() {
           await itemRef.update({ created_at: Date.now() });
         }
 
+        // Recalculate order total (Live Subtotal including unsent items)
+        const remainingItemsSnap = await firestore
+          .collection('orders')
+          .doc(orderId)
+          .collection('items')
+          .get();
+
+        const liveTotal = remainingItemsSnap.docs.reduce((sum, d) => {
+          const row = d.data() || {};
+          const qtyVal = Number(row.currentQty ?? row.quantity ?? 0);
+          const priceVal = Number(row.unitPrice ?? row.base_price ?? 0);
+          const rowTotal = Number(row.totalPrice ?? (qtyVal * priceVal));
+          return sum + rowTotal;
+        }, 0);
+
+        await firestore.collection('orders').doc(orderId).update({
+          totalAmount: liveTotal,
+          updatedAt: now,
+        });
+
+        // Update table doc - Use Live Total so Grid matches detail UI
+        const orderSnap = await firestore.collection('orders').doc(orderId).get();
+        const tableId = orderSnap.data()?.tableId;
+        if (tableId) {
+          await firestore.collection('tables').doc(tableId).update({
+            currentBillAmount: liveTotal,
+            updatedAt: now,
+          });
+        }
+
         return { success: true, itemId: item.menuItemId };
       } catch (error) {
         console.error('Error upserting order item:', error);
@@ -4392,11 +4438,12 @@ function registerTableOrderHandlers() {
           .collection('items')
           .get();
 
-        const committedSubtotal = remainingItemsSnap.docs.reduce((sum, d) => {
+        const liveTotal = remainingItemsSnap.docs.reduce((sum, d) => {
           const row = d.data() || {};
-          const qtyVal = row.sentQty ?? 0;
-          const priceVal = row.unitPrice ?? row.base_price ?? 0;
-          return sum + Number(qtyVal) * Number(priceVal);
+          const qtyVal = Number(row.currentQty ?? row.quantity ?? 0);
+          const priceVal = Number(row.unitPrice ?? row.base_price ?? 0);
+          const rowTotal = Number(row.totalPrice ?? (qtyVal * priceVal));
+          return sum + rowTotal;
         }, 0);
 
         if (tableId) {
@@ -4405,15 +4452,14 @@ function registerTableOrderHandlers() {
               status: 'available',
               currentOrderId: null,
               current_order_id: null,
-              currentBillAmount: 0,
-              current_bill_amount: 0,
-              occupiedSince: null,
-              occupied_since: null,
+              currentBillAmount: liveTotal,
+              current_bill_amount: liveTotal,
               updatedAt: new Date(),
             });
 
             if (orderSnap.exists && orderData.status !== 'completed') {
               await orderRef.update({
+                totalAmount: liveTotal,
                 status: 'cancelled',
                 updatedAt: new Date(),
               });
@@ -4423,8 +4469,13 @@ function registerTableOrderHandlers() {
               status: 'occupied',
               currentOrderId: orderId,
               current_order_id: orderId,
-              currentBillAmount: committedSubtotal,
-              current_bill_amount: committedSubtotal,
+              currentBillAmount: liveTotal,
+              current_bill_amount: liveTotal,
+              updatedAt: new Date(),
+            });
+
+            await orderRef.update({
+              totalAmount: liveTotal,
               updatedAt: new Date(),
             });
           }
@@ -4635,15 +4686,28 @@ function registerTableOrderHandlers() {
           const orderRef = firestore.collection('orders').doc(orderId);
           tx.update(orderRef, { status: 'submitted', updatedAt: now });
 
+          const liveTotal = allItemsSnap.docs.reduce((sum, d) => {
+            const row = d.data() || {};
+            const qtyVal = Number(row.currentQty ?? row.quantity ?? 0);
+            const priceVal = Number(row.unitPrice ?? row.base_price ?? 0);
+            return sum + Number(row.totalPrice ?? qtyVal * priceVal);
+          }, 0);
+
           const tableRef = firestore.collection('tables').doc(tableId);
           tx.update(tableRef, {
             status: 'occupied',
             currentOrderId: orderId,
             current_order_id: orderId,
-            currentBillAmount: committedTotal,
-            current_bill_amount: committedTotal,
+            currentBillAmount: liveTotal,
+            current_bill_amount: liveTotal,
             occupiedSince: now,
             occupied_since: now,
+            updatedAt: now,
+          });
+
+          tx.update(orderRef, {
+            totalAmount: liveTotal,
+            lastKotNumber: assignedKotNumber,
             updatedAt: now,
           });
         });

@@ -22,6 +22,12 @@ import {
   History,
   User,
   Phone,
+  Banknote,
+  CreditCard,
+  Split,
+  Clock,
+  Printer,
+  CheckCircle2,
 } from 'lucide-react';
 import './DesktopOrderEntry.css';
 
@@ -146,6 +152,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   const [phoneSuggestions, setPhoneSuggestions] = useState([]);
   const [customerDataError, setCustomerDataError] = useState(null);
   const [isSavingPending, setIsSavingPending] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
 
   const debounceRefs = useRef({});
   const pendingUpserts = useRef({}); // menuItemId -> { oid, item, tableId, sub }
@@ -344,9 +351,12 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       cancelled = true;
       if (orderItemsUnsubRef.current) orderItemsUnsubRef.current();
       // Flush any pending debounced upserts immediately on unmount
-      const debounceTimers = debounceTimersRef;
-      const pendingUpsertMap = pendingUpsertsRef;
-      Object.values(debounceTimers).forEach((t) => clearTimeout(t));
+      const debounceTimers = debounceRefs.current;
+      const pendingUpsertMap = pendingUpserts.current;
+      Object.keys(debounceTimers).forEach((key) => {
+        clearTimeout(debounceTimers[key]);
+        delete debounceTimers[key];
+      });
       const pending = Object.values(pendingUpsertMap);
       if (pending.length > 0) {
         pending.forEach(({ oid: o, item, tableId, sub }) => {
@@ -379,6 +389,34 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   }, [showKOTHistory, orderId, loadKotHistory]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
+  const flushUpserts = useCallback(async () => {
+    const pending = Object.values(pendingUpserts.current);
+    if (pending.length === 0) return;
+
+    // Clear all pending debounce timers
+    Object.keys(debounceRefs.current).forEach((key) => {
+      clearTimeout(debounceRefs.current[key]);
+      delete debounceRefs.current[key];
+    });
+
+    const toFlush = [...pending];
+    pendingUpserts.current = {};
+
+    await Promise.all(
+      toFlush.map(({ oid, item, tableId, sub }) =>
+        window.electronAPI
+          .upsertOrderItem(oid, {
+            ...item,
+            tableId,
+            subtotal: sub,
+          })
+          .catch((err) => {
+            console.error('Failed to flush upsert:', err);
+          })
+      )
+    );
+  }, []);
+
   const scheduleUpsert = useCallback(
     (oid, item, tableId, sub) => {
       clearTimeout(debounceRefs.current[item.menuItemId]);
@@ -386,6 +424,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
       pendingUpserts.current[item.menuItemId] = { oid, item, tableId, sub };
       debounceRefs.current[item.menuItemId] = setTimeout(async () => {
         delete pendingUpserts.current[item.menuItemId];
+        delete debounceRefs.current[item.menuItemId];
         try {
           const result = await window.electronAPI.upsertOrderItem(oid, {
             ...item,
@@ -444,7 +483,7 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
   }, [orderId, table, subscribeToOrderItems, onTableUpdate]);
 
   const subtotal = orderItems.reduce(
-    (s, i) => s + i.currentQty * i.unitPrice,
+    (s, i) => s + Number(i.currentQty || 0) * Number(i.unitPrice ?? i.base_price ?? 0),
     0
   );
   const payableTotal = Math.max(0, subtotal - discountAmount);
@@ -741,6 +780,29 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     setIsSavingPending(true);
     setCustomerDataError(null);
     try {
+      // **CRITICAL FIX**: If there are unsent items, Firestore total will be incorrect.
+      // We must send KOT before saving the pending bill and generating PDF.
+      const unsentItems = orderItems.filter(
+        (i) => i.currentQty - i.sentQty > 0
+      );
+      if (unsentItems.length > 0) {
+        const kotRes = await window.electronAPI.sendKot({
+          orderId,
+          tableId: table.id,
+          tableName: table.name,
+          kotItems: unsentItems,
+        });
+        if (!kotRes?.success)
+          throw new Error(
+            kotRes?.error || 'KOT failed before saving pending bill'
+          );
+
+        // Update local state to reflect items are now sent
+        setOrderItems((prev) =>
+          prev.map((i) => ({ ...i, sentQty: i.currentQty }))
+        );
+      }
+
       const res = await window.electronAPI.savePendingBill({
         orderId,
         tableId: table.id,
@@ -758,8 +820,52 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
         discountAmount,
         totalAmount: payableTotal,
       });
+
       if (!res?.success)
         throw new Error(res?.error || 'Failed to save pending bill');
+
+      // 1. Generate PDF Preview for Pending Bill
+      const billDataForPDF = {
+        orderId,
+        tableName: table.name,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: orderItems.map((i) => ({
+          name: i.menuItemName,
+          quantity: i.currentQty,
+          unitPrice: i.unitPrice,
+          totalPrice: i.currentQty * i.unitPrice,
+        })),
+        subtotal,
+        discountAmount,
+        totalAmount: payableTotal, // Fixed field name
+        paymentMethod: 'pending',
+        date: new Date().toISOString(),
+      };
+      await window.electronAPI.exportPDF(billDataForPDF);
+
+      // 2. Create Sale in Local SQLite (marked as pending or with method 'pending')
+      const saleData = {
+        saleNumber: `SAL-${Date.now()}`,
+        saleType: 'table',
+        tableNumber: table.name,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: orderItems.map((i) => ({
+          productId: i.menuItemId,
+          quantity: i.currentQty,
+          unitPrice: i.unitPrice,
+          totalPrice: i.currentQty * i.unitPrice,
+        })),
+        subtotal,
+        discountAmount,
+        totalAmount: payableTotal,
+        paymentMethod: 'pending',
+        taxAmount: 0,
+        saleDate: new Date().toISOString(),
+      };
+      await window.electronAPI.createSale(saleData);
+
       if (onTableUpdate) {
         onTableUpdate({
           ...table,
@@ -895,6 +1001,136 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
     orderId,
     table,
     discountAmount,
+    onBack,
+    loadMenu,
+  ]);
+
+  const handlePrintCheckout = useCallback(async () => {
+    if (!orderId || orderItems.length === 0) {
+      setError('No order to bill');
+      return;
+    }
+
+    if (selectedPaymentMethod === 'pending') {
+      setShowCustomerModal(true);
+      return;
+    }
+
+    if (selectedPaymentMethod === 'split') {
+      const cash = parseFloat(splitCash) || 0;
+      const upi = parseFloat(splitUpi) || 0;
+      if (Math.abs(cash + upi - payableTotal) > 0.01) {
+        setError(`Cash + UPI must equal ₹${payableTotal.toFixed(2)}`);
+        return;
+      }
+    }
+
+    setPaying(true);
+    setError(null);
+
+    try {
+      // **PREVENT RACE CONDITION**: Ensure all debounced item adds/updates are
+      // persisted to Firestore before we try to generate KOTs or Bills.
+      await flushUpserts();
+
+      // **CRITICAL FIX**: If there are unsent items, Firestore total will be incorrect.
+      // We must send KOT before generating the bill.
+      const unsentItems = orderItems.filter(
+        (i) => i.currentQty - i.sentQty > 0
+      );
+      if (unsentItems.length > 0) {
+        const kotRes = await window.electronAPI.sendKot({
+          orderId,
+          tableId: table.id,
+          tableName: table.name,
+          kotItems: unsentItems,
+        });
+        if (!kotRes?.success)
+          throw new Error(kotRes?.error || 'KOT failed before checkout');
+
+        // Update local state to reflect items are now sent
+        setOrderItems((prev) =>
+          prev.map((i) => ({ ...i, sentQty: i.currentQty }))
+        );
+      }
+
+      // 1. Generate PDF Preview
+      const billDataForPDF = {
+        orderId,
+        tableName: table.name,
+        items: orderItems.map((i) => ({
+          name: i.menuItemName,
+          quantity: i.currentQty,
+          unitPrice: i.unitPrice, // Fixed: were 'price'
+          totalPrice: i.currentQty * i.unitPrice, // Fixed: were 'total'
+        })),
+        subtotal,
+        discountAmount, // Fixed: was 'discount'
+        totalAmount: payableTotal, // Fixed: was 'total'
+        paymentMethod: selectedPaymentMethod,
+        date: new Date().toISOString(),
+      };
+      await window.electronAPI.exportPDF(billDataForPDF);
+
+      // 2. Create Sale in Local SQLite (for Dashboard)
+      const saleData = {
+        saleNumber: `SAL-${Date.now()}`,
+        saleType: 'table',
+        tableNumber: table.name,
+        items: orderItems.map((i) => ({
+          productId: i.menuItemId,
+          quantity: i.currentQty,
+          unitPrice: i.unitPrice,
+          totalPrice: i.currentQty * i.unitPrice,
+        })),
+        subtotal,
+        discountAmount,
+        totalAmount: payableTotal,
+        paymentMethod:
+          selectedPaymentMethod === 'split' ? 'split' : selectedPaymentMethod,
+        taxAmount: 0,
+        saleDate: new Date().toISOString(),
+      };
+      await window.electronAPI.createSale(saleData);
+
+      // 3. Generate Bill in Firebase
+      const payments =
+        selectedPaymentMethod === 'split'
+          ? [
+              { type: 'cash', amount: parseFloat(splitCash) || 0 },
+              { type: 'upi', amount: parseFloat(splitUpi) || 0 },
+            ]
+          : [{ type: selectedPaymentMethod, amount: payableTotal }];
+
+      const res = await window.electronAPI.generateBill({
+        orderId,
+        tableId: table.id,
+        payments,
+        discountType: 'fixed',
+        discountValue: discountAmount,
+      });
+
+      if (!res?.success) throw new Error(res?.error || 'Bill failed');
+
+      // 4. Update UI & Navigate Back
+      loadMenu();
+      onBack();
+    } catch (e) {
+      console.error('Checkout error:', e);
+      setError(e.message || 'An error occurred during checkout');
+    } finally {
+      setPaying(false);
+    }
+  }, [
+    orderId,
+    orderItems,
+    selectedPaymentMethod,
+    table,
+    subtotal,
+    discountAmount,
+    payableTotal,
+    splitCash,
+    splitUpi,
     onBack,
     loadMenu,
   ]);
@@ -1293,10 +1529,10 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
                         >
                           <div className="price-stack">
                             <span className="price-total-main">
-                              ₹{(item.currentQty * item.unitPrice).toFixed(2)}
+                              ₹{(Number(item.currentQty || 0) * Number(item.unitPrice ?? item.base_price ?? 0)).toFixed(2)}
                             </span>
                             <span className="price-unit-small">
-                              ₹{Number(item.unitPrice).toFixed(2)}
+                              ₹{Number(item.unitPrice ?? item.base_price ?? 0).toFixed(2)}
                             </span>
                           </div>
 
@@ -1426,84 +1662,115 @@ export default function TableOrderEntry({ table, onBack, onTableUpdate }) {
               <span>Subtotal</span>
               <span>₹{subtotal.toFixed(2)}</span>
             </div>
-            {discountAmount > 0 && (
-              <div
-                className="summary-row"
-                style={{ color: '#f43f5e', fontWeight: 600 }}
+
+            <div className="discount-summary-row">
+              <button
+                className="btn-discount-inline"
+                onClick={() => {
+                  setShowDiscount(!showDiscount);
+                  setShowSplit(false);
+                }}
               >
-                <span>Discount</span>
-                <span>-₹{discountAmount.toFixed(2)}</span>
-              </div>
-            )}
+                <Tag size={14} />
+                {discountAmount > 0 ? 'CHANGE DISCOUNT' : 'DISCOUNT'}
+              </button>
+              {discountAmount > 0 && (
+                <span
+                  className="price-unit-small"
+                  style={{ fontWeight: 700, fontSize: '0.9rem' }}
+                >
+                  -₹{discountAmount.toFixed(2)}
+                </span>
+              )}
+            </div>
+
             <div className="summary-total">
-              <span>Total</span>
+              <span>TOTAL</span>
               <span>₹{payableTotal.toFixed(2)}</span>
             </div>
           </div>
 
-          <div className="secondary-actions">
-            <button className="btn-secondary-pos" onClick={handleKeepPending}>
-              Keep Pending
-            </button>
-            <button
-              className={`btn-secondary-pos ${showDiscount ? 'active' : ''}`}
-              onClick={() => {
-                setShowDiscount(!showDiscount);
-                setShowSplit(false);
-                setShowKOTHistory(false);
-              }}
-            >
-              Discount
-            </button>
-          </div>
+          <div className="action-area" style={{ padding: '0.75rem 1rem' }}>
+            <div className="checkout-control-row">
+              <button
+                className={`btn-large btn-send ${hasPendingItems() ? 'active' : ''}`}
+                disabled={
+                  kotSending ||
+                  orderItems.filter((i) => i.currentQty - i.sentQty > 0)
+                    .length === 0
+                }
+                onClick={handleSendKot}
+              >
+                {kotSending ? (
+                  'Sending...'
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Send KOT
+                  </>
+                )}
+              </button>
 
-          <div className="action-area" style={{ padding: '1rem 1.5rem' }}>
+              <button
+                className={`btn-large btn-pending-control ${selectedPaymentMethod === 'pending' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedPaymentMethod('pending');
+                  setShowSplit(false);
+                }}
+                disabled={paying || orderItems.length === 0}
+              >
+                <Clock size={16} />
+                Pending
+              </button>
+            </div>
+
+            <div className="payment-methods-grid">
+              <div
+                className={`payment-method-box group ${selectedPaymentMethod === 'cash' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedPaymentMethod('cash');
+                  setShowSplit(false);
+                }}
+              >
+                <Banknote className="payment-icon" size={18} />
+                <span>Cash</span>
+              </div>
+              <div
+                className={`payment-method-box group ${selectedPaymentMethod === 'upi' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedPaymentMethod('upi');
+                  setShowSplit(false);
+                }}
+              >
+                <CreditCard className="payment-icon" size={18} />
+                <span>UPI</span>
+              </div>
+              <div
+                className={`payment-method-box group ${selectedPaymentMethod === 'split' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedPaymentMethod('split');
+                  setShowSplit(true);
+                }}
+              >
+                <Split className="payment-icon" size={18} />
+                <span>Split</span>
+              </div>
+            </div>
+
             <button
-              className="btn-large btn-send"
-              disabled={
-                kotSending ||
-                orderItems.filter((i) => i.currentQty - i.sentQty > 0)
-                  .length === 0
-              }
-              onClick={handleSendKot}
+              className={`btn-large btn-print-checkout ${!hasPendingItems() && orderItems.length > 0 ? 'ready-to-checkout' : ''}`}
+              disabled={paying || orderItems.length === 0}
+              onClick={handlePrintCheckout}
             >
-              {kotSending ? (
-                'Sending...'
+              {paying ? (
+                <Loader size={18} className="spin" />
               ) : (
                 <>
-                  <Send size={20} />
-                  Send KOT
+                  <Printer size={18} />
+                  Print & Checkout
                 </>
               )}
             </button>
-
-            <div className="payment-actions">
-              <button
-                className="btn-pay btn-cash"
-                disabled={paying || orderItems.length === 0}
-                onClick={() => handlePay('cash')}
-              >
-                Cash
-              </button>
-              <button
-                className="btn-pay btn-upi"
-                disabled={paying || orderItems.length === 0}
-                onClick={() => handlePay('upi')}
-              >
-                UPI
-              </button>
-              <button
-                className="btn-pay btn-split"
-                disabled={paying || orderItems.length === 0}
-                onClick={() => {
-                  setShowSplit(!showSplit);
-                  setShowDiscount(false);
-                  setShowKOTHistory(false);
-                }}
-              >
-                Split
-              </button>
-            </div>
           </div>
         </aside>
       </div>
