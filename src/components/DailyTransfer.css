@@ -1,0 +1,500 @@
+/* Daily Transfer — styled to match TableOrderEntry / DesktopOrderEntry */
+
+:root {
+  --dt-primary: #0f172a;
+  --dt-border: #e2e8f0;
+  --dt-bg: #ffffff;
+  --dt-bg-card: #ffffff;
+  --dt-bg-panel: #f8fafc;
+  --dt-text: #0f172a;
+  --dt-text-muted: #94a3b8;
+  --dt-radius: 12px;
+  --dt-transition: all 0.18s ease;
+}
+
+.daily-transfer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--dt-bg);
+  color: var(--dt-text);
+}
+
+/* ── Header ── */
+.dt-page-header {
+  padding: 1rem 1.5rem;
+  background: white;
+  border-bottom: 1px solid var(--dt-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dt-page-header h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--dt-text);
+}
+
+/* ── Tabs ── */
+.dt-tab-nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.dt-tab-btn {
+  padding: 0.5rem 0.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--dt-text-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: var(--dt-transition);
+}
+
+.dt-tab-btn:hover { color: #64748b; }
+.dt-tab-btn.active {
+  color: var(--dt-text);
+  border-bottom-color: var(--dt-text);
+}
+
+/* ── Two-column layout (mirrors order-layout) ── */
+.dt-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left panel ── */
+.dt-product-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  gap: 1rem;
+}
+
+/* ── Simple search bar ── */
+.dt-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #f8fafc;
+  border: 1px solid var(--dt-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  transition: var(--dt-transition);
+}
+
+.dt-search-bar:focus-within {
+  border-color: var(--dt-primary);
+  background: white;
+}
+
+.dt-search-icon { color: var(--dt-text-muted); flex-shrink: 0; }
+
+.dt-search-input {
+  border: none;
+  outline: none;
+  font-size: 0.9rem;
+  width: 100%;
+  background: transparent;
+  color: var(--dt-text);
+}
+
+/* ── Filter chips ── */
+.dt-filters {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.dt-filter-chip {
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  cursor: pointer;
+  background: white;
+  border: 1px solid var(--dt-border);
+  color: #64748b;
+  transition: var(--dt-transition);
+}
+
+.dt-filter-chip.active {
+  background: var(--dt-primary);
+  color: white;
+  border-color: var(--dt-primary);
+}
+
+/* ── Items grid — same as .items-grid in DesktopOrderEntry.css ── */
+.dt-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.25rem;
+  align-content: start;
+  padding-bottom: 1.5rem;
+}
+
+/* ── Item card — mirrors .item-card ── */
+.dt-item-card {
+  background: var(--dt-bg-card);
+  border-radius: var(--dt-radius);
+  padding: 1.25rem;
+  border: 1px solid var(--dt-border);
+  cursor: pointer;
+  transition: var(--dt-transition);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 110px;
+}
+
+.dt-item-card:hover {
+  border-color: var(--dt-primary);
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.dt-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.dt-item-tag {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.dt-item-name {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--dt-text);
+  line-height: 1.3;
+}
+
+.dt-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.dt-stock-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #ef4444;
+}
+
+.dt-add-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  transition: var(--dt-transition);
+}
+
+.dt-item-card:hover .dt-add-btn {
+  background: var(--dt-primary);
+  color: white;
+}
+
+/* ── Right panel — mirrors billing-panel ── */
+.dt-transfer-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--dt-bg-panel);
+  border-left: 1px solid var(--dt-border);
+  overflow: hidden;
+}
+
+.dt-transfer-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--dt-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.dt-transfer-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--dt-text);
+}
+
+.dt-qty-badge {
+  background: var(--dt-primary);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+}
+
+.dt-transfer-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ── Transfer row — mirrors order-item-row ── */
+.dt-transfer-row {
+  background: white;
+  border: 1px solid var(--dt-border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dt-transfer-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dt-transfer-name {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--dt-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dt-transfer-avail {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--dt-text-muted);
+  margin-top: 0.15rem;
+}
+
+.dt-qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dt-qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--dt-border);
+  background: white;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--dt-transition);
+}
+
+.dt-qty-btn:hover {
+  background: var(--dt-primary);
+  color: white;
+  border-color: var(--dt-primary);
+}
+
+.dt-qty-val {
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 1.75rem;
+  text-align: center;
+}
+
+.dt-remove-btn {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  cursor: pointer;
+  color: #ef4444;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--dt-transition);
+  flex-shrink: 0;
+}
+
+.dt-remove-btn:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+/* ── Execute button area ── */
+.dt-transfer-actions {
+  padding: 1.25rem;
+  border-top: 1px solid var(--dt-border);
+  flex-shrink: 0;
+}
+
+.dt-transfer-summary {
+  font-size: 0.8rem;
+  color: var(--dt-text-muted);
+  margin: 0 0 0.75rem 0;
+  text-align: center;
+}
+
+.dt-execute-btn {
+  width: 100%;
+  background: var(--dt-primary);
+  color: white;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--dt-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.dt-execute-btn:hover:not(:disabled) { background: #1e293b; }
+.dt-execute-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Empty state ── */
+.dt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--dt-text-muted);
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.dt-empty p { margin: 0; font-size: 0.9rem; }
+.dt-empty small { font-size: 0.78rem; }
+
+/* ── History ── */
+.dt-history {
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dt-history-filter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dt-history-filter label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.dt-date-input {
+  border: 1px solid var(--dt-border);
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  color: var(--dt-text);
+}
+
+.dt-clear-btn {
+  background: none;
+  border: 1px solid var(--dt-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.dt-clear-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+.dt-date-header {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--dt-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--dt-border);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2rem;
+  table-layout: fixed; /* Use fixed layout for better control over columns */
+  min-width: 600px;    /* Ensure it doesn't get too squeezed */
+}
+
+.dt-table th {
+  text-align: left;
+  padding: 0.6rem 1rem;
+  font-size: 0.72rem;
+  color: var(--dt-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Column width logic — forcing Qty/From/To to start from middle (50%) */
+.dt-table th:nth-child(1) { width: 100px; }            /* Time */
+.dt-table th:nth-child(2) { width: calc(50% - 100px); } /* Item Name ends exactly at 50% */
+.dt-table th:nth-child(3) { width: 80px; }             /* Qty starts from 50% */
+.dt-table th:nth-child(4) { width: auto; }             /* From */
+.dt-table th:nth-child(5) { width: auto; }             /* To */
+
+.dt-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #fafafa;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Handle overflow on item name */
+}
+
+.dt-table tr:hover td { background: #f8fafc; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .dt-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .dt-transfer-panel {
+    border-left: none;
+    border-top: 1px solid var(--dt-border);
+    max-height: 40vh;
+  }
+}
