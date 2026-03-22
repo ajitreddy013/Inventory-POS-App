@@ -3,6 +3,14 @@ import {
   BarChart3,
   AlertTriangle,
   RefreshCw,
+  Package,
+  TrendingUp,
+  IndianRupee,
+  Wallet,
+  Landmark,
+  History,
+  Activity,
+  ArrowUpRight
 } from "lucide-react";
 import { 
   getLocalDateString,
@@ -147,42 +155,73 @@ const Dashboard = () => {
 
       {/* Summary Cards */}
       <div className="summary-cards">
-        <div className="summary-card">
-          <h3>Total Products</h3>
+        <div className="summary-card card-blue">
+          <div className="card-header">
+            <h3>Total Products</h3>
+            <div className="card-icon"><Package size={20} /></div>
+          </div>
           <div className="value">{dashboardData.totalProducts}</div>
         </div>
-        <div className="summary-card warning">
-          <h3>Low Stock Items</h3>
+        
+        <div className="summary-card card-coral warning">
+          <div className="card-header">
+            <h3>Low Stock Items</h3>
+            <div className="card-icon"><AlertTriangle size={20} /></div>
+          </div>
           <div className="value">{dashboardData.lowStockItems}</div>
         </div>
-        <div className="summary-card">
-          <h3>Today&apos;s Sales</h3>
+        
+        <div className="summary-card card-teal">
+          <div className="card-header">
+            <h3>Today&apos;s Sales</h3>
+            <div className="card-icon"><Activity size={20} /></div>
+          </div>
           <div className="value">{dashboardData.todaySales}</div>
         </div>
-        <div className="summary-card">
-          <h3>Today&apos;s Revenue</h3>
+        
+        <div className="summary-card card-orange">
+          <div className="card-header">
+            <h3>Today&apos;s Revenue</h3>
+            <div className="card-icon"><IndianRupee size={20} /></div>
+          </div>
           <div className="value">₹{dashboardData.totalRevenue.toFixed(2)}</div>
         </div>
-        <div className="summary-card">
-          <h3>Today&apos;s Spendings</h3>
+        
+        <div className="summary-card card-mauve">
+          <div className="card-header">
+            <h3>Today&apos;s Spendings</h3>
+            <div className="card-icon"><Wallet size={20} /></div>
+          </div>
           <div className="value">
             ₹{dashboardData.todaySpendings.toFixed(2)}
           </div>
         </div>
-        <div className="summary-card">
-          <h3>Net Income</h3>
+        
+        <div className="summary-card card-mint">
+          <div className="card-header">
+            <h3>Net Income</h3>
+            <div className="card-icon"><TrendingUp size={20} /></div>
+          </div>
           <div className="value">
             ₹{dashboardData.netIncome.toFixed(2)}
           </div>
         </div>
-        <div className="summary-card">
-          <h3>Opening Balance</h3>
+        
+        <div className="summary-card card-slate">
+          <div className="card-header">
+            <h3>Opening Balance</h3>
+            <div className="card-icon"><History size={20} /></div>
+          </div>
           <div className="value">
             ₹{dashboardData.openingBalance.toFixed(2)}
           </div>
         </div>
-        <div className="summary-card">
-          <h3>Total Balance</h3>
+        
+        <div className="summary-card card-sunset">
+          <div className="card-header">
+            <h3>Total Balance</h3>
+            <div className="card-icon"><Landmark size={20} /></div>
+          </div>
           <div className="value positive">₹{dashboardData.totalBalance.toFixed(2)}</div>
         </div>
       </div>
@@ -265,15 +304,7 @@ const Dashboard = () => {
                   <td>{sale.item_count} items</td>
                   <td>₹{sale.total_amount.toFixed(2)}</td>
                   <td>
-                    <span
-                      style={{
-                        textTransform: "capitalize",
-                        background: "#e9ecef",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "0.8rem",
-                      }}
-                    >
+                    <span className={`payment-pill ${(sale.payment_method || 'pending').toLowerCase()}`}>
                       {sale.payment_method}
                     </span>
                   </td>
