@@ -8,9 +8,10 @@ import {
   Minus,
   CheckCircle,
   History,
+  Trash2,
 } from 'lucide-react';
+import './DailyTransfer.css';
 
-// Firestore timestamp parser (handles _seconds, seconds, .toDate(), ISO string)
 function parseTimestamp(val) {
   if (!val) return null;
   if (val.toDate) return val.toDate();
@@ -23,22 +24,13 @@ function parseTimestamp(val) {
 function formatTime(val) {
   const d = parseTimestamp(val);
   if (!d) return '-';
-  return d.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 function formatDateLabel(val) {
   const d = parseTimestamp(val);
   if (!d) return 'Unknown Date';
-  return d.toLocaleDateString('en-IN', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function toDateKey(val) {
@@ -51,16 +43,11 @@ function groupByDate(records) {
   const map = {};
   for (const rec of records) {
     const key = toDateKey(rec.timestamp);
-    if (!map[key])
-      map[key] = { key, label: formatDateLabel(rec.timestamp), items: [] };
+    if (!map[key]) map[key] = { key, label: formatDateLabel(rec.timestamp), items: [] };
     map[key].items.push(rec);
   }
   for (const g of Object.values(map)) {
-    g.items.sort((a, b) => {
-      const da = parseTimestamp(a.timestamp);
-      const db = parseTimestamp(b.timestamp);
-      return (da || 0) - (db || 0);
-    });
+    g.items.sort((a, b) => (parseTimestamp(a.timestamp) || 0) - (parseTimestamp(b.timestamp) || 0));
   }
   return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
 }
@@ -79,10 +66,7 @@ const DailyTransfer = () => {
   const loadProducts = useCallback(async () => {
     try {
       const res = await window.electronAPI.getMenuItemsWithStock();
-      if (res.success) {
-        // only show items that have godown stock > 0
-        setProducts(res.items.filter((i) => i.godownStock > 0));
-      }
+      if (res.success) setProducts(res.items.filter((i) => i.godownStock > 0));
     } catch (e) {
       console.error('Failed to load products:', e);
     }
@@ -100,19 +84,14 @@ const DailyTransfer = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
-  useEffect(() => {
-    if (activeTab === 'history') loadHistory();
-  }, [activeTab, loadHistory]);
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+  useEffect(() => { if (activeTab === 'history') loadHistory(); }, [activeTab, loadHistory]);
 
   const filteredProducts = products
     .filter((p) => (godownSection === 'bar' ? p.isBarItem : !p.isBarItem))
-    .filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
+    .filter((p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
   const addToTransfers = (product) => {
@@ -133,9 +112,7 @@ const DailyTransfer = () => {
     const product = products.find((p) => p.id === id);
     const max = product?.godownStock || 0;
     setTransfers((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, quantity: Math.max(0, Math.min(qty, max)) } : t
-      )
+      prev.map((t) => t.id === id ? { ...t, quantity: Math.max(0, Math.min(qty, max)) } : t)
     );
   };
 
@@ -145,22 +122,11 @@ const DailyTransfer = () => {
   const totalQty = transfers.reduce((s, t) => s + t.quantity, 0);
 
   const executeTransfer = async () => {
-    if (transfers.length === 0) {
-      alert('No items selected');
-      return;
-    }
-    if (transfers.some((t) => t.quantity <= 0)) {
-      alert('Some items have 0 quantity');
-      return;
-    }
-
+    if (transfers.length === 0) { alert('No items selected'); return; }
+    if (transfers.some((t) => t.quantity <= 0)) { alert('Some items have 0 quantity'); return; }
     setLoading(true);
     try {
-      const items = transfers.map((t) => ({
-        menuItemId: t.id,
-        menuItemName: t.name,
-        quantity: t.quantity,
-      }));
+      const items = transfers.map((t) => ({ menuItemId: t.id, menuItemName: t.name, quantity: t.quantity }));
       const res = await window.electronAPI.transferToCounter(items);
       if (!res.success) throw new Error(res.error);
       alert(`Transferred ${transfers.length} item(s) to counter`);
@@ -176,36 +142,19 @@ const DailyTransfer = () => {
   const filteredHistory = filterDate
     ? transferHistory.filter((r) => toDateKey(r.timestamp) === filterDate)
     : transferHistory;
-
   const groupedHistory = groupByDate(filteredHistory);
-
-  const tabStyle = (key) => ({
-    background: activeTab === key ? '#4f46e5' : '',
-    color: activeTab === key ? '#fff' : '',
-    borderColor: activeTab === key ? '#4f46e5' : '',
-    fontWeight: activeTab === key ? 700 : 400,
-  });
 
   return (
     <div className="daily-transfer">
-      <div className="page-header">
-        <h1>
-          <ArrowRight size={24} /> Daily Transfer (Godown → Counter)
-        </h1>
-        <div className="tab-navigation">
-          {[
-            { key: 'transfer', label: 'Transfer' },
-            { key: 'history', label: 'History' },
-          ].map(({ key, label }) => (
+      <div className="dt-page-header">
+        <h1>Daily Transfer</h1>
+        <div className="dt-tab-nav">
+          {[{ key: 'transfer', label: 'Transfer' }, { key: 'history', label: 'History' }].map(({ key, label }) => (
             <button
               key={key}
-              className="btn tab-btn"
-              style={tabStyle(key)}
+              className={`dt-tab-btn ${activeTab === key ? 'active' : ''}`}
               onClick={() => setActiveTab(key)}
             >
-              {key === 'history' && (
-                <History size={15} style={{ marginRight: 4 }} />
-              )}
               {label}
             </button>
           ))}
@@ -213,280 +162,157 @@ const DailyTransfer = () => {
       </div>
 
       {activeTab === 'transfer' && (
-        <div className="transfer-layout">
-          {/* Left — product list */}
-          <div className="product-panel">
-            <div className="search-section">
-              <div className="search-input-container">
-                <Search size={20} />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="search-input"
-                />
-              </div>
+        <div className="dt-layout">
+          {/* Left — product grid */}
+          <div className="dt-product-panel">
+            {/* Search bar */}
+            <div className="dt-search-bar">
+              <Search size={16} className="dt-search-icon" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="dt-search-input"
+              />
             </div>
-            <div className="products-list">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Available in Godown</h3>
-                {[
-                  { key: 'bar', label: 'Bar' },
-                  { key: 'restaurant', label: 'Restaurant' },
-                ].map(({ key, label }) => (
-                  <button
-                    key={key}
-                    className="btn btn-sm"
-                    onClick={() => setGodownSection(key)}
-                    style={{
-                      background: godownSection === key ? '#4f46e5' : '#f0f0f0',
-                      color: godownSection === key ? '#fff' : '#333',
-                      border: 'none',
-                      fontWeight: godownSection === key ? 700 : 400,
-                      padding: '4px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
+
+            {/* Bar / Restaurant filter */}
+            <div className="dt-filters">
+              {[{ key: 'bar', label: 'Bar' }, { key: 'restaurant', label: 'Restaurant' }].map(({ key, label }) => (
+                <button
+                  key={key}
+                  className={`dt-filter-chip ${godownSection === key ? 'active' : ''}`}
+                  onClick={() => setGodownSection(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Product cards grid */}
+            {filteredProducts.length === 0 ? (
+              <div className="dt-empty">
+                <Package size={40} />
+                <p>No items with godown stock</p>
+              </div>
+            ) : (
+              <div className="dt-items-grid">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="dt-item-card"
+                    onClick={() => addToTransfers(product)}
                   >
-                    {label}
-                  </button>
+                    <div>
+                      <div className="dt-item-header">
+                        <span className="dt-item-tag">
+                          {product.subCategory || product.category || 'Other'}
+                        </span>
+                      </div>
+                      <h4 className="dt-item-name">{product.name}</h4>
+                    </div>
+                    <div className="dt-item-footer">
+                      <span className="dt-stock-label">
+                        Stock: {product.godownStock}
+                      </span>
+                      <div className="dt-add-btn">
+                        <Plus size={18} />
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
-              {filteredProducts.length === 0 ? (
-                <p className="no-products">No items with godown stock</p>
-              ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns:
-                      'repeat(auto-fill, minmax(160px, 1fr))',
-                    gap: '1rem',
-                    marginTop: 8,
-                  }}
-                >
-                  {filteredProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      onClick={() => addToTransfers(product)}
-                      style={{
-                        background: '#fff',
-                        borderRadius: 12,
-                        padding: '1.25rem',
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                        transition: 'transform 0.15s, box-shadow 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-3px)';
-                        e.currentTarget.style.boxShadow =
-                          '0 6px 16px rgba(0,0,0,0.12)';
-                        e.currentTarget.style.borderColor = '#4f46e5';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = '';
-                        e.currentTarget.style.boxShadow =
-                          '0 1px 4px rgba(0,0,0,0.06)';
-                        e.currentTarget.style.borderColor = '#e2e8f0';
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          color: '#1e293b',
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {product.name}
-                      </div>
-                      {product.subCategory && (
-                        <div style={{ fontSize: 12, color: '#64748b' }}>
-                          {product.subCategory}
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          marginTop: 6,
-                          background: '#f0f4ff',
-                          color: '#4f46e5',
-                          fontWeight: 800,
-                          fontSize: 22,
-                          borderRadius: 8,
-                          padding: '4px 16px',
-                          minWidth: 48,
-                        }}
-                      >
-                        {product.godownStock}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
           {/* Right — transfer list */}
-          <div className="transfer-panel">
-            <div className="transfer-header">
-              <h3>Transfer List ({totalQty} items)</h3>
+          <aside className="dt-transfer-panel">
+            <div className="dt-transfer-header">
+              <h2>
+                <ArrowRight size={20} /> Transfer List
+              </h2>
+              {totalQty > 0 && (
+                <span className="dt-qty-badge">{totalQty} items</span>
+              )}
             </div>
-            <div className="transfer-items">
+
+            <div className="dt-transfer-items">
               {transfers.length === 0 ? (
-                <div className="empty-transfer">
-                  <Package size={48} />
+                <div className="dt-empty" style={{ padding: '3rem 1rem' }}>
+                  <Package size={36} style={{ opacity: 0.4 }} />
                   <p>No items selected</p>
-                  <small>Click products on the left to add</small>
+                  <small>Tap products on the left to add</small>
                 </div>
               ) : (
                 transfers.map((transfer) => (
-                  <div key={transfer.id} className="transfer-item">
-                    <div className="item-info">
-                      <h4>{transfer.name}</h4>
-                      <p>Available: {transfer.godownStock}</p>
+                  <div key={transfer.id} className="dt-transfer-row">
+                    <div className="dt-transfer-info">
+                      <span className="dt-transfer-name">{transfer.name}</span>
+                      <span className="dt-transfer-avail">Avail: {transfer.godownStock}</span>
                     </div>
-                    <div className="quantity-controls">
-                      <button
-                        className="qty-btn"
-                        onClick={() =>
-                          updateQty(transfer.id, transfer.quantity - 1)
-                        }
-                      >
-                        <Minus size={16} />
+                    <div className="dt-qty-controls">
+                      <button className="dt-qty-btn" onClick={() => updateQty(transfer.id, transfer.quantity - 1)}>
+                        <Minus size={14} />
                       </button>
-                      <input
-                        type="number"
-                        className="qty-input"
-                        value={transfer.quantity || ''}
-                        min="0"
-                        max={transfer.godownStock}
-                        onChange={(e) => {
-                          const v = parseInt(e.target.value, 10);
-                          updateQty(transfer.id, isNaN(v) ? 0 : v);
-                        }}
-                      />
-                      <button
-                        className="qty-btn"
-                        onClick={() =>
-                          updateQty(transfer.id, transfer.quantity + 1)
-                        }
-                      >
-                        <Plus size={16} />
+                      <span className="dt-qty-val">{transfer.quantity}</span>
+                      <button className="dt-qty-btn" onClick={() => updateQty(transfer.id, transfer.quantity + 1)}>
+                        <Plus size={14} />
                       </button>
                     </div>
-                    <button
-                      className="remove-btn"
-                      onClick={() => removeFromTransfers(transfer.id)}
-                    >
-                      Remove
+                    <button className="dt-remove-btn" onClick={() => removeFromTransfers(transfer.id)}>
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 ))
               )}
             </div>
+
             {transfers.length > 0 && (
-              <div className="transfer-actions">
-                <div className="transfer-summary">
-                  <p>Transferring {totalQty} items to counter</p>
-                </div>
-                <button
-                  className="btn btn-primary execute-transfer-btn"
-                  onClick={executeTransfer}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    'Transferring...'
-                  ) : (
-                    <>
-                      <CheckCircle size={20} /> Execute Transfer
-                    </>
-                  )}
+              <div className="dt-transfer-actions">
+                <p className="dt-transfer-summary">Transferring {totalQty} item(s) to counter</p>
+                <button className="dt-execute-btn" onClick={executeTransfer} disabled={loading}>
+                  {loading ? 'Transferring...' : <><CheckCircle size={18} /> Execute Transfer</>}
                 </button>
               </div>
             )}
-          </div>
+          </aside>
         </div>
       )}
 
       {activeTab === 'history' && (
-        <div style={{ padding: '0 24px 24px' }}>
-          <div
-            style={{
-              padding: '12px 0',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              borderBottom: '1px solid #eee',
-              marginBottom: 8,
-            }}
-          >
-            <label style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-              Filter by date:
-            </label>
+        <div className="dt-history">
+          <div className="dt-history-filter">
+            <label>Filter by date:</label>
             <input
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              style={{
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: '1px solid #ddd',
-                fontSize: 14,
-              }}
+              className="dt-date-input"
             />
             {filterDate && (
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setFilterDate('')}
-              >
-                Clear
-              </button>
+              <button className="dt-clear-btn" onClick={() => setFilterDate('')}>Clear</button>
             )}
           </div>
 
           {historyLoading ? (
-            <div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>
+            <div className="dt-empty">Loading...</div>
           ) : groupedHistory.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: '#888' }}>
-              No transfer history {filterDate ? `for ${filterDate}` : 'yet'}
+            <div className="dt-empty">
+              <History size={40} />
+              <p>No transfer history found</p>
             </div>
           ) : (
             groupedHistory.map((group) => (
-              <div key={group.key} style={{ marginTop: 24 }}>
-                <div
-                  style={{
-                    background: '#f0f4ff',
-                    border: '1px solid #d0d9f0',
-                    borderRadius: 8,
-                    padding: '8px 16px',
-                    fontWeight: 700,
-                    fontSize: 15,
-                    color: '#3a4a8a',
-                    marginBottom: 8,
-                  }}
-                >
-                  {group.label}
-                </div>
-                <table className="inventory-table" style={{ marginBottom: 0 }}>
+              <div key={group.key} style={{ marginBottom: '2.5rem' }}>
+                <div className="dt-date-header">{group.label}</div>
+                <div style={{ overflowX: 'auto' }}>
+                <table className="dt-table">
                   <thead>
                     <tr>
                       <th>Time</th>
-                      <th>Item</th>
-                      <th>Qty Transferred</th>
+                      <th>Item Name</th>
+                      <th>Qty</th>
                       <th>From</th>
                       <th>To</th>
                     </tr>
@@ -494,19 +320,16 @@ const DailyTransfer = () => {
                   <tbody>
                     {group.items.map((rec, i) => (
                       <tr key={rec.id || i}>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          {formatTime(rec.timestamp)}
-                        </td>
-                        <td>
-                          <strong>{rec.menuItemName}</strong>
-                        </td>
-                        <td>{rec.quantity}</td>
+                        <td>{formatTime(rec.timestamp)}</td>
+                        <td><strong>{rec.menuItemName}</strong></td>
+                        <td style={{ fontWeight: 800 }}>{rec.quantity}</td>
                         <td>Godown</td>
                         <td>Counter</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             ))
           )}

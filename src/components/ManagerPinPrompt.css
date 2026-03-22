@@ -39,7 +39,7 @@
 .manager-pin-header {
   position: relative;
   padding: 24px 32px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #FF9F43;
   color: white;
   display: flex;
   align-items: center;
@@ -117,7 +117,7 @@
 
 .pin-input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #FF9F43;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -147,7 +147,7 @@
 }
 
 .pin-dot.filled {
-  background: #667eea;
+  background: #FF9F43;
   transform: scale(1.2);
 }
 
@@ -235,7 +235,7 @@
 }
 
 .manager-pin-actions .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #FF9F43;
   color: white;
 }
 

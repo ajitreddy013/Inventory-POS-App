@@ -198,9 +198,15 @@ function AppContent() {
       {/* Sidebar */}
       <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
-          {sidebarOpen && <h2>CounterFlow POS</h2>}
+          {sidebarOpen ? (
+            <div className="logo-container">
+              <div className="logo-text">
+                Counter<span className="logo-accent">Flow</span> POS
+              </div>
+            </div>
+          ) : null}
           <button onClick={toggleSidebar} className="toggle-btn">
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
 
@@ -222,15 +228,12 @@ function AppContent() {
           })}
         </nav>
 
-        {sidebarOpen && (
-          <div className="sidebar-footer">
-            <div className="user-info">
-              <span>Welcome, {currentUser}</span>
-              <br />
-              <span className="current-tab">Current: {location.pathname}</span>
-            </div>
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <span className="user-label">Profile</span>
+            <span className="current-user">{currentUser}</span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Main Content */}

@@ -650,7 +650,13 @@ class Database {
     
     // Validate each item
     items.forEach((item, index) => {
-      if (!item.productId || !Number.isInteger(Number(item.productId)) || Number(item.productId) <= 0) {
+      // Allow integer IDs for local products or string IDs for Firestore menu items
+      const isIntegerId =
+        Number.isInteger(Number(item.productId)) && Number(item.productId) > 0;
+      const isStringId =
+        typeof item.productId === 'string' && item.productId.trim().length > 0;
+
+      if (!item.productId || (!isIntegerId && !isStringId)) {
         throw new Error(`Item ${index + 1}: Invalid product ID`);
       }
       if (!item.quantity || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
@@ -725,6 +731,10 @@ class Database {
               let itemsProcessed = 0;
 
               items.forEach((item) => {
+                const isLocalProduct =
+                  Number.isInteger(Number(item.productId)) &&
+                  Number(item.productId) > 0;
+
                 // Insert sale item
                 db.run(
                   `
@@ -733,56 +743,69 @@ class Database {
               `,
                   [
                     saleId,
-                    Number(item.productId),
+                    isLocalProduct ? Number(item.productId) : item.productId,
                     Number(item.quantity),
                     item.unitPrice,
                     item.totalPrice,
                   ],
                   (err) => {
                     if (err) {
-                      db.run("ROLLBACK");
+                      db.run('ROLLBACK');
                       reject(err);
                       return;
                     }
 
-                    // Update counter stock
-                    db.run(
-                      `
+                    if (isLocalProduct) {
+                      // Update local inventory (only for local products)
+                      db.run(
+                        `
                   UPDATE inventory 
                   SET counter_stock = counter_stock - ?
                   WHERE product_id = ?
                 `,
-                      [Number(item.quantity), Number(item.productId)],
-                      (err) => {
-                        if (err) {
-                          db.run("ROLLBACK");
-                          reject(err);
-                          return;
-                        }
+                        [Number(item.quantity), Number(item.productId)],
+                        (err) => {
+                          if (err) {
+                            db.run('ROLLBACK');
+                            reject(err);
+                            return;
+                          }
 
-                        // Record stock movement
-                        db.run(
-                          `
+                          // Record stock movement (only for local products)
+                          db.run(
+                            `
                     INSERT INTO stock_movements (product_id, movement_type, quantity, from_location, reference_id)
                     VALUES (?, 'out', ?, 'counter', ?)
                   `,
-                          [Number(item.productId), Number(item.quantity), saleId],
-                          (err) => {
-                            if (err) {
-                              db.run("ROLLBACK");
-                              reject(err);
-                              return;
-                            }
+                            [
+                              Number(item.productId),
+                              Number(item.quantity),
+                              saleId,
+                            ],
+                            (err) => {
+                              if (err) {
+                                db.run('ROLLBACK');
+                                reject(err);
+                                return;
+                              }
 
-                            itemsProcessed++;
-                            if (itemsProcessed === items.length) {
-                              db.run("COMMIT");
-                              resolve({ id: saleId, ...validatedSaleData });
+                              itemsProcessed++;
+                              if (itemsProcessed === items.length) {
+                                db.run('COMMIT');
+                                resolve({ id: saleId, ...validatedSaleData });
+                              }
                             }
-                          }
-                        );
+                          );
+                        }
+                      );
+                    } else {
+                      // Skip stock update for Firestore items
+                      itemsProcessed++;
+                      if (itemsProcessed === items.length) {
+                        db.run('COMMIT');
+                        resolve({ id: saleId, ...validatedSaleData });
                       }
-                    );
+                    }
                   }
                 );
               });
